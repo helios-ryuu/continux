@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector
+  namespace: pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: vector }
+  template:
+    metadata:
+      labels: { app: vector }
+    spec:
+      nodeSelector: { role: data-plane }
+      containers:
+        - name: vector
+          image: timberio/vector:0.45.0-alpine
+          args: ["--config", "/etc/vector/vector.toml"]
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+          env:
+            - name: VECTOR_THROUGHPUT_EVENTS_PER_SEC
+              value: "5000"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: vector-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: vector-data

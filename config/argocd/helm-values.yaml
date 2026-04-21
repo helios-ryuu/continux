@@ -1,0 +1,20 @@
+global:
+  nodeSelector: { role: control-plane }
+  tolerations:
+    - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
+
+controller:
+  resources:
+    requests: { memory: 256Mi }
+
+repoServer:
+  resources:
+    requests: { memory: 128Mi }
+
+server:
+  resources:
+    requests: { memory: 128Mi }
+
+configs:
+  params:
+    server.insecure: "true"

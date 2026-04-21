@@ -1,0 +1,23 @@
+nodeSelector:
+  role: data-plane
+
+statefulset:
+  replicas: 1
+
+resources:
+  cpu:    { cores: 1 }
+  memory:
+    container: { max: 1.5Gi }
+  reserveMemory: 128Mi
+
+storage:
+  persistentVolume:
+    enabled: true
+    size: 10Gi
+    storageClass: local-path
+
+tls:
+  enabled: false
+
+external:
+  enabled: false

@@ -1,0 +1,20 @@
+vmsingle:
+  enabled: true
+  spec:
+    retentionPeriod: "7d"
+    storage:
+      accessModes: ["ReadWriteOnce"]
+      resources: { requests: { storage: 10Gi } }
+    resources:
+      requests: { memory: 256Mi, cpu: 100m }
+      limits:   { memory: 512Mi, cpu: 500m }
+    nodeSelector: { role: control-plane }
+    tolerations:
+      - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
+
+vmagent:
+  enabled: true
+  spec:
+    nodeSelector: { role: control-plane }
+    tolerations:
+      - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }

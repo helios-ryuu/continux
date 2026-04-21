@@ -1,0 +1,19 @@
+mode: standalone
+nodeSelector:
+  role: data-plane
+
+persistence:
+  size: 40Gi
+  storageClass: local-path
+
+resources:
+  requests: { memory: 256Mi, cpu: 100m }
+  limits:   { memory: 512Mi, cpu: 500m }
+
+rootUser: adminuser
+rootPassword: ref+sops://secrets.yaml#minio.root
+
+buckets:
+  - { name: iceberg-data, policy: none }
+  - { name: rw-checkpoint, policy: none }
+  - { name: tlc-zone, policy: none }

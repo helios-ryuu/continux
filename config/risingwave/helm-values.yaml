@@ -1,0 +1,45 @@
+global:
+  nodeSelector: { role: data-plane }
+
+metaStore:
+  sqlite:
+    enabled: true
+
+stateStore:
+  dataDirectory: hummock001
+  s3:
+    enabled: true
+    endpoint: http://minio.minio.svc.cluster.local:9000
+    bucket:   rw-checkpoint
+    region:   us-east-1
+    accessKey: ref+sops://secrets.yaml#rw.access
+    secretKey: ref+sops://secrets.yaml#rw.secret
+    forcePathStyle: true
+
+iceberg:
+  catalog:
+    type: hosted
+
+compute:
+  replicas: 1
+  resources:
+    requests: { cpu: 500m, memory: 1.5Gi }
+    limits:   { cpu: 2,    memory: 2.5Gi }
+
+meta:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+frontend:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+compactor:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
