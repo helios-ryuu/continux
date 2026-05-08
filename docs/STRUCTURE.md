@@ -152,20 +152,22 @@ continux/
 ### 2.5. Node placement qua `nodeSelector` + `tolerations`
 
 Cluster có hai node với vai trò khác nhau (xem [SETUP.md §0](./SETUP.md#0-tổng-quan-hạ-tầng)):
-- `continux-imac` (iMac, 8 GB) — label `role=data-plane`; dành cho workload nặng (MinIO, Redpanda, RisingWave, Vector).
-- `continux-vps` (Droplet, 4 GB) — label `role=control-plane`, taint `dedicated=edge:NoSchedule`; chỉ chấp nhận workload nhẹ có `toleration` tương ứng (ArgoCD, VictoriaMetrics, Grafana).
+- `continux-imac` (iMac, 8 GB) — giữ mặc định K3s control-plane, gán label `workload=heavy`; dành cho workload nặng (MinIO, Redpanda, RisingWave, Vector).
+- `continux-vps` (Droplet, 4 GB) — giữ mặc định K3s control-plane, gán label `workload=light`, taint `dedicated=edge:NoSchedule`; chỉ chấp nhận workload nhẹ có `toleration` tương ứng (ArgoCD, VictoriaMetrics, Grafana).
 
 Mọi `helm-values.yaml` trong `config/` **bắt buộc** khai báo:
 
 ```yaml
-# Ví dụ cho workload nặng
+# Workload nặng → continux-imac (MinIO, Redpanda, RisingWave, Vector)
 nodeSelector: { role: data-plane }
 
-# Ví dụ cho workload nhẹ
+# Workload nhẹ → continux-vps (ArgoCD, VictoriaMetrics, Grafana)
 nodeSelector: { role: control-plane }
 tolerations:
   - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
 ```
+
+> **Lưu ý:** Mỗi node được gán **hai label** (`role` + `workload`) tại §5.3 của SETUP.md. Config files dùng `role` làm selector chính; `workload` dùng để phân loại trong troubleshooting.
 
 Quy ước này giúp scheduler không nhầm RisingWave vào Droplet (sẽ OOM) và không nhầm Grafana vào iMac (ăn RAM của data plane).
 

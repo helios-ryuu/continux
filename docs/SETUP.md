@@ -1,8 +1,6 @@
 # SETUP — HƯỚNG DẪN THIẾT LẬP TOÀN DIỆN
 
 > **Mục đích:** giúp một thành viên mới (hoặc GVHD) dựng lại toàn bộ hệ thống từ con số không, đúng theo kiến trúc trong [PROPOSE.md](./PROPOSE.md), [STRUCTURE.md](./STRUCTURE.md) và đáp ứng [REQUIREMENT.md](./REQUIREMENT.md).
-> **Phạm vi:** cài đặt — cấu hình — chạy thử — gỡ lỗi. Không thay thế docs chính thức của từng công cụ; mọi liên kết ngoài đều trỏ về docs gốc.
-> **Thời gian ước tính:** 5–7 giờ khi thao tác lần đầu; 1–2 giờ nếu đã quen K3s + ArgoCD.
 
 ---
 
@@ -12,25 +10,25 @@
 
 | Vai trò | Máy | Cấu hình | OS | Vị trí mạng |
 |---------|-----|----------|----|-------------|
-| `continux-imac` (K3s **server**) | iMac19,2 | Intel i5-8500, 6 cores, 8 GB DDR4, 200 GB SSD | **Ubuntu Server 24.04.4 LTS** (đã cài sẵn) | LAN nhà — sau NAT |
-| `continux-vps` (K3s **agent**) | DigitalOcean Droplet — gói **$12/mo** (nâng lên **$24/mo** khi cần) | 1 vCPU, 2 GB RAM, 50 GB SSD, 2 TB transfer → 2 vCPU, 4 GB RAM, 80 GB SSD, 4 TB transfer | **Ubuntu 24.04 LTS** | Public IPv4/IPv6 |
+| `continux-imac` (K3s **server #1**) | iMac19,2 | Intel i5-8500, 6 cores, 8 GB DDR4, 200 GB SSD | **Ubuntu Server 24.04.4 LTS** (đã cài sẵn) | LAN nhà — sau NAT |
+| `continux-vps` (K3s **server #2**) | DigitalOcean Droplet — gói **$12/mo** (nâng lên **$24/mo** khi cần) | 1 vCPU, 2 GB RAM, 50 GB SSD, 2 TB transfer → 2 vCPU, 4 GB RAM, 80 GB SSD, 4 TB transfer | **Ubuntu 24.04 LTS** | Public IPv4/IPv6 |
 
 > **Chiến lược chọn gói:** Bắt đầu với gói **$12/mo** (1 vCPU, 2 GB RAM) — đủ RAM để chạy ArgoCD + VictoriaMetrics hoặc Grafana riêng lẻ trong giai đoạn phát triển. Nâng lên **$24/mo** (2 vCPU, 4 GB RAM) khi cần chạy đầy đủ cả ba service cùng lúc liên tục (~800 MB + ~512 MB + ~256 MB = ~1.6 GB). Việc resize Droplet trên DigitalOcean chỉ mất 1–2 phút và giữ nguyên IP, không cần cấu hình lại cluster.
 >
-> **Lý do iMac làm server (không phải droplet):** iMac có RAM gấp đôi (8 GB) và SSD 200 GB — đủ chỗ cho data plane nặng (RisingWave + MinIO + Redpanda). Dữ liệu Iceberg nằm trên iMac giúp tránh chi phí egress từ droplet.
+> **Lý do iMac làm workflow chính (không phải droplet):** iMac có RAM gấp đôi (8 GB) và SSD 200 GB — đủ chỗ cho data plane nặng (RisingWave + MinIO + Redpanda). Dữ liệu Iceberg nằm trên iMac giúp tránh chi phí egress từ droplet.
 
 ### 0.2. Phân bổ workload
 
 ```
-┌────────────────────── continux-imac (iMac, K3s server, 8GB) ──────────────────────┐
-│                                                                                   │
-│   Vector ─▶ Redpanda ─▶ RisingWave (Compute + Meta + Frontend) ─▶ MinIO          │
-│                              │                                    (iceberg-data) │
-│                              └─ state ──▶ MinIO (rw-checkpoint)                  │
+┌────────────────────── continux-imac (iMac, K3s server #1, 8GB) ─────────────────────┐
+│                                                                                     │
+│   Vector ─▶ Redpanda ─▶ RisingWave (Compute + Meta + Frontend) ─▶ MinIO           │
+│                              │                                    (iceberg-data)    │
+│                              └─ state ──▶ MinIO (rw-checkpoint)                    │
 └───────────────────────────────────────────────────────────────────────────────────┘
                                   │  (Tailscale overlay)
                                   ▼
-┌─────────────────── continux-vps (DigitalOcean Droplet, K3s agent, 2GB→4GB) ──────────┐
+┌─────────────────── continux-vps (DigitalOcean Droplet, K3s server #2, 2GB→4GB) ─────────────────────┐
 │                                                                                   │
 │   ArgoCD  ──  VictoriaMetrics  ──  Grafana                                        │
 │     (public UI, điều phối GitOps, dashboard truy cập từ internet)                 │
@@ -41,14 +39,22 @@
 
 | Máy | Vai trò | Khi nào dùng |
 |-----|---------|-------------|
-| Desktop i7 (32 GB DDR5) — Win | **Dự phòng cụm** | Join thêm làm K3s agent thứ 3 khi cần burst; chạy WSL2 Ubuntu 24.04 |
+| Desktop i7 (32 GB DDR5) — Win | **Dự phòng cụm** | Join thêm làm K3s worker thứ 3 khi cần burst; chạy WSL2 Ubuntu 24.04 |
 
 Mọi lệnh quản trị (`kubectl`, `helm`, `argocd`, `rpk`, `mc`, `psql`) chạy trực tiếp trên `continux-imac`.
 
-### 0.4. Liên kết mạng (Tailscale)
+### 0.4. Ký hiệu máy dùng trong tài liệu này
 
-- Droplet có public IP nhưng iMac sau NAT nhà → không mở port trực tiếp.
-- Giải pháp: **Tailscale Mesh VPN** (miễn phí tier cá nhân đến 100 thiết bị). K3s từ **v1.27+** hỗ trợ tham số `--vpn-auth` dùng Tailscale làm node IP.
+| Ký hiệu | Nghĩa |
+|---------|-------|
+| **`[continux-imac]`** | iMac Ubuntu — data plane, lệnh quản trị cluster |
+| **`[continux-vps]`** | DigitalOcean Droplet — observability, ArgoCD |
+| **`[cả hai máy]`** | Chạy trên cả `continux-imac` lẫn `continux-vps` |
+| **`[local]`** | Máy phát triển cục bộ (Windows/Mac) — git push, SSH vào VPS |
+
+### 0.5. Liên kết mạng (Tailscale)
+
+- **Tailscale Mesh VPN** (miễn phí tier cá nhân đến 100 thiết bị). K3s từ **v1.27+** hỗ trợ tham số `--vpn-auth` dùng Tailscale làm node IP.
 - Ưu điểm: mã hoá end-to-end, stable IP trong range `100.x.x.x`, không cần cấu hình firewall phức tạp.
 
 ---
@@ -70,8 +76,6 @@ Mọi lệnh quản trị (`kubectl`, `helm`, `argocd`, `rpk`, `mc`, `psql`) ch�
 | Tailscale | **1.80+** | `tailscale version` |
 | Apache Iceberg spec | v2 bắt buộc, v3 thử nghiệm | Metadata file |
 
-> Tất cả phiên bản liệt kê là **tối thiểu**. Khi setup, luôn kéo bản mới nhất (Helm chart version mới nhất) trừ khi có lý do pin chặt.
-
 ---
 
 ## 2. Bản đồ 10 bước (Quickstart)
@@ -79,8 +83,8 @@ Mọi lệnh quản trị (`kubectl`, `helm`, `argocd`, `rpk`, `mc`, `psql`) ch�
 ```
 1. Chuẩn bị hai máy (iMac Ubuntu + Droplet Ubuntu) & bật SSH khoá công khai
 2. Cài Tailscale trên hai máy, nối chúng vào một tailnet
-3. Cài K3s server trên iMac (dùng Tailscale IP làm node IP)
-4. Join Droplet làm K3s agent qua Tailscale
+3. Cài K3s server #1 trên iMac (cluster-init, dùng Tailscale IP làm node IP)
+4. Join Droplet làm K3s server #2 qua Tailscale
 5. Cài CLI trên continux-imac (kubectl, helm, argocd, rpk, mc, psql)
 6. Cài Argo CD lên continux-vps và kết nối repo GitOps
 7. Deploy hạ tầng: MinIO → Redpanda → RisingWave (continux-imac)
@@ -98,6 +102,8 @@ Nếu đủ 10 bước, Grafana dashboard cho Consumer Lag ≤ 2s, và `SELECT C
 ### 3.1. iMac `continux-imac` (Ubuntu 24.04 đã cài)
 
 Đã có `helios@helios-imac-ubuntu` chạy sẵn. Thêm các bước sau:
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 # Cập nhật hệ thống
@@ -132,21 +138,34 @@ Tạo droplet:
 - Plan: **Basic — Regular / $12/mo** (1 vCPU, 2 GB RAM, 50 GB SSD, 2 TB transfer) — giai đoạn đầu. Resize lên **$24/mo** (2 vCPU, 4 GB RAM, 80 GB SSD) khi cần chạy full observability stack liên tục.
 - Authentication: **SSH key** (upload public key `~/.ssh/id_ed25519.pub`).
 - Hostname: `continux-vps`.
-- (Tuỳ chọn) bật **Monitoring** miễn phí, **Backups** không cần thiết (dữ liệu quan trọng đã ở Git).
 
 Sau khi boot:
 
+> **Thực thi trên:** `local` → SSH vào VPS lần đầu bằng root
+
 ```bash
 ssh root@<droplet-ip>
+```
 
+> **Thực thi trên:** `continux-vps` (đang là **root**)
+
+```bash
 # Tạo user non-root (đừng làm việc bằng root)
 adduser continux
 usermod -aG sudo continux
 rsync --archive --chown=continux:continux ~/.ssh /home/continux
 exit
+```
 
+> **Thực thi trên:** `local` → SSH lại bằng user thường
+
+```bash
 ssh continux@<droplet-ip>
+```
 
+> **Thực thi trên:** `continux-vps` (đang là **continux**)
+
+```bash
 # Các bước giống iMac
 sudo apt update && sudo apt -y upgrade
 sudo swapoff -a
@@ -166,11 +185,15 @@ sudo ufw allow from 10.43.0.0/16 to any #services
 
 ### 4.1. Cài Tailscale trên cả hai máy
 
+> **Thực thi trên:** `cả hai máy` — lần lượt trên `continux-imac` rồi `continux-vps`
+
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 ```
 
 ### 4.2. Đăng ký vào cùng một tailnet
+
+> **Thực thi trên:** `cả hai máy` — lần lượt trên `continux-imac` rồi `continux-vps`
 
 ```bash
 sudo tailscale up
@@ -178,6 +201,8 @@ sudo tailscale up
 ```
 
 Verify ở cả hai máy:
+
+> **Thực thi trên:** `cả hai máy`
 
 ```bash
 tailscale status
@@ -190,10 +215,15 @@ Ghi lại hai IP Tailscale — ta sẽ dùng làm **node IP của K3s** ở bư�
 
 ### 4.3. Kiểm tra kết nối
 
+> **Thực thi trên:** `continux-vps`
+
 ```bash
-# Từ continux-vps
 ping -c 3 continux-imac     # Magic DNS giải IP tailscale
-# Từ continux-imac
+```
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
 ping -c 3 continux-vps
 ```
 
@@ -203,78 +233,103 @@ Nếu cả hai ping được thì mesh đã hoạt động.
 
 ## 5. Bootstrap cụm K3s
 
-### 5.1. Cài K3s server trên iMac
+### 5.1. Cài K3s server #1 trên iMac (cluster-init)
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
-# Trên iMac
 TAILSCALE_IP_COMPUTE=$(tailscale ip -4)
 
 curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+    --cluster-init \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
     --disable=servicelb \
+    --disable=local-storage \
+    --disable=metrics-server \
     --node-name=continux-imac \
     --node-ip=${TAILSCALE_IP_COMPUTE} \
     --advertise-address=${TAILSCALE_IP_COMPUTE} \
     --flannel-iface=tailscale0 \
-    --tls-san=${TAILSCALE_IP_COMPUTE}
+    --tls-san=${TAILSCALE_IP_COMPUTE} \
+    --etcd-expose-metrics=true
 ```
 
-Giải thích cờ:
-- `--disable=traefik,servicelb`: đồ án chỉ dùng port-forward + (sau này) `ingress-nginx` trên continux-vps.
-- `--node-ip/--advertise-address`: buộc node dùng IP Tailscale (không phải IP LAN `192.168.x.x`).
-- `--flannel-iface=tailscale0`: mạng pod-to-pod đi qua Tailscale.
-- `--tls-san`: thêm IP Tailscale vào chứng chỉ API server.
+#### Giải thích chi tiết các tham số cấu hình K3s (Flags Explanation)
+
+| Tham số | Ý nghĩa kỹ thuật | Vai trò trong đồ án |
+|:---|:---|:---|
+| `--cluster-init` | Kích hoạt chế độ Cluster Initialization sử dụng **embedded etcd**. | Cho phép cụm chạy ở chế độ High Availability (HA). Giúp em có thể thêm các node `server` khác (như VPS) vào chung một control-plane. |
+| `--write-kubeconfig-mode=644` | Thiết lập quyền hạn cho file cấu hình `/etc/rancher/k3s/k3s.yaml`. | Quyền **644** cho phép người dùng không phải root (non-root users) có thể đọc file config, giúp em chạy lệnh `kubectl` dễ dàng hơn. |
+| `--disable=traefik` | Vô hiệu hóa Ingress Controller mặc định (Traefik). | Tối ưu tài nguyên (RAM) cho VPS/iMac. Thay thế bằng **Cloudflare Tunnel** để mở kết nối ra Internet an toàn hơn. |
+| `--disable=servicelb` | Tắt bộ cân bằng tải nội bộ (Klipper LB) của K3s. | Tránh xung đột port và tiết kiệm tài nguyên, vì đồ án tập trung dùng **Port-forward** và **Cloudflare Tunnel**. |
+| `--disable=local-storage` | Tắt trình quản lý lưu trữ local mặc định của K3s. | Phù hợp với kiến trúc **Data Lakehouse** khi em sử dụng **MinIO** làm Object Storage thay vì lưu trữ file system truyền thống. |
+| `--disable=metrics-server` | Tắt dịch vụ thu thập chỉ số mặc định của K3s. | Tránh lãng phí RAM. Em sẽ thay thế bằng bộ **VictoriaMetrics + Grafana** mạnh mẽ và chi tiết hơn. |
+| `--node-name` | Định danh tên duy nhất cho Node trong cụm. | Giúp em phân biệt rõ ràng giữa `continux-imac` (xử lý dữ liệu) và `continux-vps` (điều phối/giám sát). |
+| `--node-ip` | Chỉ định địa chỉ IP chính xác cho Node sử dụng. | Ép K3s sử dụng **IP Tailscale**, đảm bảo tính ổn định của mạng mesh ngay cả khi địa chỉ LAN (`192.168.x.x`) thay đổi. |
+| `--advertise-address` | Địa chỉ IP mà Node dùng để quảng bá tới các Node khác. | Đảm bảo các node khác (như VPS) biết chính xác IP Tailscale nào để kết nối vào API Server của iMac. |
+| `--flannel-iface=tailscale0` | Chỉ định Interface mạng cho Flannel (CNI). | Buộc lưu lượng **Pod-to-Pod** (traffic giữa các container) phải đi qua đường ống mã hóa của **Tailscale**, giúp kết nối iMac và VPS an toàn. |
+| `--tls-san` | Thêm IP/Hostname vào Subject Alternative Name của chứng chỉ SSL. | Cho phép em gọi API Server từ xa thông qua IP Tailscale mà không bị lỗi bảo mật chứng chỉ (`certificate signed by unknown authority`). |
+| `--etcd-expose-metrics=true` | Mở cổng để truy xuất các chỉ số vận hành của database etcd. | Phục vụ cho việc **Monitoring**. Em có thể dùng VictoriaMetrics để theo dõi sức khỏe database, tránh tình trạng "treo" cụm. |
 
 Lấy join token & kubeconfig:
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 sudo cat /var/lib/rancher/k3s/server/node-token # → copy lại
 ```
 
-### 5.2. Cài K3s agent trên Droplet
+### 5.2. Cài K3s server #2 trên Droplet
+
+> **Thực thi trên:** `continux-vps`
 
 ```bash
-# Trên Droplet
 TAILSCALE_IP_EDGE=$(tailscale ip -4)
 K3S_URL="https://<tailscale-ip-compute>:6443"
-K3S_TOKEN="<token-ở-bước-5.1>"
+K3S_TOKEN="<token-lấy-từ-iMac>"
 
-curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - agent \
-    --server=${K3S_URL} \
-    --token=${K3S_TOKEN} \
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+    --server="${K3S_URL}" \
+    --token="${K3S_TOKEN}" \
+    --write-kubeconfig-mode=644 \
+    --disable=traefik \
+    --disable=servicelb \
+    --disable=local-storage \
+    --disable=metrics-server \
     --node-name=continux-vps \
-    --node-ip=${TAILSCALE_IP_EDGE} \
+    --node-ip="${TAILSCALE_IP_EDGE}" \
+    --advertise-address="${TAILSCALE_IP_EDGE}" \
     --flannel-iface=tailscale0
 ```
 
 ### 5.3. Gán label phân biệt vai trò
 
-Trên iMac:
+> **Thực thi trên:** `continux-imac`
 
 ```bash
-kubectl label node continux-imac role=data-plane workload=heavy
-kubectl label node continux-vps role=control-plane workload=light
-kubectl taint node continux-vps dedicated=edge:NoSchedule    # chỉ pod có toleration mới chạy trên edge
+kubectl label node continux-imac workload=heavy role=data-plane
+kubectl label node continux-vps  workload=light  role=control-plane
+kubectl taint node continux-vps dedicated=edge:NoSchedule # chỉ pod có toleration mới chạy trên edge
 ```
 
 Sau này Helm values sẽ dùng:
-- Workload nặng (MinIO, Redpanda, RisingWave, Vector): `nodeSelector: { role: data-plane }`
-- Workload nhẹ (ArgoCD, VM, Grafana): `nodeSelector: { role: control-plane }` + `tolerations` cho `dedicated=edge`.
+- Workload nặng (MinIO, Redpanda, RisingWave, Vector): `nodeSelector: { workload: heavy }`
+- Workload nhẹ (ArgoCD, VM, Grafana): `nodeSelector: { workload: light }` + `tolerations` cho `dedicated=edge`.
 
 ### 5.4. Verify
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 kubectl get nodes -o wide
-# NAME            STATUS   ROLES           AGE   VERSION        INTERNAL-IP       EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
-# continux-imac   Ready    control-plane   42m   v1.34.6+k3s1   100.102.51.39     <none>        Ubuntu 24.04.4 LTS   6.8.0-110-generic   containerd://2.2.2-bd1.34
-# continux-vps    Ready    <none>          40m   v1.34.6+k3s1   100.121.142.117   <none>        Ubuntu 24.04.4 LTS   6.8.0-110-generic   containerd://2.2.2-bd1.34
+# NAME            STATUS   ROLES                AGE     VERSION        INTERNAL-IP       EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+# continux-imac   Ready    control-plane,etcd   7m53s   v1.34.6+k3s1   100.102.51.39     <none>        Ubuntu 24.04.4 LTS   6.8.0-110-generic   containerd://2.2.2-bd1.34
+# continux-vps    Ready    control-plane,etcd   30s     v1.34.6+k3s1   100.121.142.117   <none>        Ubuntu 24.04.4 LTS   6.8.0-110-generic   containerd://2.2.2-bd1.34
 
 kubectl get pods -A
-# NAMESPACE     NAME                                      READY   STATUS    RESTARTS   AGE
-# kube-system   coredns-76c974cb66-fmc8x                  1/1     Running   0          42m
-# kube-system   local-path-provisioner-8686667995-6t5tq   1/1     Running   0          42m
-# kube-system   metrics-server-c8774f4f4-q7jjc            1/1     Running   0          42m
+# NAMESPACE     NAME                       READY   STATUS    RESTARTS   AGE
+# kube-system   coredns-76c974cb66-69wvj   1/1     Running   0          8m23s
 ```
 
 ---
@@ -284,6 +339,8 @@ kubectl get pods -A
 Tất cả lệnh quản trị cluster chạy trực tiếp trên `continux-imac`.
 
 ### 6.1. Cài CLI
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 sudo apt install -y unzip postgresql-client
@@ -312,6 +369,8 @@ chmod +x mc && sudo mv mc /usr/local/bin/
 
 Verify:
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 kubectl version --short
 # Client Version: v1.34.6+k3s1
@@ -319,9 +378,9 @@ kubectl version --short
 # Server Version: v1.34.6+k3s1
 
 kubectl get nodes
-# NAME            STATUS   ROLES           AGE   VERSION
-# continux-imac   Ready    control-plane   38m   v1.34.6+k3s1
-# continux-vps    Ready    <none>          36m   v1.34.6+k3s1
+# NAME            STATUS   ROLES                AGE     VERSION
+# continux-imac   Ready    control-plane,etcd   9m27s   v1.34.6+k3s1
+# continux-vps    Ready    control-plane,etcd   2m4s    v1.34.6+k3s1
 
 helm version
 # version.BuildInfo{Version:"v4.1.1", GitCommit:"5caf0044d4ef3d62a955440272999e139aafbbed", GitTreeState:"clean", GoVersion:"go1.25.7", KubeClientVersion:"v1.35"}
@@ -352,6 +411,30 @@ psql --version
 # psql (PostgreSQL) 16.13 (Ubuntu 16.13-0ubuntu0.24.04.1)
 ```
 
+### 6.2. Tạo K8s Secrets cho credentials (bắt buộc trước §8)
+
+MinIO và RisingWave đọc credentials từ K8s Secret thay vì hardcode vào Helm values — tạo trước khi ArgoCD sync.
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+# Namespace cần tạo trước
+kubectl create namespace minio      --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace risingwave --dry-run=client -o yaml | kubectl apply -f -
+
+# Secret cho MinIO (chart đọc key: rootUser, rootPassword)
+kubectl -n minio create secret generic minio-credentials \
+    --from-literal=rootUser=adminuser \
+    --from-literal=rootPassword=<minio-root-password>
+
+# Secret cho RisingWave state store S3/MinIO (chart đọc key: AccessKeyID, SecretAccessKey)
+kubectl -n risingwave create secret generic risingwave-s3-credentials \
+    --from-literal=AccessKeyID=<rw-access-key> \
+    --from-literal=SecretAccessKey=<rw-secret-key>
+```
+
+> ⚠️ Thay `<minio-root-password>`, `<rw-access-key>`, `<rw-secret-key>` bằng giá trị thực trước khi chạy. Hai key MinIO này phải khớp với access key tạo ở §8.1.
+
 ---
 
 ## 7. Cài Argo CD trên continux-vps
@@ -360,13 +443,15 @@ psql --version
 
 Helm values: [`config/argocd/helm-values.yaml`](../config/argocd/helm-values.yaml)
 
+> **Thực thi trên:** `continux-imac` — kubectl/helm quản lý cluster từ đây
+
 ```bash
 kubectl create namespace argocd
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 helm install argocd argo/argo-cd \
     --namespace argocd \
-    --version '7.*' \
+    --version '^7.0.0' \
     -f config/argocd/helm-values.yaml
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
 ```
@@ -386,6 +471,8 @@ ArgoCD UI và Grafana được expose qua Cloudflare Tunnel — không cần por
 
 **b. Lưu token vào K8s Secret:**
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 kubectl -n argocd create secret generic cloudflare-tunnel-token \
     --from-literal=token=<TOKEN_FROM_DASHBOARD>
@@ -393,12 +480,16 @@ kubectl -n argocd create secret generic cloudflare-tunnel-token \
 
 **c. Deploy cloudflared trong cluster** ([`config/argocd/cloudflared.yaml`](../config/argocd/cloudflared.yaml)):
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 kubectl apply -f config/argocd/cloudflared.yaml
 kubectl -n argocd rollout status deploy/cloudflared
 ```
 
 **d. Lấy password admin lần đầu:**
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -408,6 +499,8 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 Mở `https://argocd.<domain>` → đăng nhập `admin` / password trên, **đổi password ngay** (NFR-17).
 
 ### 7.3. Kết nối repo GitOps
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 argocd login argocd.<domain> --username admin --password <new>
@@ -434,6 +527,8 @@ Helm values: [`config/minio/helm-values.yaml`](../config/minio/helm-values.yaml)
 
 Tạo access key riêng cho từng service (least-privilege, NFR-15):
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 kubectl -n minio port-forward svc/minio-console 9001:9001
 # UI: http://localhost:9001 → Identity → Service Accounts
@@ -445,6 +540,8 @@ kubectl -n minio port-forward svc/minio-console 9001:9001
 Helm values: [`config/redpanda/helm-values.yaml`](../config/redpanda/helm-values.yaml)
 
 Apply xong:
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 argocd app sync redpanda
@@ -462,6 +559,8 @@ Helm values: [`config/risingwave/helm-values.yaml`](../config/risingwave/helm-va
 
 Sync:
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 argocd app sync risingwave
 kubectl -n risingwave rollout status statefulset/risingwave-compute --timeout=300s
@@ -478,6 +577,17 @@ Manifest: [`config/vector/deployment.yaml`](../config/vector/deployment.yaml) ·
 
 Cấu hình Vector: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.toml) — xem §10.2.
 
+`vector/deployment.yaml` mount ConfigMap `vector-config` — phải tạo trước khi apply Deployment:
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+kubectl create namespace pipeline --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n pipeline create configmap vector-config \
+    --from-file=vector.toml=pipelines/vector/vector.toml \
+    --dry-run=client -o yaml | kubectl apply -f -
+```
+
 ---
 
 ## 9. Deploy observability trên `continux-vps`
@@ -485,6 +595,14 @@ Cấu hình Vector: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.
 ### 9.1. VictoriaMetrics
 
 Helm values: [`config/victoria-metrics/helm-values.yaml`](../config/victoria-metrics/helm-values.yaml)
+
+> **Lưu ý:** Grafana datasource URL hardcode service name `vmsingle-victoria-metrics` — service name này được tạo từ Helm release name `victoria-metrics`. Phải dùng đúng release name khi `helm install`:
+>
+> ```bash
+> helm install victoria-metrics vm/victoria-metrics-k8s-stack \
+>     --namespace observability --create-namespace \
+>     -f config/victoria-metrics/helm-values.yaml
+> ```
 
 ### 9.2. Grafana
 
@@ -508,8 +626,9 @@ Grafana đã được expose qua Cloudflare Tunnel cấu hình ở §7.2 — tru
 
 ### 10.1. Tải NYC TLC + upload Taxi Zone
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
-# Trên iMac (continux-imac)
 mkdir -p ~/continux-data/raw ~/continux-data/zone
 cd ~/continux-data/raw
 wget https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet
@@ -535,6 +654,8 @@ Cấu hình nguồn → transform → sink: [`pipelines/vector/vector.toml`](../
 
 ## 11. Apply SQL Blue và Iceberg Sink
 
+> ⚠️ **Trước khi apply SQL:** `sql/02-tables/tlc-taxi-zone.sql` và `sql/04-sinks/iceberg-zone-stats.sql` chứa placeholder `<replace: key-risingwave secret từ MinIO console §8.1>`. Phải thay bằng secret key thực của service account `key-risingwave` (lấy từ MinIO console ở §8.1) rồi mới chạy các file này.
+
 ### 11.1. Source + Table
 
 [`sql/01-sources/redpanda-nyc-taxi.sql`](../sql/01-sources/redpanda-nyc-taxi.sql)
@@ -551,17 +672,24 @@ Cấu hình nguồn → transform → sink: [`pipelines/vector/vector.toml`](../
 
 ### 11.4. Commit & Sync
 
+> **Thực thi trên:** `local` — push code từ máy phát triển
+
 ```bash
 git add sql/ gitops/pipeline/
 git commit -m "feat(mv): initial Blue MV mv_zone_stats"
 git push
+```
 
-# ArgoCD tự sync trong ≤ 3 phút (FR-12)
+> **Thực thi trên:** `continux-imac` — theo dõi ArgoCD sync (ArgoCD tự sync trong ≤ 3 phút — FR-12)
+
+```bash
 argocd app sync pipeline
 argocd app wait pipeline --health --sync
 ```
 
 Verify:
+
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 psql -h localhost -p 4566 -d dev -U root -c \
@@ -591,6 +719,8 @@ Chi tiết Job xem [WBS.md §4](./WBS.md#4-bluegreen-mv-swap--gitops-automation-
 
 ## 13. Chạy các kịch bản thực nghiệm
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 # Stress test ở các mức tải
 bash experiments/runners/run_stress.sh --rate=medium --duration=15m
@@ -612,8 +742,10 @@ Kết quả thô → `experiments/results/` → biểu đồ cho [REPORT.md Chư
 
 ### 14.1. Backup dữ liệu quan trọng
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
-# Snapshot K3s (etcd → SQLite backup)
+# Snapshot K3s embedded etcd
 sudo k3s etcd-snapshot save --name pre-finalize
 
 # Export toàn bộ manifest từ cluster (snapshot GitOps)
@@ -625,6 +757,8 @@ mc mirror local/iceberg-data ./backup-iceberg/
 
 ### 14.2. Xuất Grafana dashboards trước khi teardown
 
+> **Thực thi trên:** `continux-imac`
+
 ```bash
 grafana-cli --configOverrides 'paths.data=./grafana-export' \
     admin export-dashboard --dir ./dashboards/
@@ -634,17 +768,27 @@ grafana-cli --configOverrides 'paths.data=./grafana-export' \
 
 ## 15. Dọn dẹp / Reset
 
+> **Thực thi trên:** `continux-imac` — xoá ArgoCD Applications trước
+
 ```bash
-# Xoá tất cả ArgoCD Applications
 argocd app delete root-app --cascade
+```
 
-# Reset K3s trên iMac (server)
+> **Thực thi trên:** `continux-imac` — reset K3s server #1
+
+```bash
 sudo /usr/local/bin/k3s-uninstall.sh
+```
 
-# Reset K3s trên Droplet (agent)
-sudo /usr/local/bin/k3s-agent-uninstall.sh
+> **Thực thi trên:** `continux-vps` — reset K3s server #2
 
-# Xoá Tailscale (nếu muốn)
+```bash
+sudo /usr/local/bin/k3s-uninstall.sh
+```
+
+> **Thực thi trên:** `cả hai máy` — gỡ Tailscale nếu muốn
+
+```bash
 sudo tailscale down
 sudo apt purge tailscale -y
 ```
@@ -657,8 +801,10 @@ sudo apt purge tailscale -y
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
 |-------------|------------------------|------------|
-| `kubectl get nodes` chỉ thấy `continux-imac` | Agent không join được qua Tailscale | `tailscale status` trên droplet → ping `continux-imac`; kiểm tra `K3S_URL` dùng IP 100.x.x.x |
-| Pod bị `Pending` — `FailedScheduling` vì taint | Workload nặng bị đẩy sang continux-vps (taint) | Đặt `nodeSelector: role=data-plane` cho workload đó |
+| `kubectl get nodes` báo `permission denied` với `/etc/rancher/k3s/k3s.yaml` | User thường không có quyền đọc kubeconfig mặc định của K3s | Dùng `sudo kubectl ...`, hoặc copy kubeconfig sang `~/.kube/config` cho user; nếu muốn dùng chung, cài K3s với `--write-kubeconfig-mode=644` |
+| `kubectl get nodes` chỉ thấy `continux-imac` | Server #2 chưa join được qua Tailscale | `tailscale status` trên droplet → ping `continux-imac`; kiểm tra `K3S_URL` đúng dạng `https://100.x.x.x:6443` và lệnh cài là `server` |
+| Cài server #2 báo lỗi datastore | Server #1 đang chạy SQLite (không có `--cluster-init`) | Re-bootstrap `continux-imac` theo §5.1 để bật embedded etcd rồi join lại §5.2 |
+| Pod bị `Pending` — `FailedScheduling` vì taint | Workload nặng bị đẩy sang continux-vps (taint) | Đặt `nodeSelector: workload=heavy` cho workload đó |
 | RisingWave compute `OOMKilled` | Vượt `limits.memory=2.5Gi` của iMac 8GB | Giảm parallelism MV; tăng `compute.limits.memory` nếu còn chỗ; giảm load Vector |
 | MinIO `ReadOnly` mode | Disk iMac gần đầy (200 GB) | `df -h`; xoá snapshot Iceberg cũ bằng `expire_snapshots` |
 | Droplet CPU `100%` liên tục | ArgoCD app-controller ôm quá nhiều app | Giảm số App-of-Apps; hoặc resize droplet lên $24/mo (nếu chưa) |
@@ -673,7 +819,7 @@ sudo apt purge tailscale -y
 
 ## 17. Checklist hoàn tất
 
-- [ ] `kubectl get nodes` → 2 node `Ready`, node IP thuộc range `100.64.0.0/10` (Tailscale).
+- [ ] `kubectl get nodes` → 2 node `Ready`, cả hai node có `ROLES` chứa `control-plane,etcd`, node IP thuộc range `100.64.0.0/10` (Tailscale).
 - [ ] `tailscale status` hiển thị cả hai máy, ping qua lại < 100 ms.
 - [ ] ArgoCD UI truy cập được qua Tailscale IP hoặc NodePort; `root-app` `Synced + Healthy`.
 - [ ] MinIO có 3 bucket (`iceberg-data`, `rw-checkpoint`, `tlc-zone`), 3 access key riêng biệt.
