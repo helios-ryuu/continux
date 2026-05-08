@@ -68,10 +68,10 @@
 ### 2.1. Cluster K3s (v1.32+)  ✓
 - 2.1.1 Tạo DigitalOcean Droplet Ubuntu 24.04 LTS, plan **$12/mo** (1 vCPU, 2 GB RAM, 50 GB SSD, SGP1); user non-root `continux`. Nâng lên $24/mo (2 vCPU, 4 GB RAM) khi deploy full observability stack.
 - 2.1.2 Chuẩn bị iMac (`continux-imac`, Ubuntu 24.04 đã cài sẵn) — tắt swap, bật IP forwarding, `ufw` allow `100.64.0.0/10`.
-- 2.1.3 Cài K3s server trên iMac với `--flannel-iface=tailscale0`, `--node-ip=<tailscale-ip>`.
-- 2.1.4 Join Droplet làm K3s agent qua IP Tailscale.
+- 2.1.3 Cài K3s server #1 trên iMac với `--cluster-init`, `--flannel-iface=tailscale0`, `--node-ip=<tailscale-ip>`.
+- 2.1.4 Join Droplet làm K3s server #2 qua IP Tailscale.
 - 2.1.5 Cài `helm 4.1+` + các CLI trên `continux-imac` (`kubectl` có sẵn qua K3s).
-- 2.1.6 Gán label `role=data-plane` cho `continux-imac`, `role=control-plane` + taint `dedicated=edge:NoSchedule` cho `continux-vps`.
+- 2.1.6 Gán label `workload=heavy` cho `continux-imac`, `workload=light` + taint `dedicated=edge:NoSchedule` cho `continux-vps`.
 - 2.1.7 Verify networking (Flannel qua Tailscale), DNS nội bộ, StorageClass `local-path`.
 
 ### 2.2. ArgoCD & GitOps repo

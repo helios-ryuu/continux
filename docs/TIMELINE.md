@@ -48,7 +48,7 @@
 | # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
 |---|-----------|---------|----------|-----------|---------|
 | 2.0 | Tạo DigitalOcean Droplet ($12/mo, nâng lên $24/mo khi cần) + cài Tailscale trên iMac và Droplet, lập mesh VPN | 13/04 | 14/04 | Sỹ | ✓ |
-| 2.1 | Cài K3s cluster 2 node — `continux-imac` (iMac, server) + `continux-vps` (Droplet, agent) qua Tailscale; `kubectl`, Helm | 14/04 | 16/04 | Sỹ | ✓ |
+| 2.1 | Cài K3s cluster 2 node — `continux-imac` (iMac, server #1) + `continux-vps` (Droplet, server #2) qua Tailscale; `kubectl`, Helm | 14/04 | 16/04 | Sỹ | ✓ |
 | 2.2 | Deploy ArgoCD + cấu hình GitOps repo trên GitHub | 15/04 | 18/04 | Sỹ | ⏳ |
 | 2.3 | Deploy MinIO + tạo bucket `iceberg-data`, `rw-checkpoint` | 16/04 | 19/04 | Sỹ | ⏳ |
 | 2.4 | Deploy Redpanda + tạo topic `nyc-taxi-events` | 18/04 | 20/04 | Sỹ | ⏳ |
@@ -124,7 +124,7 @@ Mốc            | M1─────M2─────────M3────M
 
 | Rủi ro | Tác động | Phương án giảm nhẹ |
 |--------|----------|---------------------|
-| RAM `continux-imac` 8GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → tạm bật Desktop i7 (WSL2 Ubuntu) làm node agent thứ 3 |
+| RAM `continux-imac` 8GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → tạm bật Desktop i7 (WSL2 Ubuntu) làm node worker thứ 3 |
 | RAM `continux-vps` 2GB không đủ khi chạy đồng thời ArgoCD + VM + Grafana | Trung bình | Dùng ArgoCD light profile (`helm set resources.requests=...`); retention VictoriaMetrics chỉ 7 ngày; hoặc resize lên $24/mo (2 vCPU, 4 GB RAM) |
 | Tailscale rớt session do NAT modem tại nhà | Trung bình | Enable `--ssh` + systemd unit autorestart; thêm IPv6 fallback |
 | Droplet hết băng thông 2 TB/mo | Thấp | Giữ traffic chính trong Tailscale; Grafana public chỉ cho GVHD khi demo |

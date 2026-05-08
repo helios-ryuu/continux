@@ -72,7 +72,7 @@ Hệ thống giao thông thông minh (ITS) sản sinh dữ liệu luồng với 
 ## 1.4. Đối tượng & Phạm vi
 
 - **Đối tượng:** kiến trúc xử lý luồng cho dữ liệu giao thông, cụ thể là NYC TLC Trip Record.
-- **Phạm vi:** cụm K3s 2 node lai cloud/on-premise — `continux-imac` (iMac Ubuntu 24.04, 8 GB RAM) tại LAN nhà làm data plane, `continux-vps` (DigitalOcean Droplet $12/mo → $24/mo, 2 GB → 4 GB RAM) làm control/observability plane, nối qua Tailscale overlay VPN; stack JVM-free; Built-in Hosted Catalog của RisingWave cho Iceberg; Vector làm trình tạo tải; không multi-tenant, không ML pipeline (xem [REQUIREMENT.md §6](./REQUIREMENT.md)).
+- **Phạm vi:** cụm K3s 2 node lai cloud/on-premise — `continux-imac` (iMac Ubuntu 24.04, 8 GB RAM) là server #1 và chạy data plane, `continux-vps` (DigitalOcean Droplet $12/mo → $24/mo, 2 GB → 4 GB RAM) là server #2 và chạy control/observability plane, nối qua Tailscale overlay VPN; stack JVM-free; Built-in Hosted Catalog của RisingWave cho Iceberg; Vector làm trình tạo tải; không multi-tenant, không ML pipeline (xem [REQUIREMENT.md §6](./REQUIREMENT.md)).
 
 ## 1.5. Câu hỏi nghiên cứu / Giả thuyết
 
@@ -193,7 +193,7 @@ Mọi dashboard/consumer phía dưới chỉ query **bí danh public** `mv_zone_
 
 ## 3.6. Hạ tầng K3s & GitOps Pipeline
 
-- Topology: 1 K3s server `continux-imac` (iMac Ubuntu 24.04, i5-8500 6 cores, 8 GB RAM, 200 GB SSD) chạy data plane (Redpanda + RisingWave + MinIO + Vector); 1 K3s agent `continux-vps` (DigitalOcean Droplet, khởi đầu 1 vCPU, 2 GB RAM, 50 GB SSD — nâng lên 2 vCPU, 4 GB RAM khi cần) chạy control/observability (ArgoCD + VictoriaMetrics + Grafana).
+- Topology: 1 K3s server #1 `continux-imac` (iMac Ubuntu 24.04, i5-8500 6 cores, 8 GB RAM, 200 GB SSD) chạy data plane (Redpanda + RisingWave + MinIO + Vector); 1 K3s server #2 `continux-vps` (DigitalOcean Droplet, khởi đầu 1 vCPU, 2 GB RAM, 50 GB SSD — nâng lên 2 vCPU, 4 GB RAM khi cần) chạy control/observability (ArgoCD + VictoriaMetrics + Grafana).
 - Mạng liên node: **Tailscale mesh VPN** (range `100.64.0.0/10`); K3s cấu hình `--flannel-iface=tailscale0`, `--node-ip=<tailscale-ip>` để đảm bảo mọi lưu lượng pod-to-pod đều được mã hoá và đi xuyên NAT không cần port-forward.
 - ArgoCD App-of-Apps ở `gitops/apps/root-app.yaml` (xem [STRUCTURE.md](./STRUCTURE.md)).
 - Helm charts cho từng thành phần, values đặt trong `config/*/helm-values.yaml`.

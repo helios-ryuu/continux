@@ -99,7 +99,7 @@
 
 | Mã | Yêu cầu | Mục tiêu |
 |----|---------|----------|
-| NFR-12 | Chạy được trên cụm K3s 2 node hạ tầng tham chiếu: `continux-imac` (iMac Ubuntu 24.04, i5-8500 6 cores, 8 GB RAM, 200 GB SSD) + `continux-vps` (DigitalOcean Droplet $12/mo → $24/mo, 1 vCPU / 2 GB RAM → 2 vCPU / 4 GB RAM, SGP1), nối qua Tailscale mesh. | Không pod nào bị `OOMKilled` trong 4h chạy ổn định ở tải mục tiêu (NFR-01); không swap quá 20%. |
+| NFR-12 | Chạy được trên cụm K3s 2 node hạ tầng tham chiếu: `continux-imac` (server #1, iMac Ubuntu 24.04, i5-8500 6 cores, 8 GB RAM, 200 GB SSD) + `continux-vps` (server #2, DigitalOcean Droplet $12/mo → $24/mo, 1 vCPU / 2 GB RAM → 2 vCPU / 4 GB RAM, SGP1), nối qua Tailscale mesh. | Không pod nào bị `OOMKilled` trong 4h chạy ổn định ở tải mục tiêu (NFR-01); không swap quá 20%. |
 | NFR-13 | Mỗi thành phần có thể scale horizontally khi chuyển sang cụm lớn hơn. | Verified qua cấu hình `replicas` Helm. |
 | NFR-14 | Dung lượng lưu trữ Iceberg không vượt quá dung tích MinIO dự kiến (≤ 50 GB cho cả đồ án). | Compact/retention được cấu hình. |
 
