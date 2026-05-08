@@ -5,6 +5,38 @@
 </p>
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v0.1.1-0A7CC7?style=flat-square" alt="Version v0.1.1">
+  <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu">
+</p>
+
+<p align="center">
+  <!-- Nền tảng & điều phối -->
+  <img src="https://img.shields.io/badge/K3s-v1.34.6-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
+  <img src="https://img.shields.io/badge/Helm-v4.1.1-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
+  <img src="https://img.shields.io/badge/ArgoCD-v3.3-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="ArgoCD">
+  <img src="https://img.shields.io/badge/Tailscale-v1.96.4-242424?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale">
+</p>
+
+<p align="center">
+  <!-- Thu thập & truyền tải -->
+  <img src="https://img.shields.io/badge/Vector-v0.45-10E7FF?style=flat-square&logoColor=white" alt="Vector">
+  <img src="https://img.shields.io/badge/Redpanda-v26.1-E3402B?style=flat-square&logo=redpanda&logoColor=white" alt="Redpanda">
+</p>
+
+<p align="center">
+  <!-- Xử lý luồng & lưu trữ -->
+  <img src="https://img.shields.io/badge/RisingWave-v2.4-5B7FFF?style=flat-square&logoColor=white" alt="RisingWave">
+  <img src="https://img.shields.io/badge/Apache_Iceberg-v2-3E5F8A?style=flat-square&logo=apache&logoColor=white" alt="Apache Iceberg">
+  <img src="https://img.shields.io/badge/MinIO-latest-C72E49?style=flat-square&logo=minio&logoColor=white" alt="MinIO">
+</p>
+
+<p align="center">
+  <!-- Giám sát -->
+  <img src="https://img.shields.io/badge/VictoriaMetrics-v1.110-621773?style=flat-square&logoColor=white" alt="VictoriaMetrics">
+  <img src="https://img.shields.io/badge/Grafana-v11.6-F46800?style=flat-square&logo=grafana&logoColor=white" alt="Grafana">
+</p>
+
 ## BẢNG MỤC LỤC
 * [Giới thiệu môn học](#giới-thiệu-môn-học)
 * [Giới thiệu đồ án môn học](#giới-thiệu-đồ-án-môn-học)
@@ -55,8 +87,8 @@ Tài liệu liên quan:
 > *Hướng dẫn chi tiết sẽ được cập nhật trong quá trình triển khai.*
 
 **Hạ tầng tham chiếu (đã triển khai):**
-- **`continux-imac`** — iMac19,2 Ubuntu Server 24.04 LTS · Intel i5-8500 (6 cores) · 8 GB DDR4 · 200 GB SSD. Vai trò: K3s server + data plane (MinIO, Redpanda, RisingWave, Vector).
-- **`continux-vps`** — DigitalOcean Droplet gói **$12/mo** (1 vCPU · 2 GB RAM · 50 GB SSD · 2 TB transfer, nâng lên $24/mo khi cần) · Ubuntu 24.04 LTS. Vai trò: K3s agent + control plane (ArgoCD, VictoriaMetrics, Grafana).
+- **`continux-imac`** — iMac19,2 Ubuntu Server 24.04 LTS · Intel i5-8500 (6 cores) · 8 GB DDR4 · 200 GB SSD. Vai trò: K3s server chính (control-plane #1) + data plane (MinIO, Redpanda, RisingWave, Vector).
+- **`continux-vps`** — DigitalOcean Droplet gói **$12/mo** (1 vCPU · 2 GB RAM · 50 GB SSD · 2 TB transfer, nâng lên $24/mo khi cần) · Ubuntu 24.04 LTS. Vai trò: K3s server phụ (control-plane #2) + control/observability plane (ArgoCD, VictoriaMetrics, Grafana).
 - **Mạng liên node:** Tailscale mesh VPN (K3s dùng IP range `100.64.0.0/10`).
 
 

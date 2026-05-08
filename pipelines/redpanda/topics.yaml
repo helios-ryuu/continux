@@ -1,0 +1,7 @@
+topics:
+  - name: nyc-taxi-events
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "86400000"     # 24h
+      cleanup.policy: delete

@@ -1,1 +1,17 @@
 .claude
+.env*
+
+# Dataset lớn — tải về local, không commit
+data/raw/
+
+# Output thực nghiệm — sinh ra khi chạy experiments (CSV/JSON/parquet lớn)
+experiments/results/*.csv
+experiments/results/*.json
+experiments/results/*.parquet
+
+# Grafana screenshot export
+dashboards/exports/
+
+# Build artifacts
+*.pyc
+__pycache__/
