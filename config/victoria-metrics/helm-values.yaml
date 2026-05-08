@@ -18,3 +18,5 @@ vmagent:
     nodeSelector: { role: control-plane }
     tolerations:
       - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
+    remoteWrite:
+      - url: http://vmsingle-victoria-metrics.observability.svc.cluster.local:8429/api/v1/write

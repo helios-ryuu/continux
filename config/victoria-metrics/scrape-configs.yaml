@@ -1,0 +1,44 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: risingwave
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: risingwave
+  namespaceSelector:
+    matchNames: [risingwave]
+  endpoints:
+    - port: metrics
+      interval: 15s
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: redpanda
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redpanda
+  namespaceSelector:
+    matchNames: [redpanda]
+  endpoints:
+    - port: prometheus
+      interval: 15s
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: etcd
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app: etcd
+  namespaceSelector:
+    matchNames: [kube-system]
+  endpoints:
+    - port: metrics
+      interval: 30s

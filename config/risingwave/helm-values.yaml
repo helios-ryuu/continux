@@ -12,8 +12,7 @@ stateStore:
     endpoint: http://minio.minio.svc.cluster.local:9000
     bucket:   rw-checkpoint
     region:   us-east-1
-    accessKey: ref+sops://secrets.yaml#rw.access
-    secretKey: ref+sops://secrets.yaml#rw.secret
+    existingSecretName: risingwave-s3-credentials
     forcePathStyle: true
 
 iceberg:
