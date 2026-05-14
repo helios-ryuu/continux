@@ -4,7 +4,7 @@
 > **Môn học:** IS211.Q22 — Cơ sở dữ liệu phân tán · IS405.Q23 — Dữ liệu lớn · HK2 2025–2026.
 > **GVHD:** ThS. Nguyễn Hồ Duy Trí — trinhd@uit.edu.vn.
 > **Nhóm thực hiện:** Ngô Tiến Sỹ (23521367) · Nguyễn Văn Nam (23520982).
-> **Ghi chú:** Tài liệu này là **báo cáo nguồn dạng Markdown**; sẽ được chuyển sang LaTeX cho bản nộp cuối cùng. Cấu trúc bám sát IMRAD-adapted + phụ lục, đồng bộ với [PROPOSE.md](./PROPOSE.md), [REQUIREMENT.md](./REQUIREMENT.md), [STRUCTURE.md](./STRUCTURE.md), [TIMELINE.md](./TIMELINE.md), [WBS.md](./WBS.md).
+> **Ghi chú:** Tài liệu này là **báo cáo nguồn dạng Markdown**; sẽ được chuyển sang LaTeX cho bản nộp cuối cùng. Cấu trúc bám sát IMRAD-adapted + phụ lục, đồng bộ với [PROPOSE.md](./PROPOSE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [TIMELINE.md](./TIMELINE.md).
 
 ---
 
@@ -72,7 +72,7 @@ Hệ thống giao thông thông minh (ITS) sản sinh dữ liệu luồng với 
 ## 1.4. Đối tượng & Phạm vi
 
 - **Đối tượng:** kiến trúc xử lý luồng cho dữ liệu giao thông, cụ thể là NYC TLC Trip Record.
-- **Phạm vi:** cụm K3s 2 node lai cloud/on-premise — `continux-imac` (iMac Ubuntu 24.04, 8 GB RAM) là server #1 và chạy data plane, `continux-vps` (DigitalOcean Droplet $12/mo → $24/mo, 2 GB → 4 GB RAM) là server #2 và chạy control/observability plane, nối qua Tailscale overlay VPN; stack JVM-free; Built-in Hosted Catalog của RisingWave cho Iceberg; Vector làm trình tạo tải; không multi-tenant, không ML pipeline (xem [REQUIREMENT.md §6](./REQUIREMENT.md)).
+- **Phạm vi:** cụm K3s 4 máy — `continux-imac` (iMac Ubuntu 24.04, 8 GB RAM) server #1 data plane; `continux-vps` (DigitalOcean Droplet $12→$24/mo, 2→4 GB RAM) server #2 observability/control plane; `helios` (i5-12500H, 16 GB, WSL2) và `nammn` (Ryzen 5 7640HS, 32 GB, WSL2) làm K3s worker khi cần burst; nối qua Tailscale overlay VPN; stack JVM-free; Built-in Hosted Catalog RisingWave cho Iceberg; không multi-tenant, không ML pipeline (xem [ARCHITECTURE.md §8](./ARCHITECTURE.md)).
 
 ## 1.5. Câu hỏi nghiên cứu / Giả thuyết
 
@@ -195,7 +195,7 @@ Mọi dashboard/consumer phía dưới chỉ query **bí danh public** `mv_zone_
 
 - Topology: 1 K3s server #1 `continux-imac` (iMac Ubuntu 24.04, i5-8500 6 cores, 8 GB RAM, 200 GB SSD) chạy data plane (Redpanda + RisingWave + MinIO + Vector); 1 K3s server #2 `continux-vps` (DigitalOcean Droplet, khởi đầu 1 vCPU, 2 GB RAM, 50 GB SSD — nâng lên 2 vCPU, 4 GB RAM khi cần) chạy control/observability (ArgoCD + VictoriaMetrics + Grafana).
 - Mạng liên node: **Tailscale mesh VPN** (range `100.64.0.0/10`); K3s cấu hình `--flannel-iface=tailscale0`, `--node-ip=<tailscale-ip>` để đảm bảo mọi lưu lượng pod-to-pod đều được mã hoá và đi xuyên NAT không cần port-forward.
-- ArgoCD App-of-Apps ở `gitops/apps/root-app.yaml` (xem [STRUCTURE.md](./STRUCTURE.md)).
+- ArgoCD App-of-Apps ở `gitops/apps/root-app.yaml` (xem [ARCHITECTURE.md §2](./ARCHITECTURE.md)).
 - Helm charts cho từng thành phần, values đặt trong `config/*/helm-values.yaml`.
 
 ## 3.7. Hệ thống giám sát
@@ -277,7 +277,7 @@ Báo cáo đã đề xuất, hiện thực hoá và đánh giá một kiến tr�
 
 ## TÀI LIỆU THAM KHẢO (APA 7th — ≥ 15 nguồn)
 
-*(Danh sách sẽ hoàn thiện ở bước 6.6 theo [WBS.md](./WBS.md). Các nguồn chính đã xác định:)*
+*(Danh sách sẽ hoàn thiện ở bước 6.6 (xem [TIMELINE.md](./TIMELINE.md)). Các nguồn chính đã xác định:)*
 
 1. Guo, S., et al. (2025). *Ursa: A Lakehouse-Native Data Streaming Engine for Kafka.* PVLDB, 18. https://www.vldb.org/pvldb/vol18/p5184-guo.pdf
 2. Apache Iceberg Documentation. https://iceberg.apache.org/docs/

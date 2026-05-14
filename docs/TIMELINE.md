@@ -2,7 +2,7 @@
 
 > **Đề tài:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
 > **Khoảng thời gian:** 05/04/2026 → 31/05/2026 (≈ 8 tuần).
-> **Mốc tài liệu (document freeze):** 19/04/2026 — toàn bộ tài liệu đề cương, REQUIREMENT, STRUCTURE, TIMELINE, WBS phải được chốt với GVHD trước ngày này.
+> **Mốc tài liệu (document freeze):** 19/04/2026 — toàn bộ tài liệu đề cương, ARCHITECTURE, TIMELINE phải được chốt với GVHD trước ngày này.
 > **Deadline cuối cùng:** 31/05/2026 — nộp báo cáo + demo hệ thống.
 
 ---
@@ -12,7 +12,8 @@
 - **Song song hóa tài liệu & hạ tầng:** từ 13/04, trong khi tài liệu còn đang hoàn thiện, nhóm bắt đầu setup cluster K3s để kịp mốc tài liệu 19/04 mà không chậm tiến độ kỹ thuật.
 - **Gối đầu (overlap) giữa các giai đoạn:** giai đoạn sau bắt đầu 2–3 ngày trước khi giai đoạn trước kết thúc, nhằm hấp thụ rủi ro và tận dụng thời gian chờ (verify, stress test).
 - **Hai luồng song song ở cuối:** từ 16/05, luồng thực nghiệm và luồng viết báo cáo chạy đồng thời — kết quả đo đến đâu, viết Chương 4 đến đó.
-- **Phân công:** Sỹ (23521367) đảm nhận toàn bộ công việc chính; Nam (23520982) hỗ trợ một số nhiệm vụ cụ thể (xem [WBS.md](./WBS.md)).
+- **Phân công:** Sỹ (23521367) đảm nhận toàn bộ công việc chính; Nam (23520982) hỗ trợ một số nhiệm vụ cụ thể (chi tiết trong [ARCHITECTURE.md](./ARCHITECTURE.md)).
+- **Máy phụ trợ:** `nammn` (Ryzen 5 7640HS, 32 GB DDR5, WSL2 Ubuntu 24.04) và `helios` (i5-12500H, 16 GB DDR5, WSL2 Ubuntu 24.04) — chỉ bật làm K3s worker trong Giai đoạn 4–5 khi cần burst hoặc stress test throughput cao (xem [SETUP.md §5.5](./SETUP.md)).
 
 ---
 
@@ -21,7 +22,7 @@
 | #  | Mốc | Ngày | Tiêu chí hoàn thành | Trạng thái |
 |----|-----|------|----------------------|------------|
 | M1 | **Chốt scope & đề cương với GVHD** | 08/04/2026 | GVHD phê duyệt phạm vi, bài toán, kiến trúc sơ bộ | ✓ Xong |
-| M2 | **Document Freeze** | 19/04/2026 | PROPOSE, REQUIREMENT, STRUCTURE, TIMELINE, WBS đã review | ✓ Xong |
+| M2 | **Document Freeze** | 19/04/2026 | PROPOSE, ARCHITECTURE, TIMELINE đã review | ✓ Xong |
 | M3 | **Cluster & hạ tầng sẵn sàng** | 24/04/2026 | K3s + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | 🔄 Đang làm (còn 2.3–2.6) |
 | M4 | **Pipeline Blue (MV v1) hoạt động end-to-end** | 03/05/2026 | Vector → Redpanda → RisingWave (JOIN Zone) → Iceberg chạy 4h liên tục không lỗi |
 | M5 | **Blue/Green Swap qua GitOps thành công** | 12/05/2026 | Commit SQL mới → ArgoCD sync → Atomic Swap 0s downtime, không mất/trùng dữ liệu |
@@ -38,9 +39,9 @@
 |---|-----------|---------|----------|-----------|---------|
 | 1.1 | Rà soát đề cương, chốt scope & mục tiêu với GVHD | 05/04 | 08/04 | Sỹ | ✓ Mốc M1 |
 | 1.2 | Đọc kỹ Ursa (VLDB 2025), tổng hợp lý thuyết Lakehouse Streaming | 05/04 | 10/04 | Sỹ | ✓ |
-| 1.3 | Viết REQUIREMENT.md (functional + non-functional) | 08/04 | 12/04 | Sỹ | ✓ |
-| 1.4 | Thiết kế kiến trúc tổng thể + STRUCTURE.md | 10/04 | 14/04 | Sỹ | ✓ |
-| 1.5 | Hoàn thiện TIMELINE.md & WBS.md | 12/04 | 15/04 | Sỹ | ✓ |
+| 1.3 | Viết FR/NFR + cây thư mục → ARCHITECTURE.md | 08/04 | 12/04 | Sỹ | ✓ |
+| 1.4 | Thiết kế kiến trúc tổng thể, luận giải thiết kế → ARCHITECTURE.md §2 | 10/04 | 14/04 | Sỹ | ✓ |
+| 1.5 | Hoàn thiện TIMELINE.md & ARCHITECTURE.md | 12/04 | 15/04 | Sỹ | ✓ |
 | 1.6 | Review toàn bộ tài liệu với GVHD — **Document Freeze** | 16/04 | 19/04 | Sỹ | ✓ **Mốc M2** |
 
 ### Giai đoạn 2 — Hạ tầng K3s & GitOps (13/04 → 24/04) 🔄
@@ -124,7 +125,7 @@ Mốc            | M1─────M2─────────M3────M
 
 | Rủi ro | Tác động | Phương án giảm nhẹ |
 |--------|----------|---------------------|
-| RAM `continux-imac` 8GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → tạm bật Desktop i7 (WSL2 Ubuntu) làm node worker thứ 3 |
+| RAM `continux-imac` 8 GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → bật `nammn` (32 GB) hoặc `helios` (16 GB) qua WSL2 làm K3s worker theo [SETUP.md §5.5](./SETUP.md) |
 | RAM `continux-vps` 2GB không đủ khi chạy đồng thời ArgoCD + VM + Grafana | Trung bình | Dùng ArgoCD light profile (`helm set resources.requests=...`); retention VictoriaMetrics chỉ 7 ngày; hoặc resize lên $24/mo (2 vCPU, 4 GB RAM) |
 | Tailscale rớt session do NAT modem tại nhà | Trung bình | Enable `--ssh` + systemd unit autorestart; thêm IPv6 fallback |
 | Droplet hết băng thông 2 TB/mo | Thấp | Giữ traffic chính trong Tailscale; Grafana public chỉ cho GVHD khi demo |

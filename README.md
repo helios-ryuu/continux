@@ -6,7 +6,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.1-0A7CC7?style=flat-square" alt="Version v0.1.1">
+  <img src="https://img.shields.io/badge/version-v0.1.2-0A7CC7?style=flat-square" alt="Version v0.1.2">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu">
 </p>
 
@@ -41,6 +41,7 @@
 * [Giới thiệu môn học](#giới-thiệu-môn-học)
 * [Giới thiệu đồ án môn học](#giới-thiệu-đồ-án-môn-học)
 * [Thành viên nhóm](#thành-viên-nhóm)
+* [Hạ tầng máy chủ](#hạ-tầng-máy-chủ)
 * [Cài đặt phần mềm](#cài-đặt-phần-mềm)
 * [Khởi chạy dự án](#khởi-chạy-dự-án)
 * [Công nghệ sử dụng](#công-nghệ-sử-dụng)
@@ -65,12 +66,11 @@
 Chi tiết đề cương xem tại [docs/PROPOSE.md](./docs/PROPOSE.md).
 
 Tài liệu liên quan:
-- [docs/REPORT.md](./docs/REPORT.md) — Báo cáo tổng thể đồ án (nguồn để chuyển sang LaTeX).
-- [docs/REQUIREMENT.md](./docs/REQUIREMENT.md) — Yêu cầu chức năng & phi chức năng.
-- [docs/STRUCTURE.md](./docs/STRUCTURE.md) — Cấu trúc thư mục dự án đề xuất.
-- [docs/TIMELINE.md](./docs/TIMELINE.md) — Lộ trình thực hiện theo mốc thời gian.
-- [docs/WBS.md](./docs/WBS.md) — Work Breakdown Structure chi tiết.
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Kiến trúc hệ thống, cấu trúc repo, yêu cầu chức năng & phi chức năng (FR/NFR), ràng buộc, quy ước Git.
+- [docs/TIMELINE.md](./docs/TIMELINE.md) — Lộ trình thực hiện theo mốc thời gian, phân công, biểu đồ Gantt.
 - [docs/SETUP.md](./docs/SETUP.md) — Hướng dẫn thiết lập hệ thống toàn diện (bootstrap K3s → chạy pipeline).
+- [docs/SCRIPTS.md](./docs/SCRIPTS.md) — Tài liệu các script vận hành trong `scripts/` (cú pháp, argument, flags, cách dùng từ Windows).
+- [docs/REPORT.md](./docs/REPORT.md) — Báo cáo tổng thể đồ án (nguồn để chuyển sang LaTeX).
 
 ---
 
@@ -82,56 +82,63 @@ Tài liệu liên quan:
 
 ---
 
+## HẠ TẦNG MÁY CHỦ
+
+Cụm gồm **4 máy** — 2 node chính luôn bật, 2 node phụ trợ bật khi cần burst hoặc stress test. Tất cả kết nối qua **Tailscale mesh VPN**.
+
+| Tên node | Phần cứng | Hệ điều hành | Vai trò |
+|----------|-----------|-------------|---------|
+| **`continux-imac`** | iMac19,2 · Intel i5-8500 (6 cores) · 8 GB DDR4 · 200 GB SSD | Ubuntu Server 24.04 LTS (native) | K3s server #1 · Data plane (MinIO, Redpanda, RisingWave, Vector) |
+| **`continux-vps`** | DigitalOcean Droplet $12→$24/mo · 1→2 vCPU · 2→4 GB RAM · 50→80 GB SSD · SGP1 | Ubuntu 24.04 LTS (native) | K3s server #2 · Control & observability plane (ArgoCD, VictoriaMetrics, Grafana) |
+| **`helios`** | Laptop HP (HELIOS-PC) · Intel i5-12500H (12C) · 16 GB DDR5 4800 MHz · NVIDIA RTX 3050 Ti 4 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi burst hoặc thực nghiệm song song |
+| **`nammn`** | Laptop HP (SINISTER) · AMD Ryzen 5 7640HS (8C) · 32 GB DDR5 5600 MHz · NVIDIA RTX 3050 6 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi iMac OOM hoặc cần > 10 k events/s |
+
+Chi tiết thiết lập từng máy: [docs/SETUP.md](./docs/SETUP.md).
+
+---
+
 ## CÀI ĐẶT PHẦN MỀM
 
-> *Hướng dẫn chi tiết sẽ được cập nhật trong quá trình triển khai.*
+Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 
-**Hạ tầng tham chiếu (đã triển khai):**
-- **`continux-imac`** — iMac19,2 Ubuntu Server 24.04 LTS · Intel i5-8500 (6 cores) · 8 GB DDR4 · 200 GB SSD. Vai trò: K3s server chính (control-plane #1) + data plane (MinIO, Redpanda, RisingWave, Vector).
-- **`continux-vps`** — DigitalOcean Droplet gói **$12/mo** (1 vCPU · 2 GB RAM · 50 GB SSD · 2 TB transfer, nâng lên $24/mo khi cần) · Ubuntu 24.04 LTS. Vai trò: K3s server phụ (control-plane #2) + control/observability plane (ArgoCD, VictoriaMetrics, Grafana).
-- **Mạng liên node:** Tailscale mesh VPN (K3s dùng IP range `100.64.0.0/10`).
-
-
-**Phiên bản công cụ tối thiểu:**
+**Phiên bản công cụ tối thiểu (stable):**
 - K3s ≥ v1.34.6 · Helm ≥ v4.1.1 · Argo CD ≥ v3.3 · RisingWave ≥ v2.4 · Redpanda ≥ v26.1 · Vector ≥ 0.45 · Tailscale ≥ 1.80.
-
-Hướng dẫn thiết lập chi tiết: [docs/SETUP.md](./docs/SETUP.md).
 
 ---
 
 ## KHỞI CHẠY DỰ ÁN
 
-> *Chi tiết các bước khởi chạy sẽ được cập nhật khi hệ thống hoàn thiện.*
-
-**Các bước tổng quát dự kiến:**
-1. Khởi tạo cụm K3s và cấu hình `kubectl`.
+**Các bước tổng quát:**
+1. Khởi tạo cụm K3s (`continux-imac` làm server #1, `continux-vps` làm server #2) và cấu hình `kubectl`.
 2. Cài đặt ArgoCD và đăng ký repository Git của dự án.
-3. Triển khai hạ tầng nền: MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana thông qua ArgoCD.
+3. Triển khai hạ tầng nền: MinIO, Redpanda, RisingWave (trên `continux-imac`), VictoriaMetrics, Grafana (trên `continux-vps`) thông qua ArgoCD.
 4. Tải bảng tham chiếu TLC Taxi Zone lên MinIO.
 5. Khởi chạy Vector để phát luồng sự kiện NYC TLC vào Redpanda.
-6. Đăng ký các Source, Sink và Materialized View trên RisingWave.
-7. Truy cập Grafana để giám sát các chỉ số hiệu năng, độ trễ và Consumer Lag.
+6. Đăng ký các Source, Sink và Materialized View Blue trên RisingWave.
+7. Truy cập Grafana để giám sát Consumer Lag, throughput, latency.
+8. *(Khi cần burst)* Join `helios` hoặc `nammn` vào cụm làm K3s worker qua WSL2.
 
 ---
 
 ## CÔNG NGHỆ SỬ DỤNG
 
 **Nền tảng & điều phối:**
-- **K3s / Kubernetes** — điều phối container.
-- **ArgoCD** — GitOps Continuous Delivery.
+- **K3s / Kubernetes** — điều phối container trên cụm phân tán.
+- **ArgoCD** — GitOps Continuous Delivery: Git là nguồn chân lý duy nhất.
+- **Tailscale** — Mesh VPN mã hóa đầu-cuối, kết nối các node trên nhiều mạng khác nhau.
 
 **Thu thập & truyền tải dữ liệu:**
-- **Vector** — trình tạo tải và đường ống dữ liệu hiệu năng cao (Rust).
-- **Redpanda** — Message Broker tương thích Kafka API.
+- **Vector** — Đường ống dữ liệu hiệu năng cao (Rust), đóng vai trò load generator giả lập luồng sự kiện.
+- **Redpanda** — Message Broker tương thích Kafka API, không JVM, không ZooKeeper.
 
 **Xử lý luồng & lưu trữ:**
-- **RisingWave** — Streaming Database xử lý SQL thời gian thực (Rust).
-- **Apache Iceberg** — Table Format hỗ trợ ACID, Time Travel, Schema Evolution.
-- **MinIO** — Object Storage tương thích S3, làm nền tảng cho Data Lakehouse và Shared-Storage cho Checkpoint.
+- **RisingWave** — Streaming Database xử lý SQL thời gian thực (Rust), hỗ trợ Blue/Green Materialized View Swap nguyên tử.
+- **Apache Iceberg** — Table Format ACID, Time Travel, Schema Evolution trên Object Storage.
+- **MinIO** — Object Storage tương thích S3: lưu Iceberg data, RisingWave checkpoint, TLC Taxi Zone.
 
 **Giám sát:**
 - **VictoriaMetrics** — Time-Series Database tiêu thụ ít tài nguyên.
-- **Grafana** — Trực quan hóa các chỉ số vận hành.
+- **Grafana** — Trực quan hóa 4 nhóm chỉ số: Streaming Perf, Resource, Cutover, Data Integrity.
 
 **Dataset:**
 - **NYC Taxi & Limousine Commission (TLC) Trip Record Data** — <https://registry.opendata.aws/nyc-tlc-trip-records-pds/>.
