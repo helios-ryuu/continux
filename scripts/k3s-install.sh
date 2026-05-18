@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================
 # k3s-install.sh — Cài K3s agent (worker) cho helios hoặc nammn
-# Chạy trên : helios hoặc nammn (WSL2 Ubuntu 24.04, bước §5.5 SETUP.md)
+# Chạy trên : helios hoặc nammn (WSL2 Ubuntu 24.04, bước §5.6 SETUP.md)
 # Mục đích  : Join máy phụ trợ vào cụm K3s làm worker khi cần burst
 # Cú pháp   : sudo bash k3s-install.sh <tailscale-ip-imac> <token> [node-name]
 #             node-name mặc định lấy từ $(hostname) nếu không truyền

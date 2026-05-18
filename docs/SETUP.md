@@ -44,7 +44,7 @@
 | **`nammn`** | Laptop Nam — Windows 11 (SINISTER) | AMD Ryzen 5 7640HS — 8C/16T, boost 4.3 GHz | 32 GB DDR5 5600 MHz (2×16 GB Hynix) | NVIDIA GeForce RTX 3050 6 GB | K3s worker burst — bật khi `continux-imac` OOM hoặc cần > 10 k events/s |
 | **`helios`** | Laptop Helios — Windows 11 (HELIOS-PC) | Intel Core i5-12500H — 12C/16T, max 4.5 GHz | 16 GB DDR5 4800 MHz (2×8 GB Samsung) | NVIDIA GeForce RTX 3050 Ti 4 GB | K3s worker dự phòng — bật khi thực nghiệm song song hoặc cần node bổ sung |
 
-Cả hai máy cài **WSL2 Ubuntu 24.04** — K3s agent chạy trong WSL2, join cluster qua Tailscale (xem §5.5).
+Cả hai máy cài **WSL2 Ubuntu 24.04** — K3s agent chạy trong WSL2, join cluster qua Tailscale (xem §5.6).
 
 > **Khi nào bật:** chỉ trong Giai đoạn 4–5 (stress test, thực nghiệm). Không bật thường xuyên để tránh overhead etcd và tiết kiệm điện.
 
@@ -57,8 +57,8 @@ Mọi lệnh quản trị (`kubectl`, `helm`, `argocd`, `rpk`, `mc`, `psql`) ch�
 | **`[continux-imac]`** | iMac Ubuntu 24.04 | Chạy lệnh trực tiếp trên data plane — nơi mọi quản trị cluster diễn ra |
 | **`[continux-vps]`** | DigitalOcean Droplet Ubuntu 24.04 | Chạy lệnh trên observability/control plane |
 | **`[cả hai máy]`** | `continux-imac` + `continux-vps` | Chạy lần lượt trên cả hai node chính |
-| **`[helios]`** | Laptop Helios — WSL2 Ubuntu 24.04 | Chạy khi `helios` đang là K3s worker (§5.5) |
-| **`[nammn]`** | Laptop Nam — WSL2 Ubuntu 24.04 | Chạy khi `nammn` đang là K3s worker (§5.5) |
+| **`[helios]`** | Laptop Helios — WSL2 Ubuntu 24.04 | Chạy khi `helios` đang là K3s worker (§5.6) |
+| **`[nammn]`** | Laptop Nam — WSL2 Ubuntu 24.04 | Chạy khi `nammn` đang là K3s worker (§5.6) |
 | **`[local]`** | Bất kỳ máy nào trong nhóm | Thao tác cục bộ: git push, SSH vào cluster |
 
 ### 0.5. Liên kết mạng (Tailscale)
@@ -77,16 +77,16 @@ Xem tài liệu đầy đủ cho tất cả script (cú pháp, argument, flags, 
 | Công cụ | Phiên bản khuyến nghị | Cách kiểm tra |
 |---------|-----------------------|---------------|
 | Ubuntu Server | 24.04 LTS (Noble) | `lsb_release -a` |
-| K3s | **v1.34.6+k3s1** trở lên (dựa trên Kubernetes 1.32) | `k3s --version` |
-| Helm | **v4.1.1+** | `helm version` |
-| Argo CD | **v3.3+** | `argocd version` |
+| K3s | **v1.35.4+k3s1** trở lên | `k3s --version` |
+| Helm | **v4.2.0+** | `helm version` |
+| Argo CD | **v3.4.2** (Helm chart `argo-cd` **9.5.14**) | `argocd version` / `helm show chart argo/argo-cd --version 9.5.14` |
 | RisingWave | **v2.4+** (stable, hỗ trợ Iceberg Hosted Catalog) | `psql` → `SELECT version();` |
 | Redpanda | **v26.1+** (không JVM, không ZooKeeper — dùng Raft tự thân) | `rpk version` |
 | Vector | **0.45+** | `vector --version` |
 | MinIO | RELEASE bản mới nhất (tối thiểu **RELEASE.2025-08-13** trở về sau) | `mc admin info` |
 | VictoriaMetrics | **1.110+** | `/metrics` endpoint |
 | Grafana | **11.6+** hoặc v12 nếu đã phát hành GA | Giao diện |
-| Tailscale | **1.80+** | `tailscale version` |
+| Tailscale | **1.98.2+** | `tailscale version` |
 | Apache Iceberg spec | v2 bắt buộc, v3 thử nghiệm | Metadata file |
 
 ---
@@ -252,13 +252,36 @@ Nếu cả hai ping được thì mesh đã hoạt động.
 
 [SCRIPTS.md — k3s-install-server-init.sh](./SCRIPTS.md#k3s-install-server-initsh)
 
-### 5.2. Cài K3s server #2 trên Droplet
+### 5.2. Cấu hình kubeconfig cho user thường trên iMac
+
+Sau khi K3s server #1 chạy xong, copy kubeconfig raw sang home của user quản trị. Bước này giúp `kubectl`, `helm` và các script dùng cùng kubeconfig hợp lệ, tránh lỗi Helm kiểu `x509: certificate signed by unknown authority`.
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+mkdir -p ~/.kube
+
+sudo k3s kubectl config view --raw > ~/.kube/config
+chmod 600 ~/.kube/config
+
+export KUBECONFIG=$HOME/.kube/config
+kubectl get nodes
+```
+
+Để shell mới tự dùng kubeconfig này:
+
+```bash
+grep -qxF 'export KUBECONFIG=$HOME/.kube/config' ~/.bashrc \
+  || echo 'export KUBECONFIG=$HOME/.kube/config' >> ~/.bashrc
+```
+
+### 5.3. Cài K3s server #2 trên Droplet
 
 > **Thực thi trên:** `continux-vps`
 
 [SCRIPTS.md — k3s-install-server.sh](./SCRIPTS.md#k3s-install-serversh)
 
-### 5.3. Gán label phân biệt vai trò cho hai node chính
+### 5.4. Gán label phân biệt vai trò cho hai node chính
 
 > **Thực thi trên:** `continux-imac`
 
@@ -273,13 +296,13 @@ Helm values sử dụng:
 - Workload nặng (MinIO, Redpanda, RisingWave, Vector) → `nodeSelector: { role: data-plane }`
 - Workload nhẹ (ArgoCD, VictoriaMetrics, Grafana) → `nodeSelector: { role: control-plane }` + `tolerations: [{key: dedicated, value: edge, effect: NoSchedule}]`
 
-### 5.4. Verify cụm 2 node chính
+### 5.5. Verify cụm 2 node chính
 
 > **Thực thi trên:** `continux-imac`
 
 [SCRIPTS.md — k3s-check.sh](./SCRIPTS.md#k3s-checksh)
 
-### 5.5. Join node phụ trợ `helios` hoặc `nammn` (chỉ khi cần burst)
+### 5.6. Join node phụ trợ `helios` hoặc `nammn` (chỉ khi cần burst)
 
 Bật WSL2 Ubuntu 24.04 trên máy tương ứng, sau đó chạy:
 
@@ -324,15 +347,17 @@ Tất cả lệnh quản trị cluster chạy trực tiếp trên `continux-imac
 ```bash
 sudo apt install -y unzip postgresql-client
 
-# helm 4.1+
-sudo apt install curl gpg apt-transport-https --yes
-curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get install helm
+# Helm latest stable — binary nằm ở /usr/local/bin/helm.
+# Lưu ý: installer mặc định có thể kéo Helm 3; dùng DESIRED_VERSION để lấy latest Helm 4.
+HELM_VERSION=$(curl -sf https://get.helm.sh/helm-latest-version | tr -d '\n')
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o /tmp/get-helm.sh
+chmod 700 /tmp/get-helm.sh
+DESIRED_VERSION="${HELM_VERSION}" /tmp/get-helm.sh
+rm -f /tmp/get-helm.sh
+helm version --short
 
-# argocd CLI 3.3+
-VERSION=$(curl -L -s https://raw.githubusercontent.com/argoproj/argo-cd/stable/VERSION)
+# argocd CLI 3.4.2
+VERSION=3.4.2
 curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/v$VERSION/argocd-linux-amd64
 sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 rm argocd-linux-amd64
@@ -351,61 +376,6 @@ Verify:
 > **Thực thi trên:** `continux-imac`
 
 [SCRIPTS.md — k3s-check.sh](./SCRIPTS.md#k3s-checksh)
-
-### 6.3. Cập nhật phần mềm (Maintenance)
-
-Chạy đầu mỗi giai đoạn hoặc khi có CVE nghiêm trọng. **Không nâng cấp** K3s, rpk, mc khi đang chạy thực nghiệm (Giai đoạn 5).
-
-**Nguyên tắc chọn phiên bản:** ưu tiên stable release. Nếu phiên bản mới nhất có hậu tố `-alpha`, `-beta`, `-rc` → bỏ qua, dùng bản stable liền trước.
-
-Kiểm tra trạng thái trước khi cập nhật:
-
-> **Thực thi trên:** `continux-imac` hoặc `continux-vps`
-
-[SCRIPTS.md — tool-version.sh](./SCRIPTS.md#tool-versionsh)
-
-Các lệnh cập nhật cần sudo — chạy trong SSH session tương tác trực tiếp trên máy đích:
-
-> **Thực thi trên:** `cả hai máy` — lần lượt `continux-imac` rồi `continux-vps`
-
-```bash
-sudo apt update && sudo apt -y upgrade && sudo apt -y autoremove
-sudo tailscale update --track=stable
-```
-
-> **Thực thi trên:** `continux-imac`
-
-```bash
-# K3s
-curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -
-
-# Helm (qua APT repo đã đăng ký ở §6.1)
-sudo apt-get update && sudo apt-get install --only-upgrade -y helm
-
-# rpk — KHÔNG chạy khi đang thực nghiệm
-sudo apt-get update && sudo apt-get install --only-upgrade -y redpanda
-```
-
-Cập nhật không cần sudo (có thể chạy qua SSH pipe từ Windows):
-
-> **Thực thi trên:** `continux-imac` hoặc `continux-vps`
-
-```bash
-# ArgoCD CLI — cài vào ~/.local/bin
-VERSION=$(curl -Ls https://raw.githubusercontent.com/argoproj/argo-cd/stable/VERSION | tr -d '\n')
-curl -sSL -o /tmp/argocd-linux-amd64 \
-    "https://github.com/argoproj/argo-cd/releases/download/v${VERSION}/argocd-linux-amd64"
-mkdir -p ~/.local/bin
-install -m 755 /tmp/argocd-linux-amd64 ~/.local/bin/argocd && rm -f /tmp/argocd-linux-amd64
-argocd version --client
-
-# mc (MinIO client) — KHÔNG chạy khi đang thực nghiệm
-wget -q "https://dl.min.io/client/mc/release/linux-amd64/mc" -O ~/.local/bin/mc
-chmod +x ~/.local/bin/mc
-mc --version
-```
-
----
 
 ### 6.2. Tạo K8s Secrets cho credentials (bắt buộc trước §8)
 
@@ -431,6 +401,71 @@ kubectl -n risingwave create secret generic risingwave-s3-credentials \
 
 > ⚠️ Thay `<minio-root-password>`, `<rw-access-key>`, `<rw-secret-key>` bằng giá trị thực trước khi chạy. Hai key MinIO này phải khớp với access key tạo ở §8.1.
 
+### 6.3. Cập nhật phần mềm (Maintenance)
+
+Chạy đầu mỗi giai đoạn hoặc khi có CVE nghiêm trọng. **Không nâng cấp** K3s, rpk, mc khi đang chạy thực nghiệm (Giai đoạn 5).
+
+**Nguyên tắc chọn phiên bản:** ưu tiên stable release. Nếu phiên bản mới nhất có hậu tố `-alpha`, `-beta`, `-rc` → bỏ qua, dùng bản stable liền trước.
+
+Kiểm tra trạng thái trước khi cập nhật:
+
+> **Thực thi trên:** `continux-imac` hoặc `continux-vps`
+
+[SCRIPTS.md — tool-version.sh](./SCRIPTS.md#tool-versionsh)
+
+Các lệnh cập nhật cần sudo — chạy trong SSH session tương tác trực tiếp trên máy đích:
+
+> **Thực thi trên:** `cả hai máy` — lần lượt `continux-imac` rồi `continux-vps`
+
+```bash
+sudo apt update && sudo apt -y upgrade && sudo apt -y autoremove
+sudo tailscale update --track=stable
+```
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+# K3s server #1 (continux-imac) — phải giữ nguyên flags cluster-init/Tailscale.
+# Không chạy lệnh generic `curl ... | sh -` vì sẽ ghi đè k3s.service mặc định.
+TAILSCALE_IP=$(tailscale ip -4)
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+    --cluster-init \
+    --write-kubeconfig-mode=644 \
+    --disable=traefik \
+    --disable=servicelb \
+    --disable=local-storage \
+    --disable=metrics-server \
+    --node-name=continux-imac \
+    --node-ip="${TAILSCALE_IP}" \
+    --advertise-address="${TAILSCALE_IP}" \
+    --flannel-iface=tailscale0 \
+    --tls-san="${TAILSCALE_IP}" \
+    --etcd-expose-metrics=true
+
+# Helm — binary đang nằm ở /usr/local/bin/helm.
+# Lưu ý: installer mặc định có thể kéo Helm 3; dùng DESIRED_VERSION để lấy latest Helm 4.
+HELM_VERSION=$(curl -sf https://get.helm.sh/helm-latest-version | tr -d '\n')
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o /tmp/get-helm.sh
+chmod 700 /tmp/get-helm.sh
+DESIRED_VERSION="${HELM_VERSION}" /tmp/get-helm.sh
+rm -f /tmp/get-helm.sh
+helm version --short
+
+# rpk — KHÔNG chạy khi đang thực nghiệm
+sudo apt-get update && sudo apt-get install --only-upgrade -y redpanda
+
+# argocd
+VERSION=v3.4.2
+
+curl -sSL -o /tmp/argocd-linux-amd64 \
+  "https://github.com/argoproj/argo-cd/releases/download/${VERSION}/argocd-linux-amd64"
+
+sudo install -m 755 /tmp/argocd-linux-amd64 /usr/local/bin/argocd
+rm -f /tmp/argocd-linux-amd64
+
+argocd version --client
+```
+
 ---
 
 ## 7. Cài Argo CD trên continux-vps
@@ -439,17 +474,33 @@ kubectl -n risingwave create secret generic risingwave-s3-credentials \
 
 Helm values: [`config/argocd/helm-values.yaml`](../config/argocd/helm-values.yaml)
 
+Chart dùng cho bootstrap: `argo/argo-cd` **9.5.14** (app version **Argo CD v3.4.2**).
+
 > **Thực thi trên:** `continux-imac` — kubectl/helm quản lý cluster từ đây
 
 ```bash
-kubectl create namespace argocd
+cd ~/continux
+
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
-helm install argocd argo/argo-cd \
+helm show chart argo/argo-cd --version 9.5.14
+
+# Dry-run để kiểm tra manifest trước khi apply
+helm upgrade --install argocd argo/argo-cd \
+  --namespace argocd \
+  --version 9.5.14 \
+  -f config/argocd/helm-values.yaml \
+  --dry-run=client
+
+helm upgrade --install argocd argo/argo-cd \
     --namespace argocd \
-    --version '^7.0.0' \
+    --version 9.5.14 \
     -f config/argocd/helm-values.yaml
+
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+helm -n argocd list
+kubectl -n argocd get pods -o wide
 ```
 
 ### 7.2. Expose UI qua Cloudflare Tunnel
@@ -479,6 +530,8 @@ kubectl -n argocd create secret generic cloudflare-tunnel-token \
 > **Thực thi trên:** `continux-imac`
 
 ```bash
+cd ~/continux
+
 kubectl apply -f config/argocd/cloudflared.yaml
 kubectl -n argocd rollout status deploy/cloudflared
 ```
@@ -499,6 +552,8 @@ Mở `https://argocd.<domain>` → đăng nhập `admin` / password trên, **đ�
 > **Thực thi trên:** `continux-imac`
 
 ```bash
+cd ~/continux
+
 argocd login argocd.<domain> --username admin --password <new>
 
 argocd repo add https://github.com/<org>/continux-gitops.git \
@@ -595,6 +650,8 @@ Helm values: [`config/victoria-metrics/helm-values.yaml`](../config/victoria-met
 > **Lưu ý:** Grafana datasource URL hardcode service name `vmsingle-victoria-metrics` — service name này được tạo từ Helm release name `victoria-metrics`. Phải dùng đúng release name khi `helm install`:
 >
 > ```bash
+> cd ~/continux
+>
 > helm install victoria-metrics vm/victoria-metrics-k8s-stack \
 >     --namespace observability --create-namespace \
 >     -f config/victoria-metrics/helm-values.yaml

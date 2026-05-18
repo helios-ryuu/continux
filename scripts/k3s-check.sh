@@ -3,7 +3,7 @@
 # k3s-check.sh — K3s Cluster Check
 # Chạy trên : continux-imac (node quản trị cluster)
 # Mục đích  : Kiểm tra tổng thể cụm K3s: node, pod, PVC, workload,
-#             image, Helm release, secrets, tài nguyên hệ thống
+#             image, Helm release/repo, secrets, tài nguyên hệ thống
 # Cú pháp   : bash k3s-check.sh [section] [args]
 # =================================================================
 
@@ -36,6 +36,14 @@ check_dependencies() {
 check_k3s_connection() {
     if ! kubectl cluster-info >/dev/null 2>&1; then
         echo -e "${RED}✖ Lỗi: Không thể kết nối đến K3s API.${NC}"
+        echo -e "${YELLOW}Gợi ý kiểm tra nhanh trên node hiện tại:${NC}"
+        echo "  sudo systemctl status k3s --no-pager"
+        echo "  sudo journalctl -u k3s -n 80 --no-pager"
+        echo "  sudo cat /etc/systemd/system/k3s.service"
+        echo "  sudo ss -lntp | grep 6443"
+        echo "  kubectl config current-context"
+        echo ""
+        echo -e "${ORANGE}Nếu vừa chạy lệnh generic 'curl -sfL https://get.k3s.io | ... sh -', service có thể đã bị ghi đè thiếu flags Tailscale/etcd.${NC}"
         exit 1
     fi
 }
@@ -554,28 +562,95 @@ section_img() {
 
 section_helm() {
     if ! command -v helm >/dev/null 2>&1; then return; fi
-    echo -e "\n${BLUE}--- [6/6] HELM RELEASES ---${NC}"
+    echo -e "\n${BLUE}--- [6/6] HELM ---${NC}"
 
-    helm list -A -o json 2>/dev/null | jq -r '
-        ["NAMESPACE", "NAME", "REVISION", "UPDATED", "STATUS", "CHART", "APP_VERSION"],
-        (.[] | [
-            .namespace,
-            .name,
-            .revision,
-            (.updated | split(".") | .[0] | sub("T"; " ")),
-            .status,
-            .chart,
-            .app_version
-        ]) | @tsv
-    ' | column -t -s $'\t' | awk '
-    NR==1{print "'"${YELLOW}"'" $0 "'"${NC}"'"}
-    NR>1{
-        line=$0;
-        if (line ~ /deployed/) sub("deployed", "'"${GREEN}"'deployed'"${NC}"'", line);
-        else if (line ~ /failed/) sub("failed", "'"${RED}"'failed'"${NC}"'", line);
-        else if (line ~ /pending/) sub("pending", "'"${YELLOW}"'pending'"${NC}"'", line);
-        print line;
-    }'
+    echo -e "  ${YELLOW}>> RELEASES${NC}"
+    local releases_json
+    releases_json=$(helm list -A -o json 2>/dev/null)
+
+    if [ -z "$releases_json" ] || ! echo "$releases_json" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        echo -e "     ${ORANGE}(Không đọc được Helm releases)${NC}"
+    elif [ "$(echo "$releases_json" | jq 'length')" -eq 0 ]; then
+        echo -e "     ${CYAN}(Không có Helm release)${NC}"
+    else
+        echo "$releases_json" | jq -r '
+            ["NAMESPACE", "NAME", "REVISION", "UPDATED", "STATUS", "CHART", "APP_VERSION"],
+            (.[] | [
+                (.namespace // "-"),
+                (.name // "-"),
+                ((.revision // "-") | tostring),
+                ((.updated // "-") | split(".") | .[0] | sub("T"; " ")),
+                (.status // "-"),
+                (.chart // "-"),
+                (.app_version // "-")
+            ]) | @tsv
+        ' | column -t -s $'\t' | awk '
+        NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"}
+        NR>1{
+            line=$0;
+            if (line ~ /deployed/) sub("deployed", "'"${GREEN}"'deployed'"${NC}"'", line);
+            else if (line ~ /failed/) sub("failed", "'"${RED}"'failed'"${NC}"'", line);
+            else if (line ~ /pending/) sub("pending", "'"${YELLOW}"'pending'"${NC}"'", line);
+            print "     " line;
+        }'
+    fi
+
+    echo -e "\n  ${YELLOW}>> REPOSITORIES${NC}"
+    local repos_json
+    repos_json=$(helm repo list -o json 2>/dev/null)
+
+    if [ -z "$repos_json" ] || ! echo "$repos_json" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        echo -e "     ${ORANGE}(Không đọc được Helm repositories)${NC}"
+        return
+    fi
+
+    if [ "$(echo "$repos_json" | jq 'length')" -eq 0 ]; then
+        echo -e "     ${CYAN}(Không có Helm repo nào)${NC}"
+        return
+    fi
+
+    # Repo Helm là cấu hình client-side. Danh sách expected mặc định bám theo SETUP.md:
+    # argo cho ArgoCD, vm cho VictoriaMetrics, grafana nếu cài Grafana bằng chart riêng.
+    # Có thể override khi chạy: K3S_CHECK_HELM_EXPECTED_REPOS="argo vm grafana prometheus-community" bash scripts/k3s-check.sh helm
+    local expected_repos="${K3S_CHECK_HELM_EXPECTED_REPOS:-argo vm grafana}"
+
+    local repos
+    repos=$(echo "$repos_json" | jq -r --arg expected "$expected_repos" '
+        ($expected | split(" ") | map(select(length > 0))) as $expectedRepos |
+        .[] |
+        (.name // "-") as $name |
+        (.url // "-") as $url |
+        (if ($expectedRepos | index($name)) then "expected" else "stale?" end) as $state |
+        [$name, $url, $state] | @tsv
+    ' 2>/dev/null | sort -k3,3 -k1,1)
+
+    echo "$repos" | awk -F'\t' 'OFS="\t" {
+        if ($3 == "expected") $3 = "'"${GREEN}"'" $3 "'"${NC}"'";
+        else $3 = "'"${ORANGE}"'" $3 "'"${NC}"'";
+        print $0
+    }' | (
+        echo -e "${YELLOW}NAME\tURL\tSTATUS${NC}"
+        cat
+    ) | column -t -s $'\t' | sed 's/^/     /'
+
+    local stale_repos
+    stale_repos=$(echo "$repos" | awk -F'\t' '$3 == "stale?" {print $1}')
+    if [ -n "$stale_repos" ]; then
+        echo -e "\n     ${ORANGE}Repo có thể dọn:${NC}"
+        while IFS= read -r repo; do
+            [ -n "$repo" ] && echo -e "     helm repo remove ${repo}"
+        done <<< "$stale_repos"
+    fi
+
+    local missing_repos=""
+    for repo in $expected_repos; do
+        if ! echo "$repos" | awk -F'\t' '{print $1}' | grep -qx "$repo"; then
+            missing_repos+="$repo "
+        fi
+    done
+    if [ -n "$missing_repos" ]; then
+        echo -e "\n     ${YELLOW}Repo expected chưa có:${NC} ${missing_repos% }"
+    fi
 }
 
 # ======================== EXPORT & MAIN ========================
@@ -627,7 +702,7 @@ case "${1:-}" in
         echo "  pvc       Persistent Volume Claims"
         echo "  res [ns]  Workloads, HPA, Services (filter by namespace)"
         echo "  img       Container images & usage"
-        echo "  helm      Helm releases"
+        echo "  helm      Helm releases và repositories"
         echo "  secrets   Secrets (theo namespace)"
         echo "  export    Xuất report ra file (scripts/k3s-check/)"
         echo ""

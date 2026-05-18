@@ -9,9 +9,10 @@ Tất cả script nằm trong thư mục `scripts/`. Mỗi script có ghi rõ **
 | [k3s-install-server-init.sh](#k3s-install-server-initsh) | `continux-imac` | Khởi tạo K3s cluster (server #1, `--cluster-init`) |
 | [k3s-install-server.sh](#k3s-install-serversh) | `continux-vps` | Join K3s server #2 vào cluster hiện có |
 | [k3s-install.sh](#k3s-installsh) | `helios` / `nammn` (WSL2) | Join K3s agent (worker phụ trợ) |
-| [k3s-check.sh](#k3s-checksh) | `continux-imac` | Kiểm tra tổng thể cluster: nodes, pods, PVC, workloads, images, Helm |
+| [file-update.ps1](#file-updateps1) | Windows local | Đồng bộ repo local sang `imac:~/continux` |
+| [k3s-check.sh](#k3s-checksh) | `continux-imac` | Kiểm tra tổng thể cluster: nodes, pods, PVC, workloads, images, Helm releases/repositories |
 | [k3s-purge.sh](#k3s-purgesh) | bất kỳ node nào | Gỡ **toàn bộ** K3s — dùng khi reset hạ tầng |
-| [tool-version.sh](#tool-versionsh) | bất kỳ Ubuntu node nào | Kiểm tra phiên bản CLI và so sánh với latest stable/beta trên GitHub |
+| [tool-version.sh](#tool-versionsh) | bất kỳ Ubuntu node nào | Kiểm tra phiên bản CLI và so sánh với latest stable |
 
 ---
 
@@ -127,7 +128,7 @@ sudo /usr/local/bin/k3s-agent-uninstall.sh
 ## k3s-check.sh
 
 **Chạy trên:** `continux-imac`
-**Mục đích:** Kiểm tra tổng thể trạng thái cụm K3s — nodes, pods, PVC, workloads, HPA, services, images, Helm releases.
+**Mục đích:** Kiểm tra tổng thể trạng thái cụm K3s — nodes, pods, PVC, workloads, HPA, services, images, Helm releases và Helm repositories.
 
 ```bash
 bash scripts/k3s-check.sh              # toàn bộ (6 sections)
@@ -137,12 +138,56 @@ bash scripts/k3s-check.sh pvc          # Persistent Volume Claims
 bash scripts/k3s-check.sh res          # workloads, HPA, services
 bash scripts/k3s-check.sh res <ns>     # filter theo namespace
 bash scripts/k3s-check.sh img          # container images và trạng thái in-use/unused
-bash scripts/k3s-check.sh helm         # Helm releases
+bash scripts/k3s-check.sh helm         # Helm releases và repositories
 bash scripts/k3s-check.sh secrets      # Secrets theo namespace (chỉ hiện tên)
 bash scripts/k3s-check.sh export       # xuất report ra scripts/k3s-check/<timestamp>.txt
 ```
 
 Report export lưu tại `scripts/k3s-check/k3s-check-<HHmmss-ddmmyy>.txt`.
+
+Phần Helm repositories dùng allowlist mặc định `argo vm grafana` theo `SETUP.md`. Repo ngoài allowlist sẽ được đánh dấu `stale?` và script in lệnh `helm repo remove <repo>` gợi ý để dọn. Có thể override allowlist khi cần:
+
+```bash
+K3S_CHECK_HELM_EXPECTED_REPOS="argo vm grafana prometheus-community" bash scripts/k3s-check.sh helm
+```
+
+---
+
+## file-update.ps1
+
+**Chạy trên:** Windows PowerShell từ repo root (`D:\project\continux`).
+**Mục đích:** Đồng bộ một chiều workspace hiện tại sang `imac:~/continux`. Nếu không có thay đổi, script chỉ báo và không copy.
+
+```powershell
+.\scripts\file-update.ps1
+.\scripts\file-update.ps1 -RunDefault
+.\scripts\file-update.ps1 -Target imac -RemoteDir ~/continux
+.\scripts\file-update.ps1 -SourceDir D:\project\continux -Target user@100.x.x.x -RemoteDir ~/continux
+.\scripts\file-update.ps1 -Target imac -Port 22 -IdentityFile C:\Users\Helios\.ssh\id_ed25519
+.\scripts\file-update.ps1 -DryRun
+.\scripts\file-update.ps1 -Delete
+.\scripts\file-update.ps1 -RunDefault -NoAgent
+.\scripts\file-update.ps1 -RunDefault -Multiplex
+```
+
+Khi chạy không tham số, script chỉ hiển thị bảng hướng dẫn và không kết nối SSH. Muốn chạy với mặc định `D:\project\continux` → `imac:~/continux`, dùng `-RunDefault`.
+
+Script hiển thị log theo từng bước kèm timestamp và progress bar cho các bước quét file, tính SHA-256, đọc remote, so sánh, đóng gói, upload và xoá. Script tính SHA-256 cho file local và file remote, sau đó chỉ đóng gói file mới hoặc file có hash khác vào một file `tar` tạm, upload bằng `scp` một lần và giải nén trên remote. Mặc định script tự dùng `ssh-agent`/`ssh-add` để nạp SSH key trước khi chạy, nhờ đó chỉ cần nhập passphrase một lần trong phiên PowerShell. Nếu muốn bỏ qua bước này, thêm `-NoAgent`. Có thể thử `-Multiplex` nếu OpenSSH trên máy hỗ trợ, nhưng một số bản Windows OpenSSH sẽ lỗi `getsockname failed: Not a socket`.
+
+Tham số:
+
+| Tham số | Mặc định | Ý nghĩa |
+|---------|----------|---------|
+| `-RunDefault` | off | Chạy với mặc định `SourceDir=repo hiện tại`, `Target=imac`, `RemoteDir=~/continux` |
+| `-SourceDir` | repo root hiện tại | Thư mục local cần đồng bộ |
+| `-Target` | `imac` | SSH alias hoặc `user@host` |
+| `-RemoteDir` | `~/continux` | Thư mục đích trên máy remote |
+| `-Port` | `22` | SSH port |
+| `-IdentityFile` | rỗng | SSH private key nếu không dùng key mặc định |
+| `-DryRun` | off | Chỉ hiển thị thay đổi, không copy/xoá |
+| `-Delete` | off | Xoá file remote không còn tồn tại ở local |
+| `-NoAgent` | off | Không tự gọi `ssh-agent`/`ssh-add` |
+| `-Multiplex` | off | Thử bật SSH multiplexing nếu OpenSSH hỗ trợ |
 
 ---
 
@@ -162,7 +207,7 @@ sudo bash scripts/k3s-purge.sh
 ## tool-version.sh
 
 **Chạy trên:** bất kỳ Ubuntu node nào
-**Mục đích:** Kiểm tra phiên bản đã cài của toàn bộ CLI, so sánh với **latest stable** và phát hiện bản **beta** mới hơn qua GitHub API.
+**Mục đích:** Kiểm tra phiên bản đã cài của toàn bộ CLI, so sánh với **latest stable** qua HTTP redirect `github.com/<repo>/releases/latest`, `update.k3s.io` và `get.helm.sh`.
 
 ```bash
 bash scripts/tool-version.sh
@@ -174,9 +219,5 @@ Hiển thị trạng thái cho: OS/Kernel, APT packages, Tailscale, K3s, kubectl
 |---------|---------|
 | `✓ cập nhật` | Phiên bản đã cài khớp với latest stable |
 | `↑ lỗi thời → vX.Y.Z` | Có bản stable mới hơn |
-| `⚡ [beta mới: vX.Y.Z-rc1]` | Có bản prerelease mới hơn stable (không dùng khi thực nghiệm) |
 | `✗ chưa cài` | Công cụ chưa được cài |
-| `?` | Không kết nối được GitHub API |
-
-> GitHub API không cần auth, giới hạn 60 request/giờ cho IP public.
-
+| `?` | Không kết nối được endpoint kiểm tra phiên bản |

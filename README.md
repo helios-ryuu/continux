@@ -6,16 +6,16 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.2-0A7CC7?style=flat-square" alt="Version v0.1.2">
+  <img src="https://img.shields.io/badge/version-v0.1.3-0A7CC7?style=flat-square" alt="Version v0.1.3">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu">
 </p>
 
 <p align="center">
   <!-- Nền tảng & điều phối -->
-  <img src="https://img.shields.io/badge/K3s-v1.34.6-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
-  <img src="https://img.shields.io/badge/Helm-v4.1.1-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
-  <img src="https://img.shields.io/badge/ArgoCD-v3.3-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="ArgoCD">
-  <img src="https://img.shields.io/badge/Tailscale-v1.96.4-242424?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale">
+  <img src="https://img.shields.io/badge/K3s-v1.35.4-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
+  <img src="https://img.shields.io/badge/Helm-v4.2.0-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
+  <img src="https://img.shields.io/badge/ArgoCD-v3.4.2-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="ArgoCD">
+  <img src="https://img.shields.io/badge/Tailscale-v1.98.2-242424?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale">
 </p>
 
 <p align="center">
@@ -102,7 +102,7 @@ Chi tiết thiết lập từng máy: [docs/SETUP.md](./docs/SETUP.md).
 Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 
 **Phiên bản công cụ tối thiểu (stable):**
-- K3s ≥ v1.34.6 · Helm ≥ v4.1.1 · Argo CD ≥ v3.3 · RisingWave ≥ v2.4 · Redpanda ≥ v26.1 · Vector ≥ 0.45 · Tailscale ≥ 1.80.
+- K3s ≥ v1.35.4 · Helm ≥ v4.2.0 · Argo CD v3.4.2 (chart `argo-cd` 9.5.14) · RisingWave ≥ v2.4 · Redpanda ≥ v26.1 · Vector ≥ 0.45 · Tailscale ≥ 1.98.2.
 
 ---
 

@@ -1,3 +1,7 @@
+# Helm chart: argo/argo-cd 9.5.14
+# App version: Argo CD v3.4.2
+# Profile: single-node lightweight install for continux-vps.
+
 global:
   nodeSelector: { role: control-plane }
   tolerations:
@@ -5,15 +9,36 @@ global:
 
 controller:
   resources:
-    requests: { memory: 256Mi }
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
 
 repoServer:
   resources:
-    requests: { memory: 128Mi }
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
 
 server:
   resources:
-    requests: { memory: 128Mi }
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+redis:
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+dex:
+  enabled: false
+
+applicationSet:
+  # Chart argo-cd 9.x luôn cài ApplicationSet controller; dự án chưa dùng
+  # ApplicationSet nên chỉ giới hạn tài nguyên ở mức nhẹ.
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+notifications:
+  enabled: false
 
 configs:
   params:

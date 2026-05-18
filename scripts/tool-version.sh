@@ -41,15 +41,6 @@ latest_helm() {
     echo "${ver:-N/A}"
 }
 
-# ArgoCD: file VERSION trên nhánh stable (raw.githubusercontent.com)
-latest_argo() {
-    local ver
-    ver=$(curl -sf --max-time 8 \
-        "https://raw.githubusercontent.com/argoproj/argo-cd/stable/VERSION" 2>/dev/null \
-        | tr -d '\n')
-    [ -n "$ver" ] && echo "v${ver}" || echo "N/A"
-}
-
 # Bỏ prefix v và build metadata
 normalize_ver() {
     echo "$1" | sed 's/^v//; s/[+~].*//' | tr -d '[:space:]'
@@ -131,7 +122,7 @@ _tmp=$(mktemp -d)
 { latest_gh "tailscale/tailscale"    > "${_tmp}/ts";   } &
 { latest_k3s                         > "${_tmp}/k3s";  } &
 { latest_helm                        > "${_tmp}/helm"; } &
-{ latest_argo                        > "${_tmp}/argo"; } &
+{ latest_gh "argoproj/argo-cd"       > "${_tmp}/argo"; } &
 { latest_gh "redpanda-data/redpanda" > "${_tmp}/rpk";  } &
 { latest_gh "minio/mc"               > "${_tmp}/mc";   } &
 wait
@@ -159,6 +150,6 @@ printf "  ${CYAN}%-16s${NC} %-30s ${CYAN}(APT — chạy apt upgrade để cập
 
 echo ""
 echo -e "${YELLOW}── Ghi chú ───────────────────────────────────────────────${NC}"
-echo -e "  ${ORANGE}↑${NC}  = có bản stable mới hơn → xem ${CYAN}SETUP.md §6.3${NC} để cập nhật"
+echo -e "  ${ORANGE}↑${NC}  = có bản stable mới hơn → xem ${CYAN}SETUP.md mục 'Cập nhật phần mềm (Maintenance)'${NC}"
 echo -e "  ${CYAN}?${NC}  = không lấy được phiên bản mới nhất (kiểm tra kết nối mạng)"
 echo ""

@@ -1,7 +1,7 @@
 # ARCHITECTURE — KIẾN TRÚC, CẤU TRÚC & YÊU CẦU HỆ THỐNG
 
 > **Dự án:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
-> **Nền tảng:** K3s · ArgoCD · MinIO · Redpanda · RisingWave · Apache Iceberg · Vector · VictoriaMetrics · Grafana.
+> **Nền tảng:** K3s · ArgoCD v3.4.2 (Helm chart `argo-cd` 9.5.14) · MinIO · Redpanda · RisingWave · Apache Iceberg · Vector · VictoriaMetrics · Grafana.
 > **Dataset:** NYC TLC Trip Record Data + TLC Taxi Zone Lookup (265 zones).
 > **Cụm:** 4 máy — `continux-imac`, `continux-vps`, `helios`, `nammn` (chi tiết §1).
 > Các mã `FR-xx`, `NFR-xx` được tham chiếu trong [SETUP.md](./SETUP.md) và [REPORT.md](./REPORT.md).
@@ -194,7 +194,7 @@ Thứ tự dependency rõ ràng: Source → Table → MV → Sink. Job `mv-apply
 
 ### 3.5. Node placement qua `nodeSelector` + `tolerations`
 
-Mọi `helm-values.yaml` trong `config/` **bắt buộc** khai báo nodeSelector phù hợp. Lệnh gán label thực hiện trong [SETUP.md §5.3](./SETUP.md):
+Mọi `helm-values.yaml` trong `config/` **bắt buộc** khai báo nodeSelector phù hợp. Lệnh gán label thực hiện trong [SETUP.md §5.4](./SETUP.md):
 
 ```yaml
 # Workload nặng → continux-imac (hoặc helios/nammn khi đang làm worker)

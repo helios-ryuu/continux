@@ -219,9 +219,9 @@ Bốn dashboard Grafana tương ứng bốn nhóm chỉ số — xem `dashboards
 
 - **Phần cứng `continux-imac`:** iMac19,2 chạy Ubuntu Server 24.04.4 LTS · Intel i5-8500 (6 cores @ 4.1 GHz) · 8 GB DDR4 · 200 GB SSD · LAN 1 Gbps.
 - **Phần cứng `continux-vps`:** DigitalOcean Droplet (Singapore `sgp1`) · khởi đầu gói **$12/mo** (1 vCPU, 2 GB RAM, 50 GB SSD, 2 TB/mo transfer) · nâng lên **$24/mo** (2 vCPU, 4 GB RAM, 80 GB SSD) khi cần · Ubuntu 24.04 LTS.
-- **Liên kết mạng:** Tailscale 1.80+ mesh VPN (WireGuard) — K3s dùng `tailscale0` làm Flannel interface; độ trễ quan trắc giữa hai node: ~45–70 ms (VN ↔ SGP1).
+- **Liên kết mạng:** Tailscale 1.98.2+ mesh VPN (WireGuard) — K3s dùng `tailscale0` làm Flannel interface; độ trễ quan trắc giữa hai node: ~45–70 ms (VN ↔ SGP1).
 - **CLI:** kubectl/helm/argocd/rpk/mc/psql cài trực tiếp trên `continux-imac`.
-- **Phần mềm:** K3s v1.34.6+k3s1 · Argo CD v3.3 · MinIO RELEASE.2025-08-13 · Redpanda v26.1 · RisingWave v2.4 · Vector 0.45 · VictoriaMetrics 1.110 · Grafana 11.6.
+- **Phần mềm:** K3s v1.35.4+k3s1 · Helm v4.2.0 · Argo CD v3.4.2 (Helm chart `argo-cd` 9.5.14) · MinIO RELEASE.2025-08-13 · Redpanda v26.1 · RisingWave v2.4 · Vector 0.45 · VictoriaMetrics 1.110 · Grafana 11.6.
 
 ## 4.2. Kết quả Cutover & GitOps *(placeholder — sẽ điền sau giai đoạn 5)*
 
