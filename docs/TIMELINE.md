@@ -3,7 +3,7 @@
 > **Đề tài:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
 > **Khoảng thời gian:** 05/04/2026 → 31/05/2026 (≈ 8 tuần).
 > **Mốc tài liệu (document freeze):** 19/04/2026 — toàn bộ tài liệu đề cương, ARCHITECTURE, TIMELINE phải được chốt với GVHD trước ngày này.
-> **Cập nhật tiến độ:** 18/05/2026 — cụm K3s 2 server đã Ready, Argo CD v3.4.2 (chart `argo-cd` 9.5.14) đã deploy thành công trên `continux-vps`.
+> **Cập nhật tiến độ:** 19/05/2026 — K3s 2 server đã Ready, Argo CD v3.4.2 đã deploy trên `continux-vps`, hoàn tất data plane (MinIO, Redpanda, RisingWave) trên `continux-imac` theo SETUP §8.
 > **Deadline cuối cùng:** 31/05/2026 — nộp báo cáo + demo hệ thống.
 
 ---
@@ -24,7 +24,7 @@
 |----|-----|------|----------------------|------------|
 | M1 | **Chốt scope & đề cương với GVHD** | 08/04/2026 | GVHD phê duyệt phạm vi, bài toán, kiến trúc sơ bộ | ✓ Xong |
 | M2 | **Document Freeze** | 19/04/2026 | PROPOSE, ARCHITECTURE, TIMELINE đã review | ✓ Xong |
-| M3 | **Cluster & hạ tầng nền sẵn sàng** | 21/05/2026 | K3s + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | Đang làm — K3s + Argo CD đã xong |
+| M3 | **Cluster & hạ tầng nền sẵn sàng** | 21/05/2026 | K3s + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | Đang làm — data plane đã xong, observability đang làm |
 | M4 | **Pipeline Blue (MV v1) hoạt động end-to-end** | 23/05/2026 | Vector → Redpanda → RisingWave (JOIN Zone) → Iceberg chạy tối thiểu 2h không lỗi | Chưa làm |
 | M5 | **Blue/Green Swap qua GitOps thành công** | 27/05/2026 | Commit SQL mới → ArgoCD sync → Atomic Swap 0s downtime, không mất/trùng dữ liệu | Chưa làm |
 | M6 | **Bộ số liệu thực nghiệm hoàn chỉnh** | 29/05/2026 | 4 nhóm chỉ số đã đo, tổng hợp bảng biểu/biểu đồ | Chưa làm |
@@ -53,9 +53,9 @@
 | 2.1 | Cài K3s cluster 2 node — `continux-imac` (iMac, server #1) + `continux-vps` (Droplet, server #2) qua Tailscale; `kubectl`, Helm | 14/04 | 16/04 | Sỹ | ✓ |
 | 2.2 | Deploy Argo CD lên `continux-vps` | 18/05 | 18/05 | Sỹ | ✓ Helm release `argocd`, chart `argo-cd-9.5.14`, app `v3.4.2` |
 | 2.3 | Cấu hình GitOps repo cho Argo CD | 18/05 | 19/05 | Sỹ | Đăng ký repo, clone repo trên `continux-imac`, apply App-of-Apps |
-| 2.4 | Deploy MinIO + tạo bucket `iceberg-data`, `rw-checkpoint`, `tlc-zone` | 18/05 | 19/05 | Sỹ | Ưu tiên hoàn tất trước RisingWave |
-| 2.5 | Deploy Redpanda + tạo topic `nyc-taxi-events` | 19/05 | 20/05 | Sỹ | Topic tối thiểu 3 partitions |
-| 2.6 | Deploy RisingWave v2.4+, kết nối MinIO & Redpanda | 20/05 | 21/05 | Sỹ | Meta/compute/frontend/compactor ổn định |
+| 2.4 | Deploy MinIO + tạo bucket `iceberg-data`, `rw-checkpoint`, `tlc-zone` | 18/05 | 19/05 | Sỹ | ✓ |
+| 2.5 | Deploy Redpanda + tạo topic `nyc-taxi-events` | 19/05 | 20/05 | Sỹ | ✓ |
+| 2.6 | Deploy RisingWave v2.8+, kết nối MinIO & Redpanda | 20/05 | 21/05 | Sỹ | ✓ Meta/compute/frontend/compactor ổn định |
 | 2.7 | Deploy VictoriaMetrics + Grafana + cấu hình scrape | 20/05 | 21/05 | Sỹ | Hoàn tất M3 |
 
 ### Giai đoạn 3 — Pipeline dữ liệu & Materialized View Blue (19/05 → 23/05)

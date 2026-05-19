@@ -26,7 +26,7 @@
 
 <p align="center">
   <!-- Xử lý luồng & lưu trữ -->
-  <img src="https://img.shields.io/badge/RisingWave-v2.4-5B7FFF?style=flat-square&logoColor=white" alt="RisingWave">
+  <img src="https://img.shields.io/badge/RisingWave-v2.8.3-5B7FFF?style=flat-square&logoColor=white" alt="RisingWave">
   <img src="https://img.shields.io/badge/Apache_Iceberg-v2-3E5F8A?style=flat-square&logo=apache&logoColor=white" alt="Apache Iceberg">
   <img src="https://img.shields.io/badge/MinIO-latest-C72E49?style=flat-square&logo=minio&logoColor=white" alt="MinIO">
 </p>
@@ -102,13 +102,13 @@ Chi tiết thiết lập từng máy: [docs/SETUP.md](./docs/SETUP.md).
 Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 
 **Phiên bản công cụ tối thiểu (stable):**
-- K3s ≥ v1.35.4 · Helm ≥ v4.2.0 · Argo CD v3.4.2 (chart `argo-cd` 9.5.14) · RisingWave ≥ v2.4 · Redpanda ≥ v26.1 · Vector ≥ 0.45 · Tailscale ≥ 1.98.2.
+- K3s ≥ v1.35.4 · Helm ≥ v4.2.0 · Argo CD v3.4.2 (chart `argo-cd` 9.5.14) · RisingWave ≥ v2.8 · Redpanda ≥ v26.1 · Vector ≥ 0.45 · Tailscale ≥ 1.98.2.
 
 ---
 
 ## KHỞI CHẠY DỰ ÁN
 
-**Phiên bản tài liệu hiện tại:** `v0.1.4` — hoàn tất ArgoCD UI qua Cloudflare Tunnel và chuẩn bị bootstrap App-of-Apps.
+**Phiên bản tài liệu hiện tại:** `v0.1.5` — hoàn tất ArgoCD UI qua Cloudflare Tunnel và chuẩn bị bootstrap App-of-Apps.
 
 **Các bước tổng quát:**
 1. Khởi tạo cụm K3s (`continux-imac` làm server #1, `continux-vps` làm server #2) và cấu hình `kubectl`.

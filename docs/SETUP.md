@@ -80,7 +80,7 @@ Xem tài liệu đầy đủ cho tất cả script (cú pháp, argument, flags, 
 | K3s | **v1.35.4+k3s1** trở lên | `k3s --version` |
 | Helm | **v4.2.0+** | `helm version` |
 | Argo CD | **v3.4.2** (Helm chart `argo-cd` **9.5.14**) | `argocd version` / `helm show chart argo/argo-cd --version 9.5.14` |
-| RisingWave | **v2.4+** (stable, hỗ trợ Iceberg Hosted Catalog) | `psql` → `SELECT version();` |
+| RisingWave | **v2.8+** (stable, hỗ trợ Iceberg Hosted Catalog) | `psql` → `SELECT version();` |
 | Redpanda | **v26.1+** (không JVM, không ZooKeeper — dùng Raft tự thân) | `rpk version` |
 | Vector | **0.45+** | `vector --version` |
 | MinIO | RELEASE bản mới nhất (tối thiểu **RELEASE.2025-08-13** trở về sau) | `mc admin info` |
@@ -904,11 +904,13 @@ argocd app sync redpanda-topics --grpc-web
 
 ### 8.4. RisingWave
 
-RisingWave v2.4+ gồm 4 thành phần: **meta**, **compute**, **frontend**, **compactor**. Với 8 GB RAM cần giới hạn chặt.
+RisingWave v2.8+ gồm 4 thành phần: **meta**, **compute**, **frontend**, **compactor**. Với 8 GB RAM cần giới hạn chặt.
 
 Helm values: [`config/risingwave/helm-values.yaml`](../config/risingwave/helm-values.yaml)
 
 Deploy RisingWave bằng Helm. Repo hiện tại chưa có ArgoCD app `risingwave`, nên không dùng `argocd app sync risingwave`.
+
+> **Lưu ý tài nguyên:** compactor cần RAM đủ lớn; nếu thiếu sẽ CrashLoopBackOff với lỗi `compactor_memory_limit_bytes`. Helm values hiện đặt `requests: 1Gi`, `limits: 2Gi` để tránh panic khi boot trên iMac 8 GB.
 
 > **Thực thi trên:** `continux-imac`
 
@@ -929,8 +931,19 @@ kubectl -n risingwave rollout status statefulset/risingwave-compute --timeout=30
 
 # Kết nối qua psql
 kubectl -n risingwave port-forward svc/risingwave 4567:svc
+# Có thể Ctrl+C để tắt port-forward trước khi chuyển sang §8.5.
 psql -h localhost -p 4567 -d dev -U root
+# psql (16.13 (Ubuntu 16.13-0ubuntu0.24.04.1), server 13.14.0)
+# Type "help" for help.
+
 # dev=> SHOW CLUSTER;
+#  Id |                                 Addr                                 |           Type           |  State  | Parallelism | Is Streaming | Is Serving | Is Unschedulable |        Started At
+# ----+----------------------------------------------------------------------+--------------------------+---------+-------------+--------------+------------+------------------+---------------------------
+#   0 | risingwave-meta-0.risingwave-meta-headless.risingwave.svc:5690       | WORKER_TYPE_META         | RUNNING |             |              |            |                  | 2026-05-19 05:28:43+00:00
+#   1 | 10.42.0.23:4567                                                      | WORKER_TYPE_FRONTEND     | RUNNING |             | f            | f          | f                | 2026-05-19 05:28:53+00:00
+#   2 | risingwave-compute-0.risingwave-compute-headless.risingwave.svc:5688 | WORKER_TYPE_COMPUTE_NODE | RUNNING |           2 | t            | t          | f                | 2026-05-19 05:28:53+00:00
+#   5 | 10.42.0.25:6660                                                      | WORKER_TYPE_COMPACTOR    | RUNNING |           3 | f            | f          | f                | 2026-05-19 05:32:45+00:00
+# (4 rows)
 ```
 
 ### 8.5. Vector (load generator)
