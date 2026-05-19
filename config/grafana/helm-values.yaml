@@ -8,6 +8,14 @@ deploymentStrategy:
     maxSurge: 0
     maxUnavailable: 1
 
+initChownData:
+  enabled: false
+
+securityContext:
+  runAsUser: 472
+  runAsGroup: 472
+  fsGroup: 472
+
 nodeSelector: { role: control-plane }
 tolerations:
   - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
