@@ -889,12 +889,17 @@ helm upgrade --install redpanda redpanda/redpanda \
     -f config/redpanda/helm-values.yaml
 
 kubectl -n redpanda rollout status statefulset/redpanda --timeout=600s
-# statefulset rolling update complete 1 pods at revision redpanda-5999fd6489...
-
 kubectl -n redpanda get pods,svc -o wide
 
 # Tạo topic qua GitOps Job
 argocd app sync redpanda-topics
+```
+
+Nếu `argocd app sync redpanda-topics` báo `PermissionDenied`, login lại ArgoCD rồi chạy lại:
+
+```bash
+argocd login continux-argo.<domain> --username admin --password <new> --grpc-web
+argocd app sync redpanda-topics --grpc-web
 ```
 
 ### 8.4. RisingWave
