@@ -10,7 +10,7 @@
 ## 2. Bài báo nền tảng
 
 - **Tên bài báo:** *Ursa: A Lakehouse-Native Data Streaming Engine for Kafka*.
-- **Tác giả:** Sijie Guo và cộng sự.
+- **Tác giả:** Matteo Merli, Sijie Guo, Penghui Li, Hang Chen, Neng Lu.
 - **Nơi công bố:** Kỷ yếu Hội nghị VLDB Endowment (PVLDB), Tập 18, Xuất bản tháng 08/2025 (Q1).
 - **Đường dẫn PDF:** <https://www.vldb.org/pvldb/vol18/p5184-guo.pdf>.
 
@@ -43,7 +43,9 @@ Nhằm tối ưu hóa tài nguyên và tập trung vào bài toán vận hành l
 
 ## 5. Lý do chọn bài báo và khoảng trống nghiên cứu
 
-Bài báo **Ursa** xuất sắc trong việc tối ưu hóa chi phí và độ trễ khi ghi trực tiếp dữ liệu từ luồng Kafka xuống định dạng Lakehouse. Tuy nhiên, bài báo để lại một khoảng trống lớn về mặt vận hành: nhóm tác giả chỉ tập trung vào việc "đổ" dữ liệu vào hồ mà chưa duy trì hệ thống chạy liên tục khi cần cập nhật phiên bản thuật toán phân tích mới.
+Bài báo **Ursa** là nền tảng phù hợp vì tập trung vào hướng **lakehouse-native streaming**: giảm chi phí vận hành, giảm độ trễ và ghi trực tiếp dữ liệu từ luồng Kafka-compatible xuống định dạng Lakehouse. Tuy nhiên, phạm vi của Ursa chủ yếu nằm ở lớp ingestion/streaming engine. Bài báo chưa đi sâu vào lớp vận hành phía trên: làm thế nào để cập nhật logic phân tích đang chạy trên luồng dữ liệu mà không làm gián đoạn hệ thống.
+
+Vì vậy, đề tài này không thay thế hay thay đổi hướng công nghệ của Ursa, mà dùng một stack đã triển khai được trong môi trường K3s tài nguyên giới hạn (**Redpanda → RisingWave → MinIO/Iceberg**, điều phối bằng **ArgoCD**) để kiểm chứng khoảng trống bổ sung: **vận hành cập nhật thuật toán phân tích zero-downtime**.
 
 Đề tài lấp đầy khoảng trống này bằng hai đóng góp chính:
 

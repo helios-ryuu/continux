@@ -50,8 +50,8 @@ function Show-Usage {
     Write-Host "  -NoAgent       Không tự gọi ssh-agent/ssh-add"
     Write-Host "  -Multiplex     Thử bật SSH multiplexing nếu OpenSSH hỗ trợ"
     Write-Host ""
-    Write-Host "Ghi chú: passphrase của SSH key sẽ được ssh/scp hỏi trực tiếp trong terminal."
-    Write-Host "Nếu không muốn nhập passphrase nhiều lần: Start-Service ssh-agent; ssh-add C:\Users\Helios\.ssh\id_ed25519"
+    Write-Host "Ghi chú: script ưu tiên nạp SSH key vào ssh-agent một lần, sau đó ssh/scp chạy non-interactive."
+    Write-Host "Nếu dùng key khác: Start-Service ssh-agent; ssh-add <path-to-key>; rồi chạy script với -IdentityFile nếu cần."
     Write-Host ""
 }
 
@@ -106,6 +106,16 @@ function Assert-NativeCommand {
     }
 }
 
+function Add-NonInteractiveSshOptions {
+    $options = @(
+        "-o", "BatchMode=yes",
+        "-o", "NumberOfPasswordPrompts=0",
+        "-o", "StrictHostKeyChecking=accept-new"
+    )
+    $script:SshArgs += $options
+    $script:ScpArgs += $options
+}
+
 function Ensure-SshAgentKey {
     param([string]$KeyPath)
 
@@ -114,7 +124,7 @@ function Ensure-SshAgentKey {
         return
     }
     if (-not (Get-Command ssh-add -ErrorAction SilentlyContinue)) {
-        Write-Host ">>> SSH key: không tìm thấy ssh-add, bỏ qua ssh-agent"
+        Write-Host ">>> SSH key: không tìm thấy ssh-add, sẽ kiểm tra SSH bằng BatchMode"
         return
     }
     if ([string]::IsNullOrWhiteSpace($KeyPath)) {
@@ -122,7 +132,7 @@ function Ensure-SshAgentKey {
         if (Test-Path -LiteralPath $defaultKey) {
             $KeyPath = $defaultKey
         } else {
-            Write-Host ">>> SSH key: không tìm thấy key mặc định $defaultKey, bỏ qua ssh-agent"
+            Write-Host ">>> SSH key: không tìm thấy key mặc định $defaultKey, sẽ dùng cấu hình SSH hiện có"
             return
         }
     }
@@ -134,8 +144,7 @@ function Ensure-SshAgentKey {
         try {
             Start-Service ssh-agent -ErrorAction Stop
         } catch {
-            Write-Host ">>> SSH key: không start được ssh-agent. Chạy thủ công: Start-Service ssh-agent"
-            return
+            throw "Không start được ssh-agent. Chạy thủ công: Start-Service ssh-agent; ssh-add $resolvedKey"
         }
     }
 
@@ -145,9 +154,36 @@ function Ensure-SshAgentKey {
         return
     }
 
-    Write-Step "Đang nạp SSH key vào ssh-agent. Nhập passphrase một lần nếu được hỏi."
+    Write-Step "Đang nạp SSH key vào ssh-agent. Nếu key có passphrase, nhập một lần ở prompt này."
     & ssh-add $resolvedKey
     Assert-NativeCommand "Nạp SSH key vào ssh-agent"
+}
+
+function Test-RemotePreflight {
+    param(
+        [Parameter(Mandatory=$true)][string]$Target,
+        [Parameter(Mandatory=$true)][string]$RemoteDirExpression
+    )
+
+    Write-Step "Preflight SSH non-interactive tới ${Target}..."
+    Write-Progress -Activity "Chuẩn bị remote" -Status "Kiểm tra SSH/key/remote dir" -PercentComplete 0
+    $script = "mkdir -p $RemoteDirExpression && cd $RemoteDirExpression && test -w . && printf '__CONTINUX_READY__\n' && pwd -P"
+    $output = @(& ssh @SshArgs $Target $script 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        $detail = ($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 6) -join "`n"
+        throw @"
+Preflight SSH thất bại. Script đang chạy ở chế độ non-interactive nên sẽ không chờ nhập Enter/passphrase lặp lại.
+Hãy chuẩn bị trước một lần:
+  Start-Service ssh-agent
+  ssh-add C:\Users\Helios\.ssh\id_ed25519
+  ssh $Target
+
+Chi tiết:
+$detail
+"@
+    }
+    Write-Progress -Activity "Chuẩn bị remote" -Completed
+    return $output
 }
 
 if ([string]::IsNullOrWhiteSpace($SourceDir)) {
@@ -172,6 +208,7 @@ if (-not [string]::IsNullOrWhiteSpace($IdentityFile)) {
 }
 
 Ensure-SshAgentKey -KeyPath $IdentityFile
+Add-NonInteractiveSshOptions
 
 if ($Multiplex) {
     $controlName = "continux-ssh-{0}.sock" -f ([guid]::NewGuid().ToString("N").Substring(0, 12))
@@ -227,18 +264,13 @@ if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
     throw "Không tìm thấy tar trong PATH."
 }
 
-Write-Step "Đang resolve đường dẫn remote. Nếu SSH key có passphrase, nhập passphrase ở prompt bên dưới."
-Write-Progress -Activity "Chuẩn bị remote" -Status "Resolve ${Target}:${RemoteDir}" -PercentComplete 0
 $remoteDirExpr = Convert-RemotePathToShellExpression $RemoteDir
-$remoteResolveScript = "mkdir -p $remoteDirExpr && cd $remoteDirExpr && pwd -P"
-$remoteResolveOutput = @(& ssh @SshArgs $Target $remoteResolveScript)
-Assert-NativeCommand "Resolve đường dẫn remote"
+$remoteResolveOutput = @(Test-RemotePreflight -Target $Target -RemoteDirExpression $remoteDirExpr)
 $RemoteAbsDir = ($remoteResolveOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
 if ([string]::IsNullOrWhiteSpace($RemoteAbsDir)) {
     throw "Không resolve được đường dẫn remote: ${Target}:${RemoteDir}"
 }
 $RemoteAbsDir = $RemoteAbsDir.Trim()
-Write-Progress -Activity "Chuẩn bị remote" -Completed
 Write-Step "Remote đã sẵn sàng: ${Target}:${RemoteAbsDir}"
 
 Write-Step "Đang quét file local..."

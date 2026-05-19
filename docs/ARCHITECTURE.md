@@ -415,7 +415,13 @@ docs: update ARCHITECTURE NFR-12
 
 ---
 
-## 12. Lệnh tiện ích (Makefile targets)
+## 12. Workflow vận hành hiện tại
+
+- Windows là môi trường phát triển chính: sửa code, commit và push lên GitHub.
+- `continux-imac` là máy quản trị cluster: giữ clone repo ở `~/continux`, chạy `kubectl`, `helm`, `argocd`, `rpk`, `mc`, `psql`.
+- Sau bootstrap `root-app`, ArgoCD lấy manifest từ GitHub; repo local trên iMac chủ yếu dùng cho các lệnh bootstrap, kiểm tra và thao tác vận hành cần file manifest local.
+
+## 13. Lệnh tiện ích (Makefile targets)
 
 ```make
 make bootstrap           # Cài K3s + join node + install ArgoCD (chạy lần đầu)

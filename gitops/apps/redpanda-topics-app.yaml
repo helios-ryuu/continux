@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redpanda-topics
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/helios-ryuu/continux.git
+    targetRevision: main
+    path: pipelines/redpanda
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: redpanda
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

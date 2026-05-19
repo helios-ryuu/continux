@@ -509,20 +509,30 @@ ArgoCD UI và Grafana được expose qua Cloudflare Tunnel — không cần por
 
 **a. Tạo tunnel trên Cloudflare dashboard:**
 
-1. Vào [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → **Networks → Tunnels → Create a tunnel**
-2. Chọn **Cloudflared** → đặt tên `continux` → **Save tunnel**
-3. Sao chép **tunnel token** hiển thị trên màn hình
-4. Tab **Public Hostnames** → thêm 2 hostname:
-   - `argocd.<domain>` → Service `HTTP` · `argocd-server.argocd:80`
-   - `grafana.<domain>` → Service `HTTP` · `grafana.observability:80`
+1. Vào [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → **Networking → Tunnels → Create Tunnel**.
+2. Chọn connector **Cloudflared** → đặt **Tunnel name** là `continux` → **Create Tunnel**.
+3. Ở màn hình **Create a Tunnel**, Cloudflare sẽ hỏi **Operating System** và **Architecture** để sinh lệnh mẫu. Vì ta chạy `cloudflared` bằng Kubernetes manifest, không cần chạy `cloudflared service install` trên máy local.
+   - Có thể chọn bất kỳ OS/architecture để xem token; nếu đang mở dashboard từ Windows thì chọn **Windows · 64-bit** cũng được.
+   - Sao chép phần token sau `--token` trong lệnh mẫu `cloudflared tunnel run --token <TOKEN>` hoặc `cloudflared service install <TOKEN>`.
+   - Token hợp lệ thường bắt đầu bằng `eyJ...`; **không** copy cả chuỗi `cloudflared tunnel run --token ...`, không copy dấu `*` bị che trên UI.
+   - Không bấm **Continue** vội nếu màn hình còn báo **No connection detected yet**; quay lại sau khi pod `cloudflared` trong K3s đã chạy.
+4. Sau khi tunnel connected, Cloudflare chuyển sang màn hình **Add a route**. Chọn **Published application** để publish ứng dụng qua public hostname, rồi thêm 2 route:
+   - Public hostname `continux-argo.<domain>` → Service URL `http://argocd-server.argocd:80`
+   - Public hostname `continux-grafana.<domain>` → Service URL `http://grafana.observability:80`
+
+   > Lưu ý TLS: dùng hostname một cấp như `continux-argo.<domain>` để khớp Universal SSL mặc định của Cloudflare (`*.<domain>`). Hostname nhiều cấp như `argo.continux.<domain>` thường cần certificate riêng cho `*.continux.<domain>`.
 
 **b. Lưu token vào K8s Secret:**
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
+TOKEN=<token-sao-chep-tu-dashboard-cloudflare>
+
 kubectl -n argocd create secret generic cloudflare-tunnel-token \
-    --from-literal=token=<TOKEN_FROM_DASHBOARD>
+    --from-literal=token="${TOKEN}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+# secret/cloudflare-tunnel-token created
 ```
 
 **c. Deploy cloudflared trong cluster** ([`config/argocd/cloudflared.yaml`](../config/argocd/cloudflared.yaml)):
@@ -532,8 +542,42 @@ kubectl -n argocd create secret generic cloudflare-tunnel-token \
 ```bash
 cd ~/continux
 
-kubectl apply -f config/argocd/cloudflared.yaml
+kubectl apply -f config/argocd/cloudflared.yaml # deployment.apps/cloudflared created
 kubectl -n argocd rollout status deploy/cloudflared
+kubectl -n argocd logs deploy/cloudflared --tail=50
+```
+
+Khi log có kết nối thành công, quay lại Cloudflare dashboard. Màn hình **Connection Status** sẽ chuyển khỏi trạng thái **Waiting for your Tunnel to connect / No connection detected yet**; lúc đó bấm **Continue**, chọn **Published application** ở màn hình **Add a route**, rồi cấu hình 2 public hostname như bước a.4.
+
+Nếu `cloudflared` bị `CrashLoopBackOff`, kiểm tra container log trước đó và token Secret:
+
+```bash
+kubectl -n argocd get pods -l app=cloudflared
+kubectl -n argocd logs deploy/cloudflared --previous --tail=80
+
+kubectl -n argocd get secret cloudflare-tunnel-token \
+    -o jsonpath='{.data.token}' | base64 -d | cut -c1-24 && echo
+```
+
+Kết quả dòng cuối phải bắt đầu bằng `eyJ`. Nếu thấy `cloudflared`, `sudo`, `service install`, dấu `*`, khoảng trắng thừa, hoặc token không bắt đầu bằng `eyJ`, tạo lại Secret bằng token thật rồi restart:
+
+```bash
+kubectl -n argocd create secret generic cloudflare-tunnel-token \
+    --from-literal=token='<TOKEN_EYJ...>' \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n argocd rollout restart deploy/cloudflared
+kubectl -n argocd rollout status deploy/cloudflared
+```
+
+Nếu token đã hợp lệ nhưng log lặp lỗi kiểu `Failed to dial a quic connection ... timeout: no recent network activity`, đường UDP/QUIC tới Cloudflare edge có thể đang bị chặn. Manifest mặc định của dự án đã ép `--protocol http2` để dùng TCP/TLS ổn định hơn trong môi trường K3s qua VPS. Đảm bảo manifest trên `continux-imac` đã được cập nhật rồi apply lại:
+
+```bash
+grep -A12 -- '--metrics' config/argocd/cloudflared.yaml
+
+kubectl apply -f config/argocd/cloudflared.yaml
+kubectl -n argocd rollout restart deploy/cloudflared
+kubectl -n argocd logs deploy/cloudflared --tail=80
 ```
 
 **d. Lấy password admin lần đầu:**
@@ -545,18 +589,23 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
     -o jsonpath="{.data.password}" | base64 -d && echo
 ```
 
-Mở `https://argocd.<domain>` → đăng nhập `admin` / password trên, **đổi password ngay** (NFR-17).
+Mở `https://continux-argo.<domain>` → đăng nhập `admin` / password trên, **đổi password ngay** (NFR-17).
 
 ### 7.3. Kết nối repo GitOps
 
 > **Thực thi trên:** `continux-imac`
 
+Lần bootstrap App-of-Apps cần file manifest local, vì vậy `continux-imac` nên có một bản clone repo tại `~/continux` dù workflow phát triển chính vẫn ở Windows.
+
 ```bash
+cd ~
+git clone https://github.com/helios-ryuu/continux.git 2>/dev/null || true
 cd ~/continux
+git pull
 
-argocd login argocd.<domain> --username admin --password <new>
+argocd login continux-argo.<domain> --username admin --password <new>
 
-argocd repo add https://github.com/<org>/continux-gitops.git \
+argocd repo add https://github.com/helios-ryuu/continux.git \
     --username <gh-user> \
     --password <gh-PAT>     # Personal Access Token, scope: repo
 
@@ -565,6 +614,8 @@ kubectl apply -f gitops/apps/root-app.yaml
 argocd app sync root-app
 argocd app list
 ```
+
+Sau lần apply `root-app` đầu tiên, ArgoCD đọc trạng thái mong muốn trực tiếp từ GitHub. Nhịp làm việc thường ngày là sửa code trên Windows → commit/push → SSH vào `continux-imac` để `git pull` khi cần chạy lệnh local, hoặc sync bằng ArgoCD UI/CLI.
 
 ---
 
@@ -597,9 +648,8 @@ Apply xong:
 ```bash
 argocd app sync redpanda
 
-# Tạo topic
-kubectl -n redpanda exec -it redpanda-0 -- \
-    rpk topic create nyc-taxi-events -p 3 -r 1
+# Tạo topic qua GitOps Job
+argocd app sync redpanda-topics
 ```
 
 ### 8.3. RisingWave
@@ -628,7 +678,7 @@ Manifest: [`config/vector/deployment.yaml`](../config/vector/deployment.yaml) ·
 
 Cấu hình Vector: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.toml) — xem §10.2.
 
-`vector/deployment.yaml` mount ConfigMap `vector-config` — phải tạo trước khi apply Deployment:
+`vector/deployment.yaml` mount ConfigMap `vector-config`. Khi sync qua ArgoCD, `config/vector/kustomization.yaml` apply `config/vector/vector-config.yaml` (nội dung bám theo `pipelines/vector/vector.toml`). Nếu apply thủ công không qua Kustomize, tạo ConfigMap trước:
 
 > **Thực thi trên:** `continux-imac`
 
@@ -669,7 +719,7 @@ Import 4 dashboard JSON từ `dashboards/*.json`:
 
 ### 9.3. Truy cập Grafana
 
-Grafana đã được expose qua Cloudflare Tunnel cấu hình ở §7.2 — truy cập `https://grafana.<domain>`.
+Grafana đã được expose qua Cloudflare Tunnel cấu hình ở §7.2 — truy cập `https://continux-grafana.<domain>`.
 
 Đăng nhập mặc định: `admin` / `admin` (đổi password ngay lần đầu).
 

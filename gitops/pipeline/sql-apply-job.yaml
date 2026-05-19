@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mv-apply-job
+  namespace: pipeline
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: mv-apply-job
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        role: data-plane
+      containers:
+        - name: psql
+          image: postgres:16-alpine
+          env:
+            - name: PGHOST
+              value: risingwave-frontend.risingwave.svc.cluster.local
+            - name: PGPORT
+              value: "4566"
+            - name: PGDATABASE
+              value: dev
+            - name: PGUSER
+              value: root
+            - name: PGSSLMODE
+              value: disable
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              for file in /sql/*.sql; do
+                echo ">>> applying ${file}"
+                psql -v ON_ERROR_STOP=1 -f "${file}"
+              done
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+      volumes:
+        - name: sql
+          configMap:
+            name: continux-sql

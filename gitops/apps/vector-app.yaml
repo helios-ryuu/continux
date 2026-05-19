@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/helios-ryuu/continux.git
+    targetRevision: main
+    path: config/vector
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pipeline
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

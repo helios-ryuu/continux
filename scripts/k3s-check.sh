@@ -4,12 +4,13 @@
 # Chạy trên : continux-imac (node quản trị cluster)
 # Mục đích  : Kiểm tra tổng thể cụm K3s: node, pod, PVC, workload,
 #             image, Helm release/repo, secrets, tài nguyên hệ thống
-# Cú pháp   : bash k3s-check.sh [section] [args]
+# Cú pháp   : bash k3s-check.sh [-e|--explain] [section] [args]
 # =================================================================
 
 set -o pipefail
 K3S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CK_DIR="$K3S_DIR/k3s-check"
+EXPLAIN=false
 
 # ======================== COLORS ========================
 GREEN='\033[0;32m'
@@ -58,6 +59,21 @@ section_timed() {
     "$@"
     local ms=$(( ($(date +%s%N) - start) / 1000000 ))
     echo -e "  ${CYAN}(${ms}ms)${NC}"
+}
+
+# ======================== EXPLAIN MODE ========================
+explain() {
+    $EXPLAIN || return
+    echo -e "  ${CYAN}ⓘ $*${NC}"
+}
+
+explain_item() {
+    $EXPLAIN || return
+    printf "  ${CYAN}%-12s${NC} %s\n" "$1" "$2"
+}
+
+explain_suffix() {
+    $EXPLAIN && printf " ${CYAN}(%s)${NC}" "$1"
 }
 
 # ======================== CACHE ========================
@@ -175,16 +191,19 @@ get_ts_ip() {
 # ======================== SECTIONS ========================
 section_sys() {
     echo -e "\n${BLUE}--- [1/6] HỆ THỐNG & TẢI ---${NC}"
-    printf "${CYAN}%-12s${NC} %s\n" "Hostname:" "$(hostname)"
-    printf "${CYAN}%-12s${NC} %s\n" "Kernel:" "$(uname -r)"
-    printf "${CYAN}%-12s${NC} %s\n" "Uptime:" "$(uptime -p)"
-    uptime | awk -F'load average:' '{ printf "'"${CYAN}"'%-12s'"${NC}"' %s (1m / 5m / 15m)\n", "Load avg:", $2 }'
+    explain "Đọc tài nguyên ngay trên node đang chạy script; phần này giúp phát hiện thiếu RAM/đĩa hoặc tải CPU bất thường trước khi nhìn vào Kubernetes."
+    printf "${CYAN}%-12s${NC} %s" "Hostname:" "$(hostname)"; explain_suffix "Tên Linux host hiện tại"; echo
+    printf "${CYAN}%-12s${NC} %s" "Kernel:" "$(uname -r)"; explain_suffix "Phiên bản Linux kernel"; echo
+    printf "${CYAN}%-12s${NC} %s" "Uptime:" "$(uptime -p)"; explain_suffix "Thời gian máy đã chạy liên tục"; echo
+    uptime | awk -F'load average:' '{ printf "'"${CYAN}"'%-12s'"${NC}"' %s (1m / 5m / 15m)", "Load avg:", $2 }'
+    explain_suffix "Tải trung bình 1/5/15 phút"; echo
 
     free -m | awk 'NR==2{
         used=$3; total=$2; pct=used*100/total;
         bar=""; for(i=0;i<20;i++) bar=bar (i<pct/5 ? "█" : "░");
-        printf "'"${CYAN}"'%-12s'"${NC}"' %d/%d MB (%d%%) [%s]\n", "RAM:", used, total, pct, bar
+        printf "'"${CYAN}"'%-12s'"${NC}"' %d/%d MB (%d%%) [%s]", "RAM:", used, total, pct, bar
     }'
+    explain_suffix "Bộ nhớ đang dùng/tổng"; echo
     free -m | awk 'NR==3{
         if($2>0) {
             pct=$3*100/$2;
@@ -192,13 +211,16 @@ section_sys() {
             printf "'"${CYAN}"'%-12s'"${NC}"' %d/%d MB (%d%%) [%s]\n", "Swap:", $3, $2, pct, bar;
         }
     }'
-    df -h / | awk 'NR==2{printf "'"${CYAN}"'%-12s'"${NC}"' %s/%s (%s used)\n", "Disk (/):", $3, $2, $5}'
-    printf "${CYAN}%-12s${NC} %s cores | %s\n" "CPU:" "$(nproc)" "$(grep -m 1 'model name' /proc/cpuinfo | sed 's/.*: //')"
+    df -h / | awk 'NR==2{printf "'"${CYAN}"'%-12s'"${NC}"' %s/%s (%s used)", "Disk (/):", $3, $2, $5}'
+    explain_suffix "Dung lượng root filesystem"; echo
+    printf "${CYAN}%-12s${NC} %s cores | %s" "CPU:" "$(nproc)" "$(grep -m 1 'model name' /proc/cpuinfo | sed 's/.*: //')"
+    explain_suffix "Số core và model CPU của node"; echo
 }
 
 section_node() {
     load_cache
     echo -e "\n${BLUE}--- [2/6] TOPOLOGY & K3S NODES ---${NC}"
+    explain "Tóm tắt node, phiên bản K3s, IP Tailscale, độ trễ ping và namespace đang có pod trên từng node."
 
     # --- Collect raw data ---
     local -a _NODE _STATUS _ROLE _VER _IP _LAT _NS
@@ -290,6 +312,10 @@ section_node() {
     done
 
     echo -e "\n${CYAN}PODS LAYOUT:${NC}"
+    explain "STATUS=Ready nghĩa kubelet khỏe; PING đo đường Tailscale giữa các node; NAMESPACES cho biết workload đang nằm ở đâu."
+    if $EXPLAIN; then
+        echo -en "  ${CYAN}ⓘ Liệt kê pod theo node.${NC} "
+    fi
     for node in $SORTED_NODES; do
         echo -e "  ${YELLOW}>> $node${NC}"
         NODE_PODS=$(echo "$ALL_PODS" | awk -v n="$node" '$1==n {print $2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}')
@@ -343,6 +369,7 @@ section_node() {
 section_secrets() {
     load_cache
     echo -e "\n${BLUE}--- SECRETS (theo namespace, chỉ hiện tên) ---${NC}"
+    explain "Chỉ in tên Secret, type và key; không in giá trị secret để tránh lộ credential trong terminal/report."
     local ns_list=$(echo "$RAW_SECRETS_JSON" | jq -r '
         .items[] | select(.type != "kubernetes.io/service-account-token" and .metadata.namespace != "kube-system") |
         .metadata.namespace
@@ -374,6 +401,7 @@ section_secrets() {
 section_pvc() {
     load_cache
     echo -e "\n${BLUE}--- [3/6] STORAGE (PVC) ---${NC}"
+    explain "PVC là claim lưu trữ bền vững cho pod. Bảng này nhóm PVC theo node đang mount để thấy dữ liệu đang nằm ở đâu."
 
     ALL_PVC=$(echo "$RAW_PVC_JSON" | jq -r '
         .items[] | [.metadata.namespace, .metadata.name, (.status.capacity.storage // "N/A")] | @tsv
@@ -406,6 +434,7 @@ section_res() {
     load_cache
     local ns_filter="$1"
     echo -e "\n${BLUE}--- [4/6] DEPLOYED RESOURCES ---${NC}"
+    explain "Tổng hợp workload và service ngoài kube-system."
 
     local jq_ns_filter=""
     if [ -n "$ns_filter" ]; then
@@ -451,10 +480,12 @@ section_res() {
             echo -e "${YELLOW}NS\tKIND\tNAME\tDESIRED\tREADY\tUP-TO-DATE\tAVAILABLE${NC}"
             echo -e "$workloads_colored"
         ) | column -t -s $'\t' | sed 's/^/     /'
+        explain "DESIRED là số replica mong muốn; READY/AVAILABLE thấp hơn DESIRED là dấu hiệu rollout chưa xong hoặc pod lỗi."
     fi
 
     # ========================== KHỐI HPA ==========================
     echo -e "\n  ${YELLOW}>> AUTOSCALING (HPA)${NC}"
+    explain "HPA tự tăng/giảm replica theo metric. Không có HPA là bình thường ở giai đoạn bootstrap tài nguyên thấp."
     local hpas=$(echo "$RAW_HPA_JSON" | jq -r '
         .items[] | select(.metadata.namespace != "kube-system"'"$jq_ns_filter"') |
         .metadata.namespace as $ns |
@@ -496,6 +527,7 @@ section_res() {
     # ===================================================================
 
     echo -e "\n  ${YELLOW}>> SERVICES${NC}"
+    explain "Service là endpoint nội bộ của Kubernetes. ClusterIP chỉ truy cập trong cluster."
     local svcs=$(echo "$RAW_SVC_JSON" | jq -r '
         .items[] | select(.metadata.namespace != "kube-system" and .metadata.name != "kubernetes"'"$jq_ns_filter"') |
         .metadata.namespace as $ns |
@@ -525,6 +557,7 @@ section_res() {
 section_img() {
     load_cache
     echo -e "\n${BLUE}--- [5/6] CUSTOM IMAGES & USAGE ---${NC}"
+    explain "Hiển thị image không thuộc nhóm system image. [In-Use] nghĩa đang được pod dùng; [Unused] có thể là cache cũ."
     POD_DATA=$(echo "$RAW_PODS_JSON" | jq -r '.items[] | .spec.nodeName as $node | .metadata.name as $pod | (.spec.containers[], (.spec.initContainers[]? // empty)) | [$node, (.image | split("/") | last | split(":") | first | split("@") | first), $pod] | @tsv' | sort -u)
     SYS_IMAGES="rancher|k8s\.io|gcr\.io|klipper|pause|coredns|traefik|metrics|local-path"
 
@@ -563,6 +596,7 @@ section_img() {
 section_helm() {
     if ! command -v helm >/dev/null 2>&1; then return; fi
     echo -e "\n${BLUE}--- [6/6] HELM ---${NC}"
+    explain "Helm releases là các chart đã cài; repositories là cấu hình repo trên máy đang chạy script, không phải object trong cluster."
 
     echo -e "  ${YELLOW}>> RELEASES${NC}"
     local releases_json
@@ -593,6 +627,7 @@ section_helm() {
             else if (line ~ /pending/) sub("pending", "'"${YELLOW}"'pending'"${NC}"'", line);
             print "     " line;
         }'
+        explain "STATUS=deployed là tốt; nếu failed/pending thì cần xem helm history hoặc pod events trong namespace tương ứng."
     fi
 
     echo -e "\n  ${YELLOW}>> REPOSITORIES${NC}"
@@ -609,48 +644,18 @@ section_helm() {
         return
     fi
 
-    # Repo Helm là cấu hình client-side. Danh sách expected mặc định bám theo SETUP.md:
-    # argo cho ArgoCD, vm cho VictoriaMetrics, grafana nếu cài Grafana bằng chart riêng.
-    # Có thể override khi chạy: K3S_CHECK_HELM_EXPECTED_REPOS="argo vm grafana prometheus-community" bash scripts/k3s-check.sh helm
-    local expected_repos="${K3S_CHECK_HELM_EXPECTED_REPOS:-argo vm grafana}"
-
     local repos
-    repos=$(echo "$repos_json" | jq -r --arg expected "$expected_repos" '
-        ($expected | split(" ") | map(select(length > 0))) as $expectedRepos |
+    repos=$(echo "$repos_json" | jq -r '
         .[] |
         (.name // "-") as $name |
         (.url // "-") as $url |
-        (if ($expectedRepos | index($name)) then "expected" else "stale?" end) as $state |
-        [$name, $url, $state] | @tsv
-    ' 2>/dev/null | sort -k3,3 -k1,1)
+        [$name, $url] | @tsv
+    ' 2>/dev/null | sort -k1,1)
 
-    echo "$repos" | awk -F'\t' 'OFS="\t" {
-        if ($3 == "expected") $3 = "'"${GREEN}"'" $3 "'"${NC}"'";
-        else $3 = "'"${ORANGE}"'" $3 "'"${NC}"'";
-        print $0
-    }' | (
-        echo -e "${YELLOW}NAME\tURL\tSTATUS${NC}"
+    echo "$repos" | (
+        echo -e "${YELLOW}NAME\tURL${NC}"
         cat
     ) | column -t -s $'\t' | sed 's/^/     /'
-
-    local stale_repos
-    stale_repos=$(echo "$repos" | awk -F'\t' '$3 == "stale?" {print $1}')
-    if [ -n "$stale_repos" ]; then
-        echo -e "\n     ${ORANGE}Repo có thể dọn:${NC}"
-        while IFS= read -r repo; do
-            [ -n "$repo" ] && echo -e "     helm repo remove ${repo}"
-        done <<< "$stale_repos"
-    fi
-
-    local missing_repos=""
-    for repo in $expected_repos; do
-        if ! echo "$repos" | awk -F'\t' '{print $1}' | grep -qx "$repo"; then
-            missing_repos+="$repo "
-        fi
-    done
-    if [ -n "$missing_repos" ]; then
-        echo -e "\n     ${YELLOW}Repo expected chưa có:${NC} ${missing_repos% }"
-    fi
 }
 
 # ======================== EXPORT & MAIN ========================
@@ -688,13 +693,27 @@ do_export() {
     echo -e "${GREEN}✔ Exported: $outfile ($lines lines, $size)${NC}"
 }
 
-check_dependencies
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        -e|--explain)
+            EXPLAIN=true
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$arg")
+            ;;
+    esac
+done
+set -- "${POSITIONAL_ARGS[@]}"
 
 case "${1:-}" in
     -h|--help)
         echo "K3s Cluster Check"
         echo ""
-        echo "Cú pháp: bash k3s-check.sh [section] [args]"
+        echo "Cú pháp: bash k3s-check.sh [-e|--explain] [section] [args]"
+        echo ""
+        echo "Options:"
+        echo "  -e, --explain  Hiển thị thêm giải thích ngắn cho từng section/cột chính"
         echo ""
         echo "Sections:"
         echo "  sys       Hệ thống & tải (CPU, RAM, Disk)"
@@ -707,22 +726,29 @@ case "${1:-}" in
         echo "  export    Xuất report ra file (scripts/k3s-check/)"
         echo ""
         echo "Không có argument = chạy tất cả sections"
+        echo "Ví dụ: bash k3s-check.sh -e | bash k3s-check.sh -e node | bash k3s-check.sh res argocd -e"
         ;;
     sys) section_sys ;;
-    node|pod) check_k3s_connection; section_node ;;
-    pvc) check_k3s_connection; section_pvc ;;
-    res) check_k3s_connection; section_res "${2:-}" ;;
-    img) check_k3s_connection; section_img ;;
-    helm) check_k3s_connection; section_helm ;;
-    secrets) check_k3s_connection; section_secrets ;;
+    node|pod) check_dependencies; check_k3s_connection; section_node ;;
+    pvc) check_dependencies; check_k3s_connection; section_pvc ;;
+    res) check_dependencies; check_k3s_connection; section_res "${2:-}" ;;
+    img) check_dependencies; check_k3s_connection; section_img ;;
+    helm) check_dependencies; check_k3s_connection; section_helm ;;
+    secrets) check_dependencies; check_k3s_connection; section_secrets ;;
     export)
+        check_dependencies
         check_k3s_connection
         echo -e "${YELLOW}>>> Đang export...${NC}"
         do_export "${2:-}"
         ;;
     *)
+        check_dependencies
         check_k3s_connection
-        echo -e "${YELLOW}>>> Đang thu thập dữ liệu từ K3s API...${NC}"
+        if $EXPLAIN; then
+            echo -e "${YELLOW}>>> Đang thu thập dữ liệu từ K3s API...${NC} ${CYAN}(explain mode: bật chú thích tường minh)${NC}"
+        else
+            echo -e "${YELLOW}>>> Đang thu thập dữ liệu từ K3s API...${NC}"
+        fi
         generate_full_report
         ;;
 esac

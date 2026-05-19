@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redpanda-topic-bootstrap
+  namespace: redpanda
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: redpanda-topic-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        role: data-plane
+      containers:
+        - name: rpk
+          image: redpandadata/redpanda:v26.1.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              rpk topic create nyc-taxi-events \
+                --brokers redpanda.redpanda.svc.cluster.local:9092 \
+                --partitions 3 \
+                --replicas 1 \
+                --topic-config retention.ms=86400000 \
+                --topic-config cleanup.policy=delete || true

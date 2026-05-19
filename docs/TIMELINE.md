@@ -52,7 +52,7 @@
 | 2.0 | Tạo DigitalOcean Droplet ($12/mo, nâng lên $24/mo khi cần) + cài Tailscale trên iMac và Droplet, lập mesh VPN | 13/04 | 14/04 | Sỹ | ✓ |
 | 2.1 | Cài K3s cluster 2 node — `continux-imac` (iMac, server #1) + `continux-vps` (Droplet, server #2) qua Tailscale; `kubectl`, Helm | 14/04 | 16/04 | Sỹ | ✓ |
 | 2.2 | Deploy Argo CD lên `continux-vps` | 18/05 | 18/05 | Sỹ | ✓ Helm release `argocd`, chart `argo-cd-9.5.14`, app `v3.4.2` |
-| 2.3 | Cấu hình GitOps repo cho Argo CD | 18/05 | 19/05 | Sỹ | Đăng ký repo, apply App-of-Apps |
+| 2.3 | Cấu hình GitOps repo cho Argo CD | 18/05 | 19/05 | Sỹ | Đăng ký repo, clone repo trên `continux-imac`, apply App-of-Apps |
 | 2.4 | Deploy MinIO + tạo bucket `iceberg-data`, `rw-checkpoint`, `tlc-zone` | 18/05 | 19/05 | Sỹ | Ưu tiên hoàn tất trước RisingWave |
 | 2.5 | Deploy Redpanda + tạo topic `nyc-taxi-events` | 19/05 | 20/05 | Sỹ | Topic tối thiểu 3 partitions |
 | 2.6 | Deploy RisingWave v2.4+, kết nối MinIO & Redpanda | 20/05 | 21/05 | Sỹ | Meta/compute/frontend/compactor ổn định |

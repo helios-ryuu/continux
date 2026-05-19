@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: pipeline
+data:
+  vector.toml: |
+    [sources.tlc_parquet]
+    type = "file"
+    include = ["/data/*.parquet"]
+    read_from = "beginning"
+
+    [transforms.simulate_event_time]
+    type = "remap"
+    inputs = ["tlc_parquet"]
+    source = '''
+    .event_id   = uuid_v4()
+    .event_time = now()
+    '''
+
+    [sinks.redpanda]
+    type = "kafka"
+    inputs = ["simulate_event_time"]
+    bootstrap_servers = "redpanda.redpanda.svc.cluster.local:9092"
+    topic = "nyc-taxi-events"
+    encoding.codec = "json"
+    compression = "zstd"

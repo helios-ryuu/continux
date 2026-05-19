@@ -132,24 +132,25 @@ sudo /usr/local/bin/k3s-agent-uninstall.sh
 
 ```bash
 bash scripts/k3s-check.sh              # toàn bộ (6 sections)
+bash scripts/k3s-check.sh -e           # toàn bộ + giải thích tường minh từng phần
 bash scripts/k3s-check.sh node         # topology + pod layout
+bash scripts/k3s-check.sh -e node      # topology + giải thích các cột/trạng thái
 bash scripts/k3s-check.sh sys          # tài nguyên hệ thống (CPU, RAM, Disk)
 bash scripts/k3s-check.sh pvc          # Persistent Volume Claims
 bash scripts/k3s-check.sh res          # workloads, HPA, services
 bash scripts/k3s-check.sh res <ns>     # filter theo namespace
+bash scripts/k3s-check.sh res <ns> -e  # filter namespace + giải thích
 bash scripts/k3s-check.sh img          # container images và trạng thái in-use/unused
 bash scripts/k3s-check.sh helm         # Helm releases và repositories
 bash scripts/k3s-check.sh secrets      # Secrets theo namespace (chỉ hiện tên)
 bash scripts/k3s-check.sh export       # xuất report ra scripts/k3s-check/<timestamp>.txt
 ```
 
+Tham số `-e` / `--explain` có thể đặt trước hoặc sau section. Khi bật, script giữ nguyên dữ liệu chính nhưng chèn thêm các dòng `ⓘ` giải thích ý nghĩa section, cột và trạng thái thường gặp.
+
 Report export lưu tại `scripts/k3s-check/k3s-check-<HHmmss-ddmmyy>.txt`.
 
-Phần Helm repositories dùng allowlist mặc định `argo vm grafana` theo `SETUP.md`. Repo ngoài allowlist sẽ được đánh dấu `stale?` và script in lệnh `helm repo remove <repo>` gợi ý để dọn. Có thể override allowlist khi cần:
-
-```bash
-K3S_CHECK_HELM_EXPECTED_REPOS="argo vm grafana prometheus-community" bash scripts/k3s-check.sh helm
-```
+Phần Helm repositories chỉ hiển thị repo đang cấu hình trên máy chạy script. Script không áp allowlist để vẫn dùng được cho mọi cụm Kubernetes.
 
 ---
 
@@ -172,7 +173,18 @@ K3S_CHECK_HELM_EXPECTED_REPOS="argo vm grafana prometheus-community" bash script
 
 Khi chạy không tham số, script chỉ hiển thị bảng hướng dẫn và không kết nối SSH. Muốn chạy với mặc định `D:\project\continux` → `imac:~/continux`, dùng `-RunDefault`.
 
-Script hiển thị log theo từng bước kèm timestamp và progress bar cho các bước quét file, tính SHA-256, đọc remote, so sánh, đóng gói, upload và xoá. Script tính SHA-256 cho file local và file remote, sau đó chỉ đóng gói file mới hoặc file có hash khác vào một file `tar` tạm, upload bằng `scp` một lần và giải nén trên remote. Mặc định script tự dùng `ssh-agent`/`ssh-add` để nạp SSH key trước khi chạy, nhờ đó chỉ cần nhập passphrase một lần trong phiên PowerShell. Nếu muốn bỏ qua bước này, thêm `-NoAgent`. Có thể thử `-Multiplex` nếu OpenSSH trên máy hỗ trợ, nhưng một số bản Windows OpenSSH sẽ lỗi `getsockname failed: Not a socket`.
+Script hiển thị log theo từng bước kèm timestamp và progress bar cho các bước quét file, tính SHA-256, đọc remote, so sánh, đóng gói, upload và xoá. Script tính SHA-256 cho file local và file remote, sau đó chỉ đóng gói file mới hoặc file có hash khác vào một file `tar` tạm, upload bằng `scp` một lần và giải nén trên remote.
+
+Mặc định script tự dùng `ssh-agent`/`ssh-add` để nạp SSH key trước khi chạy. Sau bước này, mọi lệnh `ssh`/`scp` chạy ở chế độ non-interactive (`BatchMode=yes`) để tránh bị dừng nhiều lần chờ Enter/passphrase trong lúc đồng bộ. Nếu preflight SSH thất bại, chuẩn bị key một lần rồi chạy lại:
+
+```powershell
+Start-Service ssh-agent
+ssh-add C:\Users\Helios\.ssh\id_ed25519
+ssh imac
+.\scripts\file-update.ps1 -RunDefault
+```
+
+Nếu muốn bỏ qua bước tự nạp key, thêm `-NoAgent`; khi đó cấu hình SSH hiện có phải đăng nhập được không cần prompt. Có thể thử `-Multiplex` nếu OpenSSH trên máy hỗ trợ, nhưng một số bản Windows OpenSSH sẽ lỗi `getsockname failed: Not a socket`.
 
 Tham số:
 

@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: continux-sql
+  namespace: pipeline
+data:
+  01-redpanda-nyc-taxi.sql: |
+    CREATE SOURCE nyc_taxi_src (
+        event_id        VARCHAR,
+        event_time      TIMESTAMPTZ,
+        pickup_time     TIMESTAMPTZ,
+        pu_location_id  INT,
+        do_location_id  INT,
+        fare_amount     DOUBLE PRECISION,
+        trip_distance   DOUBLE PRECISION
+    ) WITH (
+        connector               = 'kafka',
+        topic                   = 'nyc-taxi-events',
+        properties.bootstrap.server = 'redpanda.redpanda:9092',
+        scan.startup.mode       = 'earliest'
+    ) FORMAT PLAIN ENCODE JSON;
+
+  02-tlc-taxi-zone.sql: |
+    CREATE TABLE tlc_zone (
+        location_id  INT PRIMARY KEY,
+        borough      VARCHAR,
+        zone         VARCHAR,
+        service_zone VARCHAR
+    ) WITH (
+        connector             = 's3',
+        s3.region_name        = 'us-east-1',
+        s3.bucket_name        = 'tlc-zone',
+        s3.endpoint_url       = 'http://minio.minio.svc.cluster.local:9000',
+        s3.credentials.access = 'key-risingwave',
+        s3.credentials.secret = '<replace: key-risingwave secret từ MinIO console §8.1>',
+        s3.path               = 'taxi_zone_lookup.csv'
+    ) FORMAT PLAIN ENCODE CSV (delimiter = ',', without_header = false);
+
+  03-mv-zone-stats-blue.sql: |
+    CREATE MATERIALIZED VIEW mv_zone_stats_blue AS
+    SELECT
+        z.borough,
+        z.zone,
+        COUNT(*)             AS trip_count,
+        SUM(t.fare_amount)   AS total_fare,
+        AVG(t.trip_distance) AS avg_distance
+    FROM nyc_taxi_src t
+    JOIN tlc_zone     z ON t.pu_location_id = z.location_id
+    GROUP BY z.borough, z.zone;
+
+    -- Public alias - tao mot lan, khong drop khi swap
+    CREATE MATERIALIZED VIEW mv_zone_stats AS
+    SELECT * FROM mv_zone_stats_blue;
+
+  04-iceberg-zone-stats.sql: |
+    CREATE SINK sink_zone_stats FROM mv_zone_stats
+    WITH (
+        connector            = 'iceberg',
+        type                 = 'upsert',
+        primary_key          = 'borough,zone',
+        catalog.type         = 'hosted',
+        warehouse.path       = 's3://iceberg-data/',
+        s3.endpoint          = 'http://minio.minio.svc.cluster.local:9000',
+        s3.access.key        = 'key-risingwave',
+        s3.secret.key        = '<replace: key-risingwave secret từ MinIO console §8.1>',
+        s3.path.style.access = 'true',
+        database.name        = 'nyc',
+        table.name           = 'zone_stats'
+    );
