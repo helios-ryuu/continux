@@ -1,6 +1,3 @@
-global:
-  nodeSelector: { role: data-plane }
-
 metaStore:
   sqlite:
     enabled: true
@@ -12,33 +9,38 @@ stateStore:
     endpoint: http://minio.minio.svc.cluster.local:9000
     bucket:   rw-checkpoint
     region:   us-east-1
-    existingSecretName: risingwave-s3-credentials
     forcePathStyle: true
+    authentication:
+      existingSecretName: risingwave-s3-credentials
 
 iceberg:
   catalog:
     type: hosted
 
-compute:
+computeComponent:
   replicas: 1
+  nodeSelector: { role: data-plane }
   resources:
     requests: { cpu: 500m, memory: 1.5Gi }
     limits:   { cpu: 2,    memory: 2.5Gi }
 
-meta:
+metaComponent:
   replicas: 1
+  nodeSelector: { role: data-plane }
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
-frontend:
+frontendComponent:
   replicas: 1
+  nodeSelector: { role: data-plane }
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
-compactor:
+compactorComponent:
   replicas: 1
+  nodeSelector: { role: data-plane }
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }

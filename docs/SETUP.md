@@ -377,31 +377,7 @@ Verify:
 
 [SCRIPTS.md — k3s-check.sh](./SCRIPTS.md#k3s-checksh)
 
-### 6.2. Tạo K8s Secrets cho credentials (bắt buộc trước §8)
-
-MinIO và RisingWave đọc credentials từ K8s Secret thay vì hardcode vào Helm values — tạo trước khi ArgoCD sync.
-
-> **Thực thi trên:** `continux-imac`
-
-```bash
-# Namespace cần tạo trước
-kubectl create namespace minio      --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace risingwave --dry-run=client -o yaml | kubectl apply -f -
-
-# Secret cho MinIO (chart đọc key: rootUser, rootPassword)
-kubectl -n minio create secret generic minio-credentials \
-    --from-literal=rootUser=adminuser \
-    --from-literal=rootPassword=<minio-root-password>
-
-# Secret cho RisingWave state store S3/MinIO (chart đọc key: AccessKeyID, SecretAccessKey)
-kubectl -n risingwave create secret generic risingwave-s3-credentials \
-    --from-literal=AccessKeyID=<rw-access-key> \
-    --from-literal=SecretAccessKey=<rw-secret-key>
-```
-
-> ⚠️ Thay `<minio-root-password>`, `<rw-access-key>`, `<rw-secret-key>` bằng giá trị thực trước khi chạy. Hai key MinIO này phải khớp với access key tạo ở §8.1.
-
-### 6.3. Cập nhật phần mềm (Maintenance)
+### 6.2. Cập nhật phần mềm (Maintenance)
 
 Chạy đầu mỗi giai đoạn hoặc khi có CVE nghiêm trọng. **Không nâng cấp** K3s, rpk, mc khi đang chạy thực nghiệm (Giai đoạn 5).
 
@@ -425,15 +401,15 @@ sudo tailscale update --track=stable
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-# K3s server #1 (continux-imac) — phải giữ nguyên flags cluster-init/Tailscale.
-# Không chạy lệnh generic `curl ... | sh -` vì sẽ ghi đè k3s.service mặc định.
+# K3s server #1 / cluster-init (continux-imac)
+# Phải giữ nguyên flags cluster-init/Tailscale/etcd.
+# Không chạy lệnh generic `curl ... | sh -` vì sẽ ghi đè k3s.service thiếu flags của cụm này.
 TAILSCALE_IP=$(tailscale ip -4)
 curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
     --cluster-init \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
     --disable=servicelb \
-    --disable=local-storage \
     --disable=metrics-server \
     --node-name=continux-imac \
     --node-ip="${TAILSCALE_IP}" \
@@ -441,6 +417,43 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
     --flannel-iface=tailscale0 \
     --tls-san="${TAILSCALE_IP}" \
     --etcd-expose-metrics=true
+```
+
+> **Thực thi trên:** `continux-vps`
+
+```bash
+# K3s server #2 / join server (continux-vps)
+# Lấy IMAC_TS_IP từ `tailscale ip -4` trên continux-imac.
+# K3S_TOKEN lấy từ continux-imac: sudo cat /var/lib/rancher/k3s/server/node-token
+IMAC_TS_IP=<tailscale-ip-imac>
+K3S_TOKEN=<node-token>
+TAILSCALE_IP=$(tailscale ip -4)
+
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+    --server="https://${IMAC_TS_IP}:6443" \
+    --token="${K3S_TOKEN}" \
+    --write-kubeconfig-mode=644 \
+    --disable=traefik \
+    --disable=servicelb \
+    --disable=metrics-server \
+    --node-name=continux-vps \
+    --node-ip="${TAILSCALE_IP}" \
+    --advertise-address="${TAILSCALE_IP}" \
+    --flannel-iface=tailscale0
+```
+
+Sau khi cập nhật từng K3s server, kiểm tra lại từ `continux-imac`:
+
+```bash
+kubectl get nodes -o wide
+bash scripts/k3s-check.sh node
+```
+
+> Nếu có worker `helios` hoặc `nammn` đang bật, cập nhật agent bằng cách chạy lại lệnh join agent trong [SCRIPTS.md — k3s-install.sh](./SCRIPTS.md#k3s-installsh) với cùng `IMAC_TS_IP`, `K3S_TOKEN`, `node-name`.
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
 
 # Helm — binary đang nằm ở /usr/local/bin/helm.
 # Lưu ý: installer mặc định có thể kéo Helm 3; dùng DESIRED_VERSION để lấy latest Helm 4.
@@ -599,23 +612,104 @@ Lần bootstrap App-of-Apps cần file manifest local, vì vậy `continux-imac`
 
 ```bash
 cd ~
-git clone https://github.com/helios-ryuu/continux.git 2>/dev/null || true
+git clone https://github.com/helios-ryuu/continux.git
 cd ~/continux
 git pull
 
 argocd login continux-argo.<domain> --username admin --password <new>
 
+# Tạo GitHub PAT theo hướng dẫn bên dưới trước khi chạy repo add.
+# Khuyến nghị: fine-grained token chỉ có quyền Contents: Read-only trên repo continux.
 argocd repo add https://github.com/helios-ryuu/continux.git \
     --username <gh-user> \
-    --password <gh-PAT>     # Personal Access Token, scope: repo
+    --password <gh-PAT>
+
+argocd repo list
 
 # Áp App-of-Apps
 kubectl apply -f gitops/apps/root-app.yaml
 argocd app sync root-app
+# ...
+# GROUP        KIND         NAMESPACE  NAME              STATUS  HEALTH  HOOK  MESSAGE
+# argoproj.io  Application  argocd     cloudflared       Synced                application.argoproj.io/cloudflared created
+# argoproj.io  Application  argocd     victoria-scrapes  Synced                application.argoproj.io/victoria-scrapes created
+# argoproj.io  Application  argocd     redpanda-topics   Synced                application.argoproj.io/redpanda-topics created
+# argoproj.io  Application  argocd     pipeline          Synced                application.argoproj.io/pipeline created
+# argoproj.io  Application  argocd     vector            Synced                application.argoproj.io/vector created
+
 argocd app list
+# NAME                     CLUSTER                         NAMESPACE      PROJECT  STATUS     HEALTH   SYNCPOLICY  CONDITIONS  REPO                                         PATH                     TARGET
+# argocd/cloudflared       https://kubernetes.default.svc  argocd         default  OutOfSync  Healthy  Manual      <none>      https://github.com/helios-ryuu/continux.git  config/argocd            main
+# argocd/pipeline          https://kubernetes.default.svc  pipeline       default  OutOfSync  Missing  Manual      <none>      https://github.com/helios-ryuu/continux.git  gitops/pipeline          main
+# argocd/redpanda-topics   https://kubernetes.default.svc  redpanda       default  Synced     Healthy  Manual      <none>      https://github.com/helios-ryuu/continux.git  pipelines/redpanda       main
+# argocd/root-app          https://kubernetes.default.svc  argocd         default  Synced     Healthy  Manual      <none>      https://github.com/helios-ryuu/continux.git  gitops/apps              main
+# argocd/vector            https://kubernetes.default.svc  pipeline       default  OutOfSync  Missing  Manual      <none>      https://github.com/helios-ryuu/continux.git  config/vector            main
+# argocd/victoria-scrapes  https://kubernetes.default.svc  observability  default  OutOfSync  Missing  Manual      <none>      https://github.com/helios-ryuu/continux.git  config/victoria-metrics  main
 ```
 
+Ý nghĩa output:
+
+- `root-app` dùng pattern **App-of-Apps**. Sync `root-app` chỉ tạo/cập nhật các ArgoCD `Application` con, chưa bắt buộc sync tài nguyên bên trong từng app con.
+- `SYNCPOLICY=Manual` nghĩa là app con không tự động sync. Vì vậy sau `argocd app sync root-app`, các app con có thể vẫn `OutOfSync`.
+- `OutOfSync` nghĩa là manifest trong Git khác với trạng thái live trên cluster.
+- `Missing` nghĩa là tài nguyên của app con chưa tồn tại trong cluster vì app con chưa được sync.
+- `cloudflared OutOfSync Healthy` thường xảy ra khi `cloudflared` đã được apply thủ công ở §7.2: pod đang chạy khỏe, nhưng ArgoCD vẫn thấy live state chưa khớp hoàn toàn với Git.
+
+Ở bước này chỉ sync `cloudflared` nếu muốn đưa tunnel đã apply thủ công ở §7.2 về trạng thái do ArgoCD quản lý:
+
+```bash
+argocd app sync cloudflared
+```
+
+Các app con còn lại sync ở đúng section tương ứng: `redpanda-topics` ở §8.3, `victoria-scrapes` ở §9.1, `vector` ở §10.2, `pipeline` ở §11.4. Không sync quá sớm khi service phụ thuộc chưa sẵn sàng.
+
+Khi muốn xem app lệch gì trước khi sync:
+
+```bash
+argocd app diff cloudflared
+argocd app diff vector
+argocd app diff victoria-scrapes
+argocd app diff pipeline
+```
+
+> Ghi nhớ: `root-app Synced/Healthy` nghĩa là danh sách app con đã đúng. Các app con `Synced/Healthy` mới nghĩa là workload bên trong app đó đã được tạo và khớp Git.
+
 Sau lần apply `root-app` đầu tiên, ArgoCD đọc trạng thái mong muốn trực tiếp từ GitHub. Nhịp làm việc thường ngày là sửa code trên Windows → commit/push → SSH vào `continux-imac` để `git pull` khi cần chạy lệnh local, hoặc sync bằng ArgoCD UI/CLI.
+
+**Tạo GitHub Personal Access Token (PAT) cho ArgoCD:**
+
+**Cách 1 — Fine-grained token (khuyến nghị):**
+
+1. Mở <https://github.com/settings/personal-access-tokens/new> hoặc vào GitHub → avatar góc phải → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+2. Đặt **Token name**: `continux-argocd`.
+3. Chọn **Expiration** ngắn/vừa đủ, ví dụ 30 hoặc 90 ngày. Khi token hết hạn, chạy lại `argocd repo add` với token mới.
+4. Ở **Repository access**, chọn **Only select repositories** → chọn `helios-ryuu/continux`.
+5. Ở **Repository permissions**, cấp:
+   - **Contents: Read-only** — bắt buộc để ArgoCD đọc manifest.
+   - Các quyền khác để mặc định **No access**.
+6. Bấm **Generate token**, copy token ngay vì GitHub chỉ hiện một lần.
+7. Dùng token đó cho `--password <gh-PAT>` trong lệnh `argocd repo add`; `--username` là username GitHub của người tạo token, ví dụ `helios-ryuu`.
+
+**Cách 2 — Token classic (fallback nếu fine-grained không dùng được):**
+
+1. Mở <https://github.com/settings/tokens/new> hoặc vào **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**.
+2. Đặt **Note**: `continux-argocd`, chọn **Expiration** phù hợp.
+3. Chọn scope:
+   - Repo private: chọn `repo`.
+   - Repo public: chọn `public_repo`.
+4. Không cấp thêm scope như `admin:org`, `workflow`, `delete_repo` nếu không cần.
+5. Bấm **Generate token**, copy token và dùng cho `--password <gh-PAT>`.
+
+Verify sau khi thêm repo:
+
+```bash
+argocd repo list
+argocd repo get https://github.com/helios-ryuu/continux.git
+```
+
+Nếu trạng thái repo không thành công, kiểm tra lại token còn hạn, token có quyền đọc repo, và repo URL đúng chính xác `https://github.com/helios-ryuu/continux.git`.
+
+> Tham khảo GitHub Docs: [Managing your personal access tokens](https://docs.github.com/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token).
 
 ---
 
@@ -623,56 +717,218 @@ Sau lần apply `root-app` đầu tiên, ArgoCD đọc trạng thái mong muốn
 
 Tất cả Helm values dưới đây đều có sẵn trong repo GitOps; ArgoCD sẽ sync tự động. Các giá trị này **đã được tinh chỉnh cho iMac 8 GB** — tránh OOM.
 
-### 8.1. MinIO
+### 8.1. Tạo K8s Secrets cho credentials
+
+MinIO và RisingWave đọc credentials từ K8s Secret thay vì hardcode vào Helm values — tạo trước khi ArgoCD sync các workload hạ tầng.
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+# Namespace cần tạo trước
+kubectl create namespace minio      --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace risingwave --dry-run=client -o yaml | kubectl apply -f -
+
+# Secret cho MinIO (chart đọc key: rootUser, rootPassword)
+kubectl -n minio create secret generic minio-credentials \
+    --from-literal=rootUser=adminuser \
+    --from-literal=rootPassword=<minio-root-password>
+```
+
+> ⚠️ Thay `<minio-root-password>` bằng giá trị thực trước khi chạy. Secret `risingwave-s3-credentials` sẽ tạo ở cuối §8.2 sau khi có access key `key-risingwave` từ MinIO Console.
+
+### 8.2. MinIO
 
 Helm values: [`config/minio/helm-values.yaml`](../config/minio/helm-values.yaml)
+
+Deploy MinIO trước, sau đó mới port-forward console. Nếu chưa deploy, lệnh `kubectl -n minio port-forward svc/minio-console 9001:9001` sẽ báo `services "minio-console" not found`.
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+helm repo add minio https://charts.min.io/
+helm repo update
+
+helm upgrade --install minio minio/minio \
+    --namespace minio \
+    -f config/minio/helm-values.yaml
+
+kubectl -n minio get deploy,sts,pod,svc,pvc
+# NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+# deployment.apps/minio   1/1     1            1           19m
+
+# NAME                         READY   STATUS    RESTARTS   AGE
+# pod/minio-6b69f45d76-76mrx   1/1     Running   0          19m
+
+# NAME                    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+# service/minio           ClusterIP   10.43.29.179    <none>        9000/TCP   19m
+# service/minio-console   ClusterIP   10.43.197.139   <none>        9001/TCP   19m
+
+# NAME                          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+# persistentvolumeclaim/minio   Bound    pvc-204d34a8-bc36-4166-821f-021b032d493e   40Gi       RWO            local-path     <unset>                 19m
+
+kubectl -n minio rollout status deploy/minio --timeout=300s
+# deployment "minio" successfully rolled out
+```
 
 Tạo access key riêng cho từng service (least-privilege, NFR-15):
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-kubectl -n minio port-forward svc/minio-console 9001:9001
-# UI: http://localhost:9001 → Identity → Service Accounts
+kubectl -n minio port-forward --address 0.0.0.0 svc/minio-console 9001:9001
+# UI từ máy Windows chung Tailscale: http://<tailscale-ip-imac>:9001
 # Tạo 3 keys: key-vector (write tlc-zone), key-risingwave (rw iceberg-data + rw-checkpoint)
 ```
 
-### 8.2. Redpanda
+Lệnh `--address 0.0.0.0` cho phép máy khác truy cập port-forward qua IP của `continux-imac`, ví dụ `http://100.102.51.39:9001` trên Tailscale. Chỉ bật trong lúc thao tác MinIO Console, xong thì `Ctrl+C` để đóng phiên port-forward.
+
+**Tạo bucket và access key trong MinIO Console:**
+
+1. Đăng nhập bằng root credential trong secret `minio-credentials`:
+
+   ```bash
+   kubectl -n minio get secret minio-credentials -o jsonpath='{.data.rootUser}' | base64 -d && echo
+   kubectl -n minio get secret minio-credentials -o jsonpath='{.data.rootPassword}' | base64 -d && echo
+   ```
+
+2. Vào **Buckets** → kiểm tra đã có 3 bucket. Nếu thiếu thì tạo:
+   - `iceberg-data`
+   - `rw-checkpoint`
+   - `tlc-zone`
+
+3. Vào **Access Keys** → **Create access key**.
+
+4. Tạo key cho Vector:
+   - **Access Key:** `key-vector`
+   - **Secret Key:** để random, copy lại sau khi tạo.
+   - **Name:** `vector`
+   - **Description:** `Write TLC zone/raw objects`
+   - **Restrict beyond user policy:** có thể để `OFF` trong giai đoạn bootstrap. Nếu muốn least-privilege ngay, bật `ON` và dùng policy giới hạn bucket `tlc-zone`.
+
+5. Tạo key cho RisingWave:
+   - **Access Key:** `key-risingwave`
+   - **Secret Key:** để random, copy lại sau khi tạo.
+   - **Name:** `risingwave`
+   - **Description:** `Read tlc-zone, write iceberg-data and rw-checkpoint`
+   - Secret key này phải thay vào placeholder trong `sql/02-tables/tlc-taxi-zone.sql` và `sql/04-sinks/iceberg-zone-stats.sql`.
+
+6. Sau khi bấm **Create**, MinIO chỉ hiển thị Secret Key một lần. Lưu lại ngay vào nơi an toàn; không commit secret vào Git.
+
+Sau khi tạo xong `key-risingwave`, tạo K8s Secret cho RisingWave state store S3/MinIO. Chart RisingWave hiện tại yêu cầu secret có đúng key `AWS_ACCESS_KEY_ID` và `AWS_SECRET_ACCESS_KEY`.
+
+```bash
+# Secret cho RisingWave state store S3/MinIO
+kubectl -n risingwave create secret generic risingwave-s3-credentials \
+    --from-literal=AWS_ACCESS_KEY_ID=key-risingwave \
+    --from-literal=AWS_SECRET_ACCESS_KEY=<secret-key-cua-key-risingwave>
+```
+
+Nếu cần chạy lại để cập nhật secret:
+
+```bash
+kubectl -n risingwave create secret generic risingwave-s3-credentials \
+    --from-literal=AWS_ACCESS_KEY_ID=key-risingwave \
+    --from-literal=AWS_SECRET_ACCESS_KEY=<secret-key-cua-key-risingwave> \
+    --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Policy tuỳ chọn cho `key-vector` nếu bật **Restrict beyond user policy**:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::tlc-zone", "arn:aws:s3:::tlc-zone/*"]
+    }
+  ]
+}
+```
+
+Policy tuỳ chọn cho `key-risingwave`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::tlc-zone", "arn:aws:s3:::tlc-zone/*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:*"],
+      "Resource": [
+        "arn:aws:s3:::iceberg-data",
+        "arn:aws:s3:::iceberg-data/*",
+        "arn:aws:s3:::rw-checkpoint",
+        "arn:aws:s3:::rw-checkpoint/*"
+      ]
+    }
+  ]
+}
+```
+
+### 8.3. Redpanda
 
 Helm values: [`config/redpanda/helm-values.yaml`](../config/redpanda/helm-values.yaml)
 
-Apply xong:
+Deploy Redpanda bằng Helm trước. Repo hiện tại chỉ có ArgoCD app `redpanda-topics` để tạo topic, chưa có app `redpanda` để cài broker.
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-argocd app sync redpanda
+helm repo add redpanda https://charts.redpanda.com
+helm repo update
+
+helm upgrade --install redpanda redpanda/redpanda \
+    --namespace redpanda --create-namespace \
+    -f config/redpanda/helm-values.yaml
+
+kubectl -n redpanda rollout status statefulset/redpanda --timeout=600s
+# statefulset rolling update complete 1 pods at revision redpanda-5999fd6489...
+
+kubectl -n redpanda get pods,svc -o wide
 
 # Tạo topic qua GitOps Job
 argocd app sync redpanda-topics
 ```
 
-### 8.3. RisingWave
+### 8.4. RisingWave
 
 RisingWave v2.4+ gồm 4 thành phần: **meta**, **compute**, **frontend**, **compactor**. Với 8 GB RAM cần giới hạn chặt.
 
 Helm values: [`config/risingwave/helm-values.yaml`](../config/risingwave/helm-values.yaml)
 
-Sync:
+Deploy RisingWave bằng Helm. Repo hiện tại chưa có ArgoCD app `risingwave`, nên không dùng `argocd app sync risingwave`.
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-argocd app sync risingwave
+kubectl -n risingwave get secret risingwave-s3-credentials
+kubectl -n risingwave get secret risingwave-s3-credentials -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d && echo
+
+helm repo add risingwavelabs https://risingwavelabs.github.io/helm-charts/
+helm repo update
+helm search repo risingwave
+
+helm upgrade --install risingwave risingwavelabs/risingwave \
+    --namespace risingwave --create-namespace \
+    -f config/risingwave/helm-values.yaml
+
+kubectl -n risingwave get pods,svc -o wide
 kubectl -n risingwave rollout status statefulset/risingwave-compute --timeout=300s
 
 # Kết nối qua psql
-kubectl -n risingwave port-forward svc/risingwave-frontend 4566:4566
-psql -h localhost -p 4566 -d dev -U root
+kubectl -n risingwave port-forward svc/risingwave 4567:svc
+psql -h localhost -p 4567 -d dev -U root
 # dev=> SHOW CLUSTER;
 ```
 
-### 8.4. Vector (load generator)
+### 8.5. Vector (load generator)
 
 Manifest: [`config/vector/deployment.yaml`](../config/vector/deployment.yaml) · PVC: [`config/vector/pvc.yaml`](../config/vector/pvc.yaml)
 
@@ -702,14 +958,42 @@ Helm values: [`config/victoria-metrics/helm-values.yaml`](../config/victoria-met
 > ```bash
 > cd ~/continux
 >
+> helm repo add vm https://victoriametrics.github.io/helm-charts/
+> helm repo update
+>
 > helm install victoria-metrics vm/victoria-metrics-k8s-stack \
 >     --namespace observability --create-namespace \
 >     -f config/victoria-metrics/helm-values.yaml
 > ```
 
+Sau khi VictoriaMetrics đã tồn tại, sync scrape config qua ArgoCD:
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+argocd app sync victoria-scrapes
+argocd app wait victoria-scrapes --health --sync
+```
+
 ### 9.2. Grafana
 
 Helm values: [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml)
+
+Grafana chưa có ArgoCD app riêng trong repo hiện tại, deploy bằng Helm:
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+helm upgrade --install grafana grafana/grafana \
+    --namespace observability --create-namespace \
+    -f config/grafana/helm-values.yaml
+
+kubectl -n observability rollout status deploy/grafana --timeout=300s
+kubectl -n observability get pods,svc -o wide
+```
 
 Import 4 dashboard JSON từ `dashboards/*.json`:
 - `01-streaming-perf.json`
@@ -753,11 +1037,20 @@ Cấu hình nguồn → transform → sink: [`pipelines/vector/vector.toml`](../
 
 Điều chỉnh tải bằng biến môi trường `VECTOR_THROUGHPUT_EVENTS_PER_SEC` — preset có sẵn trong [`pipelines/vector/rates/`](../pipelines/vector/rates/) (`low.env` / `medium.env` / `high.env`).
 
+Sau khi Redpanda topic đã tạo ở §8.3 và thư mục dữ liệu/PVC đã sẵn sàng, sync Vector:
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+argocd app sync vector
+argocd app wait vector --health --sync
+```
+
 ---
 
 ## 11. Apply SQL Blue và Iceberg Sink
 
-> ⚠️ **Trước khi apply SQL:** `sql/02-tables/tlc-taxi-zone.sql` và `sql/04-sinks/iceberg-zone-stats.sql` chứa placeholder `<replace: key-risingwave secret từ MinIO console §8.1>`. Phải thay bằng secret key thực của service account `key-risingwave` (lấy từ MinIO console ở §8.1) rồi mới chạy các file này.
+> ⚠️ **Trước khi apply SQL:** `sql/02-tables/tlc-taxi-zone.sql` và `sql/04-sinks/iceberg-zone-stats.sql` chứa placeholder `<replace: key-risingwave secret từ MinIO console §8.2>`. Phải thay bằng secret key thực của service account `key-risingwave` (lấy từ MinIO console ở §8.2) rồi mới chạy các file này.
 
 ### 11.1. Source + Table
 
@@ -795,7 +1088,7 @@ Verify:
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-psql -h localhost -p 4566 -d dev -U root -c \
+psql -h localhost -p 4567 -d dev -U root -c \
     "SELECT borough, SUM(trip_count) FROM mv_zone_stats GROUP BY borough ORDER BY 2 DESC LIMIT 5;"
 
 mc ls --recursive local/iceberg-data/nyc/zone_stats/ | head
