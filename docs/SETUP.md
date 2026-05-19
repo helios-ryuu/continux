@@ -924,9 +924,17 @@ helm upgrade --install redpanda redpanda/redpanda \
 
 kubectl -n redpanda rollout status statefulset/redpanda --timeout=600s
 kubectl -n redpanda get pods,svc -o wide
+# Kafka listener nội bộ của Helm chart đang expose qua service port 9093.
+# Không dùng 9092 cho service DNS `redpanda.redpanda.svc.cluster.local`.
 
 # Tạo topic qua GitOps Job
 argocd app sync redpanda-topics
+argocd app wait redpanda-topics --health --sync
+
+# Xác nhận topic thật sự tồn tại trước khi sang Vector
+kubectl -n redpanda exec redpanda-0 -c redpanda -- rpk topic list
+kubectl -n redpanda exec redpanda-0 -c redpanda -- \
+    rpk topic describe nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
 ```
 
 Nếu `argocd app sync redpanda-topics` báo `PermissionDenied`, login lại ArgoCD rồi chạy lại:
@@ -934,6 +942,37 @@ Nếu `argocd app sync redpanda-topics` báo `PermissionDenied`, login lại Arg
 ```bash
 argocd login continux-argo.<domain> --username admin --password <new> --grpc-web
 argocd app sync redpanda-topics --grpc-web
+```
+
+Nếu `rpk topic list` không thấy `nyc-taxi-events`, đừng chạy Vector vội. Điều tra hook job trước:
+
+```bash
+argocd app get redpanda-topics
+kubectl -n redpanda get jobs,pods -l app=redpanda-topic-bootstrap
+kubectl -n redpanda logs job/redpanda-topic-bootstrap --all-containers --tail=100
+```
+
+Nếu job đã bị xoá do hook cũ từng báo success nhưng topic vẫn chưa có, tạo lại bằng sync sau khi đã push cấu hình mới:
+
+```bash
+argocd app get redpanda-topics --hard-refresh
+argocd app sync redpanda-topics
+argocd app wait redpanda-topics --health --sync
+```
+
+Fallback thủ công khi cần unblock nhanh:
+
+```bash
+kubectl -n redpanda exec redpanda-0 -c redpanda -- \
+    rpk topic create nyc-taxi-events \
+    --brokers redpanda.redpanda.svc.cluster.local:9093 \
+    --partitions 3 \
+    --replicas 1 \
+    --topic-config retention.ms=86400000 \
+    --topic-config cleanup.policy=delete
+
+kubectl -n redpanda exec redpanda-0 -c redpanda -- \
+    rpk topic describe nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
 ```
 
 ### 8.4. RisingWave
@@ -1200,18 +1239,24 @@ Luồng hiện tại:
 3. Transform `parse_and_simulate_event_time` parse từng dòng JSON, thêm `event_id` và `event_time`.
 4. Sink Kafka publish JSON vào Redpanda topic `nyc-taxi-events`.
 
-Trước khi sync Vector, kiểm tra 4 điều kiện:
+Trước khi sync Vector, kiểm tra 4 điều kiện. Các lệnh dưới phải có output rõ ràng; riêng `rpk topic describe` phải in được thông tin topic `nyc-taxi-events`.
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-test -s ~/continux/data/raw/yellow_tripdata_${DATA_MONTH}.jsonl
+DATA_MONTH=${DATA_MONTH:-2026-03}
+
+ls -lh ~/continux/data/raw/yellow_tripdata_${DATA_MONTH}.jsonl
 kubectl -n redpanda get pod redpanda-0
-kubectl -n redpanda exec redpanda-0 -c redpanda -- rpk topic list | grep nyc-taxi-events
+kubectl -n redpanda exec redpanda-0 -c redpanda -- rpk topic list
+kubectl -n redpanda exec redpanda-0 -c redpanda -- \
+    rpk topic describe nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
 
 kubectl get pv vector-data-pv -o jsonpath='{.spec.hostPath.path}{"\n"}' || true
 # Kết quả đúng nếu PV đã tồn tại: /home/helios/continux/data/raw
 ```
+
+Nếu `rpk topic describe nyc-taxi-events` báo không tìm thấy topic, quay lại §8.3 để sync/tạo topic trước. Vector sẽ publish lỗi nếu topic chưa tồn tại.
 
 Nếu PV `vector-data-pv` đã được tạo từ cấu hình cũ và còn trỏ sang path khác, xoá riêng workload/PVC/PV của Vector rồi để ArgoCD tạo lại:
 

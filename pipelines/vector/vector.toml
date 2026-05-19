@@ -16,7 +16,7 @@ row = parse_json!(.message)
 [sinks.redpanda]
 type = "kafka"
 inputs = ["parse_and_simulate_event_time"]
-bootstrap_servers = "redpanda.redpanda.svc.cluster.local:9092"
+bootstrap_servers = "redpanda.redpanda.svc.cluster.local:9093"
 topic = "nyc-taxi-events"
 encoding.codec = "json"
 compression = "zstd"

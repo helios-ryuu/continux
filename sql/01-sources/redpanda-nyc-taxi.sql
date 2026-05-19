@@ -9,6 +9,6 @@ CREATE SOURCE nyc_taxi_src (
 ) WITH (
     connector               = 'kafka',
     topic                   = 'nyc-taxi-events',
-    properties.bootstrap.server = 'redpanda.redpanda:9092',
+    properties.bootstrap.server = 'redpanda.redpanda:9093',
     scan.startup.mode       = 'earliest'
 ) FORMAT PLAIN ENCODE JSON;
