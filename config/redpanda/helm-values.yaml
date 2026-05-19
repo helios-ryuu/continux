@@ -1,14 +1,14 @@
-nodeSelector:
-  role: data-plane
-
 statefulset:
   replicas: 1
+  podTemplate:
+    spec:
+      nodeSelector:
+        role: data-plane
 
 resources:
   cpu:    { cores: 1 }
   memory:
     container: { max: 1.5Gi }
-  reserveMemory: 128Mi
 
 storage:
   persistentVolume:

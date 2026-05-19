@@ -123,8 +123,6 @@ kubectl delete node <node-name>
 sudo /usr/local/bin/k3s-agent-uninstall.sh
 ```
 
----
-
 ## k3s-check.sh
 
 **Chạy trên:** `continux-imac`
