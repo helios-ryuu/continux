@@ -116,7 +116,7 @@ Nếu đủ 10 bước, Grafana dashboard cho Consumer Lag ≤ 2s, và `SELECT C
 
 Đã có `helios@helios-imac-ubuntu` chạy sẵn. Thêm các bước sau:
 
-> **Thực thi trên:** `continux-imac`
+> **Thực thi trên:** `continux-vps`
 
 ```bash
 # Cập nhật hệ thống
@@ -376,7 +376,7 @@ chmod +x mc && sudo mv mc /usr/local/bin/
 ```bash
 # Bộ CLI tối thiểu cho ArgoCD/observability từ §9 trở đi.
 sudo apt update
-sudo apt install -y curl ca-certificates unzip
+sudo apt install -y curl ca-certificates unzip jq
 
 # kubectl lấy từ K3s. Nếu symlink chưa có, tạo symlink về k3s.
 if ! command -v kubectl; then
@@ -1045,7 +1045,7 @@ Helm values: [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.y
 
 Grafana chưa có ArgoCD app riêng trong repo hiện tại, deploy bằng Helm:
 
-> **Thực thi trên:** `continux-imac`
+> **Thực thi trên:** `continux-vps`
 
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
@@ -1059,17 +1059,82 @@ kubectl -n observability rollout status deploy/grafana --timeout=300s
 kubectl -n observability get pods,svc -o wide
 ```
 
-Import 4 dashboard JSON từ `dashboards/*.json`:
-- `01-streaming-perf.json`
-- `02-resource-util.json`
-- `03-cutover.json`
-- `04-data-integrity.json`
+Thư mục `dashboards/` hiện là nơi lưu dashboard sau khi tạo/export từ Grafana. Nếu chưa có file JSON, tạo 4 dashboard trong Grafana rồi export về repo theo quy trình dưới đây.
+
+**Datasource:** vào **Connections → Data sources → VictoriaMetrics → Save & test**. Nếu báo lỗi, kiểm tra URL trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `http://vmsingle-victoria-metrics.observability.svc.cluster.local:8429`.
+
+**Tạo 4 dashboard trong Grafana UI:**
+
+1. Vào **Dashboards → New → New dashboard**.
+2. Chọn **Add visualization** → datasource **VictoriaMetrics**.
+3. Tạo dashboard **Streaming Performance** rồi **Save dashboard** với UID `streaming-perf`.
+   - Panel gợi ý: ingest/processed throughput, latency p95/p99, Redpanda consumer lag, vmagent scrape health.
+4. Tạo dashboard **Resource Utilization** rồi save với UID `resource-util`.
+   - Panel gợi ý: CPU, memory, disk/PVC usage, pod restarts cho namespace `redpanda`, `risingwave`, `minio`, `pipeline`, `observability`.
+5. Tạo dashboard **Cutover** rồi save với UID `cutover`.
+   - Panel gợi ý: Green backfill readiness, consumer lag trong lúc swap, query error count, thời điểm chạy `ALTER MATERIALIZED VIEW ... SWAP WITH ...`.
+6. Tạo dashboard **Data Integrity** rồi save với UID `data-integrity`.
+   - Panel gợi ý: row count Blue/Green/public alias, checksum/sample mismatch count, Iceberg sink freshness, số record rejected.
+
+**Export thủ công từ UI:**
+
+1. Mở dashboard cần export.
+2. Vào **Dashboard settings** → **JSON model**.
+3. Copy toàn bộ JSON model và lưu vào repo:
+   - `dashboards/01-streaming-perf.json`
+   - `dashboards/02-resource-util.json`
+   - `dashboards/03-cutover.json`
+   - `dashboards/04-data-integrity.json`
+
+**Export bằng API từ `continux-vps`:**
+
+```bash
+cd ~/continux
+mkdir -p dashboards
+
+GRAFANA_URL="https://continux-grafana.<domain>"
+GRAFANA_USER="admin"
+GRAFANA_PASSWORD="$(kubectl -n observability get secret grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
+
+curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
+  "${GRAFANA_URL}/api/dashboards/uid/streaming-perf" \
+  | jq '.dashboard | del(.id, .version)' > dashboards/01-streaming-perf.json
+
+curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
+  "${GRAFANA_URL}/api/dashboards/uid/resource-util" \
+  | jq '.dashboard | del(.id, .version)' > dashboards/02-resource-util.json
+
+curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
+  "${GRAFANA_URL}/api/dashboards/uid/cutover" \
+  | jq '.dashboard | del(.id, .version)' > dashboards/03-cutover.json
+
+curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
+  "${GRAFANA_URL}/api/dashboards/uid/data-integrity" \
+  | jq '.dashboard | del(.id, .version)' > dashboards/04-data-integrity.json
+
+git add dashboards/*.json
+git commit -m "docs: add grafana dashboards"
+git push
+```
+
+> Nếu thiếu `jq`: `sudo apt install -y jq`.
 
 ### 9.3. Truy cập Grafana
 
 Grafana đã được expose qua Cloudflare Tunnel cấu hình ở §7.2 — truy cập `https://continux-grafana.<domain>`.
 
-Đăng nhập mặc định: `admin` / `admin` (đổi password ngay lần đầu).
+Username được đặt trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `adminUser: admin`. Password không commit vào repo; Helm chart sinh password vào Kubernetes Secret `grafana`.
+
+Lấy password admin:
+
+> **Thực thi trên:** `continux-vps`
+
+```bash
+kubectl -n observability get secret grafana \
+    -o jsonpath="{.data.admin-password}" | base64 -d && echo
+```
+
+Đăng nhập bằng `admin` / password trên, rồi đổi password ngay lần đầu.
 
 ---
 
@@ -1217,11 +1282,14 @@ mc mirror local/iceberg-data ./backup-iceberg/
 
 ### 14.2. Xuất Grafana dashboards trước khi teardown
 
-> **Thực thi trên:** `continux-imac`
+> **Thực thi trên:** `continux-vps`
 
 ```bash
-grafana-cli --configOverrides 'paths.data=./grafana-export' \
-    admin export-dashboard --dir ./dashboards/
+cd ~/continux
+
+# Dùng lại quy trình export bằng API ở §9.2 để ghi đè dashboards/*.json
+# trước khi teardown Grafana hoặc reset cluster.
+ls dashboards/*.json
 ```
 
 ---
