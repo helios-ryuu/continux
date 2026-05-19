@@ -8,7 +8,7 @@ spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path
   hostPath:
-    path: /home/helios/continux-data/raw
+    path: /home/helios/continux/data/raw
   nodeAffinity:
     required:
       nodeSelectorTerms:

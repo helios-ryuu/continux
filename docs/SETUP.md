@@ -1039,7 +1039,7 @@ argocd app sync victoria-scrapes
 argocd app wait victoria-scrapes --health --sync
 ```
 
-### 9.2. Grafana
+### 9.2. Deploy Grafana
 
 Helm values: [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml)
 
@@ -1059,66 +1059,6 @@ kubectl -n observability rollout status deploy/grafana --timeout=300s
 kubectl -n observability get pods,svc -o wide
 ```
 
-Thư mục `dashboards/` hiện là nơi lưu dashboard sau khi tạo/export từ Grafana. Nếu chưa có file JSON, tạo 4 dashboard trong Grafana rồi export về repo theo quy trình dưới đây.
-
-**Datasource:** vào **Connections → Data sources → VictoriaMetrics → Save & test**. Nếu báo lỗi, kiểm tra URL trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `http://vmsingle-victoria-metrics.observability.svc.cluster.local:8428`. Lưu ý `vmsingle` dùng port `8428`; port `8429` là service của `vmagent`.
-
-**Tạo 4 dashboard trong Grafana UI:**
-
-1. Vào **Dashboards → New → New dashboard**.
-2. Chọn **Add visualization** → datasource **VictoriaMetrics**.
-3. Tạo dashboard **Streaming Performance** rồi **Save dashboard** với UID `streaming-perf`.
-   - Panel gợi ý: ingest/processed throughput, latency p95/p99, Redpanda consumer lag, vmagent scrape health.
-4. Tạo dashboard **Resource Utilization** rồi save với UID `resource-util`.
-   - Panel gợi ý: CPU, memory, disk/PVC usage, pod restarts cho namespace `redpanda`, `risingwave`, `minio`, `pipeline`, `observability`.
-5. Tạo dashboard **Cutover** rồi save với UID `cutover`.
-   - Panel gợi ý: Green backfill readiness, consumer lag trong lúc swap, query error count, thời điểm chạy `ALTER MATERIALIZED VIEW ... SWAP WITH ...`.
-6. Tạo dashboard **Data Integrity** rồi save với UID `data-integrity`.
-   - Panel gợi ý: row count Blue/Green/public alias, checksum/sample mismatch count, Iceberg sink freshness, số record rejected.
-
-**Export thủ công từ UI:**
-
-1. Mở dashboard cần export.
-2. Vào **Dashboard settings** → **JSON model**.
-3. Copy toàn bộ JSON model và lưu vào repo:
-   - `dashboards/01-streaming-perf.json`
-   - `dashboards/02-resource-util.json`
-   - `dashboards/03-cutover.json`
-   - `dashboards/04-data-integrity.json`
-
-**Export bằng API từ `continux-vps`:**
-
-```bash
-cd ~/continux
-mkdir -p dashboards
-
-GRAFANA_URL="https://continux-grafana.<domain>"
-GRAFANA_USER="admin"
-GRAFANA_PASSWORD="$(kubectl -n observability get secret grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
-
-curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
-  "${GRAFANA_URL}/api/dashboards/uid/streaming-perf" \
-  | jq '.dashboard | del(.id, .version)' > dashboards/01-streaming-perf.json
-
-curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
-  "${GRAFANA_URL}/api/dashboards/uid/resource-util" \
-  | jq '.dashboard | del(.id, .version)' > dashboards/02-resource-util.json
-
-curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
-  "${GRAFANA_URL}/api/dashboards/uid/cutover" \
-  | jq '.dashboard | del(.id, .version)' > dashboards/03-cutover.json
-
-curl -fsS -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" \
-  "${GRAFANA_URL}/api/dashboards/uid/data-integrity" \
-  | jq '.dashboard | del(.id, .version)' > dashboards/04-data-integrity.json
-
-git add dashboards/*.json
-git commit -m "docs: add grafana dashboards"
-git push
-```
-
-> Nếu thiếu `jq`: `sudo apt install -y jq`.
-
 ### 9.3. Truy cập Grafana
 
 Grafana đã được expose qua Cloudflare Tunnel cấu hình ở §7.2 — truy cập `https://continux-grafana.<domain>`.
@@ -1136,21 +1076,86 @@ kubectl -n observability get secret grafana \
 
 Đăng nhập bằng `admin` / password trên, rồi đổi password ngay lần đầu.
 
+### 9.4. Dashboard Grafana
+
+Thư mục `dashboards/` chứa 4 dashboard JSON đã chuẩn bị sẵn:
+
+- **Streaming Performance** — [`dashboards/01-streaming-perf.json`](../dashboards/01-streaming-perf.json)
+- **Resource Utilization** — [`dashboards/02-resource-util.json`](../dashboards/02-resource-util.json)
+- **Blue/Green Cutover** — [`dashboards/03-cutover.json`](../dashboards/03-cutover.json)
+- **Data Integrity** — [`dashboards/04-data-integrity.json`](../dashboards/04-data-integrity.json)
+
+**Datasource:** vào **Connections -> Data sources -> VictoriaMetrics -> Save & test**. Nếu báo lỗi, kiểm tra URL trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `http://vmsingle-victoria-metrics.observability.svc.cluster.local:8428`. Lưu ý `vmsingle` dùng port `8428`; port `8429` là service của `vmagent`.
+
+**Import dashboard JSON:**
+
+1. Vào **Dashboards -> New -> Import**.
+2. Upload từng file JSON trong `dashboards/`.
+3. Khi Grafana hỏi datasource variable `DS_VICTORIAMETRICS`, chọn datasource **VictoriaMetrics**.
+4. Bấm **Import**.
+
+**Chỉnh dashboard bằng JSON model:**
+
+1. Mở dashboard cần chỉnh.
+2. Vào **Dashboard settings -> JSON model**.
+3. Sửa trực tiếp JSON rồi bấm **Save changes**.
+4. Sau khi chỉnh ổn trong UI, export lại JSON về đúng file trong `dashboards/`.
+
+Quy ước khi chỉnh JSON:
+
+- Không hardcode datasource UID như `P4169E866C3094E38`; dùng `${DS_VICTORIAMETRICS}` để import được trên Grafana khác.
+- Query số hiện tại đặt `"instant": true`, `"range": false`.
+- Query time-series đặt `"range": true` và không bật instant.
+- Panel **Stat** nhiều query dùng `"reduceOptions": { "values": true, "calcs": ["lastNotNull"] }` và `"textMode": "value_and_name"`.
+- Label dài hoặc nhiều label nên đưa sang panel **Table**, không render trực tiếp trong **Stat**.
+- Các metric `continux_*` là metric ứng dụng sẽ được expose từ experiment/cutover/verify job; dashboard vẫn import được trước, panel đó có thể tạm `No data`.
+
+**Export thủ công từ UI:**
+
+1. Mở dashboard cần export.
+2. Vào **Dashboard settings** → **JSON model**.
+3. Copy toàn bộ JSON model và lưu vào repo:
+   - `dashboards/01-streaming-perf.json`
+   - `dashboards/02-resource-util.json`
+   - `dashboards/03-cutover.json`
+   - `dashboards/04-data-integrity.json`
+
 ---
 
 ## 10. Dataset & Vector
 
 ### 10.1. Tải NYC TLC + upload Taxi Zone
 
+Nguồn chính thức: [NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page). TLC publish dữ liệu theo tháng, thường trễ khoảng 2 tháng để chờ vendor gửi đủ dữ liệu. Tại thời điểm kiểm tra **20/05/2026**, file Yellow Taxi mới nhất đang có trên trang TLC là **2026-03**.
+
+Khuyến nghị:
+- Dùng **`2026-03`** nếu muốn dữ liệu mới nhất hiện tại.
+- Dùng **`2024-01`** nếu muốn giữ dataset cũ đã quen thuộc trong docs và tránh thay đổi schema/volume bất ngờ.
+
+> Lưu ý schema: theo TLC, từ dữ liệu **2025 trở đi** Yellow/Green/HVFHV có thêm cột `cbd_congestion_fee`. Nếu pipeline downstream đang giả định schema cũ, dùng `2024-01`; nếu pipeline đọc JSON linh hoạt/ignore field thừa, dùng `2026-03`.
+
+Trước khi tải, kiểm tra file tháng muốn dùng có tồn tại:
+
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-mkdir -p ~/continux-data/raw ~/continux-data/zone
-cd ~/continux-data/raw
-wget https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet
+DATA_MONTH=2026-03
+DATA_URL="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_${DATA_MONTH}.parquet"
+ZONE_URL="https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 
-cd ~/continux-data/zone
-wget https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv
+curl -I "$DATA_URL"
+curl -I "$ZONE_URL"
+```
+
+Nếu cả hai trả HTTP `200`, tải dữ liệu:
+
+```bash
+mkdir -p ~/continux/data/raw ~/continux/data/zone
+cd ~/continux/data/raw
+wget -c "$DATA_URL"
+
+cd ~/continux/data/zone
+wget -c "$ZONE_URL"
 
 # Upload Zone lookup vào MinIO bucket
 mc alias set local http://<tailscale-ip-compute>:9000 adminuser <root-password>
@@ -1158,7 +1163,7 @@ mc cp taxi_zone_lookup.csv local/tlc-zone/taxi_zone_lookup.csv
 mc ls local/tlc-zone
 ```
 
-Mount thư mục raw vào pod Vector bằng PVC `hostPath: /home/helios/continux-data/raw` (xem `config/vector/pvc.yaml`).
+Mount thư mục raw vào pod Vector bằng PVC `hostPath: /home/helios/continux/data/raw` (xem `config/vector/pvc.yaml`). Thư mục `data/raw/` đã nằm trong `.gitignore`, còn `data/zone/` có thể lưu file nhỏ như `taxi_zone_lookup.csv`.
 
 ### 10.2. Vector pipeline config
 
@@ -1332,6 +1337,7 @@ sudo apt purge tailscale -y
 | `kubectl get nodes` báo `permission denied` với `/etc/rancher/k3s/k3s.yaml` | User thường không có quyền đọc kubeconfig mặc định của K3s | Dùng `sudo kubectl ...`, hoặc copy kubeconfig sang `~/.kube/config` cho user; nếu muốn dùng chung, cài K3s với `--write-kubeconfig-mode=644` |
 | `kubectl get nodes` chỉ thấy `continux-imac` | Server #2 chưa join được qua Tailscale | `tailscale status` trên droplet → ping `continux-imac`; kiểm tra `K3S_URL` đúng dạng `https://100.x.x.x:6443` và lệnh cài là `server` |
 | Cài server #2 báo lỗi datastore | Server #1 đang chạy SQLite (không có `--cluster-init`) | Re-bootstrap `continux-imac` theo §5.1 để bật embedded etcd rồi join lại §5.2 |
+| K3s API không kết nối được, journal có `failed to publish local member to cluster through raft` / `TLS handshake timeout` | Embedded etcd mất quorum, peer chậm/kẹt, hoặc Tailscale giữa các server lỗi. Cụm 2 server không có quorum dự phòng: cần cả 2 node healthy | Kiểm tra `tailscale ping`, port `2379/2380/6443` hai chiều; kiểm tra `free -h`, `df -h`; restart K3s trên VPS trước, rồi iMac nếu cần. Về lâu dài dùng 1 server + agent, hoặc 3 server etcd |
 | Pod bị `Pending` — `FailedScheduling` vì taint | Workload nặng bị đẩy sang continux-vps (taint) | Đặt `nodeSelector: workload=heavy` cho workload đó |
 | RisingWave compute `OOMKilled` | Vượt `limits.memory=2.5Gi` của iMac 8GB | Giảm parallelism MV; tăng `compute.limits.memory` nếu còn chỗ; giảm load Vector |
 | MinIO `ReadOnly` mode | Disk iMac gần đầy (200 GB) | `df -h`; xoá snapshot Iceberg cũ bằng `expire_snapshots` |
@@ -1340,6 +1346,7 @@ sudo apt purge tailscale -y
 | `psql: SSL off error` | RisingWave v2.4 bật SSL mặc định | `PGSSLMODE=disable psql ...` hoặc `\set SSLMODE disable` |
 | Redpanda `out of memory` khi stress | Container cap 1.5 GiB không đủ cho burst | Giảm `VECTOR_THROUGHPUT_EVENTS_PER_SEC`, hoặc thêm `reserveMemory: 256Mi` |
 | Iceberg sink ghi nhưng query không thấy dữ liệu | Commit snapshot chưa chạy | Đợi `compactor` (mặc định mỗi 60s) hoặc force `CALL rw_iceberg_commit()` |
+| Grafana báo `ChunkLoadError: Loading chunk ... failed` | Browser hoặc Cloudflare cache còn giữ asset JS cũ sau khi Grafana upgrade/restart | Hard refresh `Ctrl+F5`; mở Incognito; xoá site data cho domain Grafana; nếu vẫn lỗi thì purge cache Cloudflare cho `continux-grafana.<domain>` và `kubectl -n observability rollout restart deploy/grafana` |
 | Dashboard Grafana báo `No data` | `vmagent` không scrape được qua namespace khác | Kiểm tra `scrape-configs.yaml` có `role: endpoints` + namespace whitelist |
 | Commit Git đã push nhưng ArgoCD không sync | Repo secret hết hạn (GH PAT) | `argocd repo add` lại với PAT mới (classic, scope `repo`) |
 
@@ -1360,3 +1367,5 @@ sudo apt purge tailscale -y
 - [ ] (Sau G4) Commit SQL Green → Swap tự động, downtime đo được ≤ 1s.
 
 Khi toàn bộ checklist xanh → sẵn sàng Giai đoạn 5 (Thực nghiệm, xem [TIMELINE.md](./TIMELINE.md)).
+
+

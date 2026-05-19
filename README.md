@@ -6,7 +6,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.5-0A7CC7?style=flat-square" alt="Version v0.1.5">
+  <img src="https://img.shields.io/badge/version-v0.1.6-0A7CC7?style=flat-square" alt="Version v0.1.6">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu">
 </p>
 
@@ -108,17 +108,18 @@ Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 
 ## KHỞI CHẠY DỰ ÁN
 
-**Phiên bản tài liệu hiện tại:** `v0.1.5` — hoàn tất ArgoCD UI qua Cloudflare Tunnel và chuẩn bị bootstrap App-of-Apps.
+**Phiên bản tài liệu hiện tại:** `v0.1.6` — hoàn tất hạ tầng nền M3: K3s, ArgoCD, MinIO, Redpanda, RisingWave, VictoriaMetrics/Grafana; bổ sung 4 dashboard JSON và chuẩn hóa dataset vào `data/`.
 
 **Các bước tổng quát:**
 1. Khởi tạo cụm K3s (`continux-imac` làm server #1, `continux-vps` làm server #2) và cấu hình `kubectl`.
 2. Cài đặt ArgoCD và đăng ký repository Git của dự án.
-3. Triển khai hạ tầng nền: MinIO, Redpanda, RisingWave (trên `continux-imac`), VictoriaMetrics, Grafana (trên `continux-vps`) thông qua ArgoCD.
-4. Tải bảng tham chiếu TLC Taxi Zone lên MinIO.
-5. Khởi chạy Vector để phát luồng sự kiện NYC TLC vào Redpanda.
-6. Đăng ký các Source, Sink và Materialized View Blue trên RisingWave.
-7. Truy cập Grafana để giám sát Consumer Lag, throughput, latency.
-8. *(Khi cần burst)* Join `helios` hoặc `nammn` vào cụm làm K3s worker qua WSL2.
+3. Triển khai hạ tầng nền: MinIO, Redpanda, RisingWave (trên `continux-imac`), VictoriaMetrics và Grafana (trên `continux-vps`) bằng Helm/ArgoCD theo SETUP.
+4. Import 4 dashboard Grafana từ `dashboards/*.json` để theo dõi Streaming Performance, Resource Utilization, Cutover và Data Integrity.
+5. Tải dataset NYC TLC vào `data/raw/` và bảng tham chiếu TLC Taxi Zone vào `data/zone/`, sau đó upload Taxi Zone lên MinIO.
+6. Khởi chạy Vector để phát luồng sự kiện NYC TLC vào Redpanda.
+7. Đăng ký các Source, Sink và Materialized View Blue trên RisingWave.
+8. Truy cập Grafana để giám sát Consumer Lag, throughput, latency.
+9. *(Khi cần burst)* Join `helios` hoặc `nammn` vào cụm làm K3s worker qua WSL2.
 
 **Workflow dev hiện tại:** phát triển chính trên Windows, commit/push lên GitHub; `continux-imac` là máy quản trị cluster, cần có clone repo ở `~/continux` để bootstrap các manifest local ban đầu như `gitops/apps/root-app.yaml`.
 
