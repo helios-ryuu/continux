@@ -142,7 +142,7 @@ Tóm tắt đóng góp Ursa: streaming-native ghi trực tiếp Kafka xuống La
 
 - **NYC TLC Trip Record Data** — tập dữ liệu mở, hàng triệu bản ghi/ngày.
 - **TLC Taxi Zone Lookup** — 265 zone (LocationID → Zone Name, Borough), dùng làm bảng tham chiếu tĩnh trên MinIO.
-- **Mô phỏng luồng:** Vector đọc CSV/Parquet → transform event-time → publish Redpanda topic `nyc-taxi-events` với throughput điều chỉnh (1k–20k events/s).
+- **Mô phỏng luồng:** Parquet NYC TLC được convert sang JSONL; Vector đọc JSONL → transform event-time → publish Redpanda topic `nyc-taxi-events`.
 
 ## 3.3. Kiến trúc tổng thể
 
@@ -169,7 +169,7 @@ Monitor: All components → VictoriaMetrics → Grafana
 
 | Thành phần | Vai trò | Lý do chọn |
 |------------|---------|-------------|
-| **Vector** | Trình tạo tải, đọc CSV → Redpanda | Rust, không rò rỉ bộ nhớ, throughput điều chỉnh được |
+| **Vector** | Trình tạo tải, đọc JSONL → Redpanda | Rust, nhẹ, phù hợp chạy trong pod tài nguyên giới hạn |
 | **Redpanda** | Message Broker | Kafka API, không JVM/ZooKeeper, triển khai nhẹ trên K3s |
 | **RisingWave** | Streaming Database (Compute) | Rust, state offloading, hỗ trợ `ALTER MV SWAP WITH`, Built-in Iceberg |
 | **MinIO** | Object Storage | S3-compatible, on-premise, dùng chung cho Iceberg + checkpoint |

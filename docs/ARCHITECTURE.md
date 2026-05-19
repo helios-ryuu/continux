@@ -126,7 +126,7 @@ continux/
 │
 ├── pipelines/
 │   ├── vector/
-│   │   ├── vector.toml              # Source CSV → transform → sink Redpanda
+│   │   ├── vector.toml              # Source JSONL → transform → sink Redpanda
 │   │   └── rates/                   # Preset throughput 1k/5k/10k/20k events/s
 │   │       ├── low.env
 │   │       ├── medium.env
@@ -156,7 +156,7 @@ continux/
 │   └── upload-tlc-zone.sh
 │
 ├── data/                            # DỮ LIỆU LOCAL — KHÔNG COMMIT
-│   ├── raw/                         # NYC TLC parquet tải về
+│   ├── raw/                         # NYC TLC parquet + JSONL đã convert
 │   └── zone/                        # taxi_zone_lookup.csv (nhỏ, có thể commit)
 │
 └── tools/
@@ -220,8 +220,8 @@ NYC TLC dataset có thể lên đến vài GB — `.gitignore` loại trừ `dat
 
 | Mã | Yêu cầu | Mức độ | Tiêu chí nghiệm thu |
 |----|---------|:------:|---------------------|
-| FR-01 | Hệ thống đọc được file CSV/Parquet NYC TLC Trip Record làm nguồn dữ liệu. | MUST | Vector load được ≥ 1 file mẫu (≥ 1M records) từ volume gắn vào pod trên `continux-imac`. |
-| FR-02 | Hệ thống mô phỏng luồng sự kiện thời gian thực từ file tĩnh, throughput điều chỉnh được. | MUST | Vector publish được 1k → 20k events/s qua biến môi trường `VECTOR_THROUGHPUT_EVENTS_PER_SEC`. |
+| FR-01 | Hệ thống dùng được NYC TLC Trip Record làm nguồn dữ liệu. | MUST | Parquet được convert sang JSONL và Vector load được ≥ 1 file mẫu từ volume gắn vào pod trên `continux-imac`. |
+| FR-02 | Hệ thống mô phỏng luồng sự kiện thời gian thực từ file tĩnh. | MUST | Vector publish JSON event vào Redpanda topic `nyc-taxi-events`; throughput test thực hiện bằng kích thước file JSONL/chạy thử theo batch. |
 | FR-03 | Hệ thống đẩy toàn bộ event vào topic Redpanda `nyc-taxi-events`. | MUST | Kafka consumer đọc lại đúng số lượng event Vector đã publish. |
 | FR-04 | Hệ thống lưu bảng tham chiếu TLC Taxi Zone (265 bản ghi) trên MinIO. | MUST | File CSV tồn tại ở bucket `tlc-zone`, đọc được qua S3 API. |
 

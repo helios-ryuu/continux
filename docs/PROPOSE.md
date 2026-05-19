@@ -63,7 +63,7 @@ Các hệ thống truyền thống thường lưu trạng thái tính toán (ví
 
 ## 6. Chỉ số và tiêu chí đánh giá
 
-Để chứng minh tính hiệu quả và độ tin cậy của kiến trúc, hệ thống sẽ được ép tải bằng **Vector**, đọc trực tiếp file CSV từ bộ dữ liệu NYC TLC và bơm vào Redpanda ở tốc độ điều chỉnh được, nhằm mô phỏng tải giao thông thực tế trên cụm **K3s** với tài nguyên giới hạn.
+Để chứng minh tính hiệu quả và độ tin cậy của kiến trúc, hệ thống sẽ dùng **Vector** đọc file JSONL được convert từ bộ dữ liệu NYC TLC và bơm vào Redpanda, nhằm mô phỏng tải giao thông thực tế trên cụm **K3s** với tài nguyên giới hạn.
 
 Hệ thống được đánh giá qua 4 nhóm chỉ số cốt lõi:
 

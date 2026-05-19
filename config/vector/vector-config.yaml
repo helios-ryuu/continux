@@ -5,22 +5,24 @@ metadata:
   namespace: pipeline
 data:
   vector.toml: |
-    [sources.tlc_parquet]
+    [sources.tlc_jsonl]
     type = "file"
-    include = ["/data/*.parquet"]
+    include = ["/data/*.jsonl"]
     read_from = "beginning"
 
-    [transforms.simulate_event_time]
+    [transforms.parse_and_simulate_event_time]
     type = "remap"
-    inputs = ["tlc_parquet"]
+    inputs = ["tlc_jsonl"]
     source = '''
-    .event_id   = uuid_v4()
+    row = parse_json!(.message)
+    . = row
+    .event_id = uuid_v4()
     .event_time = now()
     '''
 
     [sinks.redpanda]
     type = "kafka"
-    inputs = ["simulate_event_time"]
+    inputs = ["parse_and_simulate_event_time"]
     bootstrap_servers = "redpanda.redpanda.svc.cluster.local:9092"
     topic = "nyc-taxi-events"
     encoding.codec = "json"

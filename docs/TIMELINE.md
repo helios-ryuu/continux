@@ -63,7 +63,7 @@
 | # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
 |---|-----------|---------|----------|-----------|---------|
 | 3.1 | Tải NYC TLC Trip Record; upload TLC Taxi Zone CSV lên MinIO | 20/05 | 20/05 | Sỹ | Chuẩn bị ở SETUP §10; dữ liệu lưu trong `data/raw/`, Zone trong `data/zone/` |
-| 3.2 | Cấu hình Vector đọc CSV → mô phỏng luồng → Redpanda | 19/05 | 20/05 | Sỹ | Bắt đầu mức tải low/medium |
+| 3.2 | Cấu hình Vector đọc JSONL → mô phỏng luồng → Redpanda | 19/05 | 20/05 | Sỹ | Convert từ NYC TLC Parquet trước khi sync Vector |
 | 3.3 | SQL: `CREATE SOURCE` (Redpanda) + `CREATE TABLE` (Taxi Zone) | 20/05 | 21/05 | Sỹ | |
 | 3.4 | Viết MV v1 (**Blue**): JOIN luồng với Taxi Zone, phân tích theo Zone | 21/05 | 22/05 | Sỹ | Baseline |
 | 3.5 | Cấu hình Iceberg Sink (Built-in Hosted Catalog) | 22/05 | 23/05 | Sỹ | Verify metadata/data file |

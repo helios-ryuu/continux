@@ -1151,16 +1151,40 @@ Nếu cả hai trả HTTP `200`, tải dữ liệu:
 
 ```bash
 mkdir -p ~/continux/data/raw ~/continux/data/zone
+sudo chown -R "$USER:$USER" ~/continux/data
+chmod -R u+rwX ~/continux/data
+
 cd ~/continux/data/raw
 wget -c "$DATA_URL"
+
+# Vector đọc JSONL, không đọc trực tiếp Parquet.
+# Lệnh dưới convert đúng các field mà RisingWave source ở §11.1 đang khai báo.
+cd ~/continux
+python3 -m venv .venv
+. .venv/bin/activate
+pip install --upgrade pip pyarrow
+
+python scripts/tlc-parquet-to-jsonl.py \
+    "data/raw/yellow_tripdata_${DATA_MONTH}.parquet" \
+    "data/raw/yellow_tripdata_${DATA_MONTH}.jsonl"
+
+ls -lh data/raw/yellow_tripdata_${DATA_MONTH}.parquet \
+       data/raw/yellow_tripdata_${DATA_MONTH}.jsonl
 
 cd ~/continux/data/zone
 wget -c "$ZONE_URL"
 
 # Upload Zone lookup vào MinIO bucket
-mc alias set local http://<tailscale-ip-compute>:9000 adminuser <root-password>
+PASSWORD=<root-password>
+
+# MinIO service đang là ClusterIP, nên mở port-forward API 9000 trong terminal riêng:
+kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000
+
+# Terminal còn lại:
+mc alias set local http://127.0.0.1:9000 adminuser "$PASSWORD"
 mc cp taxi_zone_lookup.csv local/tlc-zone/taxi_zone_lookup.csv
 mc ls local/tlc-zone
+# [2026-05-19 17:31:11 UTC]  12KiB STANDARD taxi_zone_lookup.csv
 ```
 
 Mount thư mục raw vào pod Vector bằng PVC `hostPath: /home/helios/continux/data/raw` (xem `config/vector/pvc.yaml`). Thư mục `data/raw/` đã nằm trong `.gitignore`, còn `data/zone/` có thể lưu file nhỏ như `taxi_zone_lookup.csv`.
@@ -1169,15 +1193,48 @@ Mount thư mục raw vào pod Vector bằng PVC `hostPath: /home/helios/continux
 
 Cấu hình nguồn → transform → sink: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.toml)
 
-Điều chỉnh tải bằng biến môi trường `VECTOR_THROUGHPUT_EVENTS_PER_SEC` — preset có sẵn trong [`pipelines/vector/rates/`](../pipelines/vector/rates/) (`low.env` / `medium.env` / `high.env`).
+Luồng hiện tại:
 
-Sau khi Redpanda topic đã tạo ở §8.3 và thư mục dữ liệu/PVC đã sẵn sàng, sync Vector:
+1. Script [`scripts/tlc-parquet-to-jsonl.py`](../scripts/tlc-parquet-to-jsonl.py) convert Yellow Taxi Parquet thành JSONL.
+2. Vector đọc `/data/*.jsonl` từ PVC `vector-data`.
+3. Transform `parse_and_simulate_event_time` parse từng dòng JSON, thêm `event_id` và `event_time`.
+4. Sink Kafka publish JSON vào Redpanda topic `nyc-taxi-events`.
+
+Trước khi sync Vector, kiểm tra 4 điều kiện:
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
+test -s ~/continux/data/raw/yellow_tripdata_${DATA_MONTH}.jsonl
+kubectl -n redpanda get pod redpanda-0
+kubectl -n redpanda exec redpanda-0 -c redpanda -- rpk topic list | grep nyc-taxi-events
+
+kubectl get pv vector-data-pv -o jsonpath='{.spec.hostPath.path}{"\n"}' || true
+# Kết quả đúng nếu PV đã tồn tại: /home/helios/continux/data/raw
+```
+
+Nếu PV `vector-data-pv` đã được tạo từ cấu hình cũ và còn trỏ sang path khác, xoá riêng workload/PVC/PV của Vector rồi để ArgoCD tạo lại:
+
+```bash
+kubectl -n pipeline delete deploy/vector pvc/vector-data --ignore-not-found
+kubectl delete pv/vector-data-pv --ignore-not-found
+```
+
+Sau khi Redpanda topic đã tạo ở §8.3, JSONL đã có trong `~/continux/data/raw`, và PVC path đúng, sync Vector:
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
+argocd app diff vector
 argocd app sync vector
 argocd app wait vector --health --sync
+```
+
+Kiểm tra log sau khi sync:
+
+```bash
+kubectl -n pipeline rollout status deploy/vector --timeout=300s
+kubectl -n pipeline logs deploy/vector --tail=100
 ```
 
 ---
@@ -1344,7 +1401,7 @@ sudo apt purge tailscale -y
 | Droplet CPU `100%` liên tục | ArgoCD app-controller ôm quá nhiều app | Giảm số App-of-Apps; hoặc resize droplet lên $24/mo (nếu chưa) |
 | Tailscale ngắt kết nối sau vài giờ | NAT của modem kill session UDP | Trên iMac: `sudo tailscale up --reset --accept-routes --ssh` với systemd unit autorestart |
 | `psql: SSL off error` | RisingWave v2.4 bật SSL mặc định | `PGSSLMODE=disable psql ...` hoặc `\set SSLMODE disable` |
-| Redpanda `out of memory` khi stress | Container cap 1.5 GiB không đủ cho burst | Giảm `VECTOR_THROUGHPUT_EVENTS_PER_SEC`, hoặc thêm `reserveMemory: 256Mi` |
+| Redpanda `out of memory` khi stress | Container cap 1.5 GiB không đủ cho burst | Chạy JSONL nhỏ hơn trước, hoặc thêm `reserveMemory: 256Mi` |
 | Iceberg sink ghi nhưng query không thấy dữ liệu | Commit snapshot chưa chạy | Đợi `compactor` (mặc định mỗi 60s) hoặc force `CALL rw_iceberg_commit()` |
 | Grafana báo `ChunkLoadError: Loading chunk ... failed` | Browser hoặc Cloudflare cache còn giữ asset JS cũ sau khi Grafana upgrade/restart | Hard refresh `Ctrl+F5`; mở Incognito; xoá site data cho domain Grafana; nếu vẫn lỗi thì purge cache Cloudflare cho `continux-grafana.<domain>` và `kubectl -n observability rollout restart deploy/grafana` |
 | Dashboard Grafana báo `No data` | `vmagent` không scrape được qua namespace khác | Kiểm tra `scrape-configs.yaml` có `role: endpoints` + namespace whitelist |
@@ -1360,12 +1417,10 @@ sudo apt purge tailscale -y
 - [ ] MinIO có 3 bucket (`iceberg-data`, `rw-checkpoint`, `tlc-zone`), 3 access key riêng biệt.
 - [ ] `rpk topic list` trả về `nyc-taxi-events` với 3 partitions.
 - [ ] `psql` kết nối RisingWave OK; `SHOW SOURCES` và `SHOW MATERIALIZED VIEWS` có dữ liệu.
-- [ ] Vector log hiển thị số event/s khớp với `VECTOR_THROUGHPUT_EVENTS_PER_SEC`.
+- [ ] Vector log không có lỗi parse JSONL/Kafka sink.
 - [ ] Grafana 4 dashboard hiện số (không `No data`).
 - [ ] `SELECT COUNT(*) FROM mv_zone_stats` > 0 và tăng theo thời gian.
 - [ ] `mc ls local/iceberg-data/nyc/zone_stats/` có file Parquet + metadata `.json`.
 - [ ] (Sau G4) Commit SQL Green → Swap tự động, downtime đo được ≤ 1s.
 
 Khi toàn bộ checklist xanh → sẵn sàng Giai đoạn 5 (Thực nghiệm, xem [TIMELINE.md](./TIMELINE.md)).
-
-

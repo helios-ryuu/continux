@@ -1,5 +1,6 @@
 .claude
 .env*
+.venv/
 
 # Dataset lớn — tải về local, không commit
 data/raw/
