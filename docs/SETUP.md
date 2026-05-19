@@ -1059,6 +1059,15 @@ kubectl -n observability rollout status deploy/grafana --timeout=300s
 kubectl -n observability get pods,svc -o wide
 ```
 
+Nếu rollout kẹt ở `old replicas are pending termination`, thường là pod cũ đang giữ PVC `grafana` trong lúc pod mới chờ mount cùng volume. Values Grafana dùng `deploymentStrategy: Recreate` để các lần upgrade sau không kẹt. Với lần đang kẹt, kiểm tra rồi xoá pod cũ:
+
+```bash
+kubectl -n observability get pods -l app.kubernetes.io/name=grafana -o wide
+kubectl -n observability describe pod <grafana-pod-moi-dang-PodInitializing>
+kubectl -n observability delete pod <grafana-pod-cu-dang-Running>
+kubectl -n observability rollout status deploy/grafana --timeout=300s
+```
+
 Thư mục `dashboards/` hiện là nơi lưu dashboard sau khi tạo/export từ Grafana. Nếu chưa có file JSON, tạo 4 dashboard trong Grafana rồi export về repo theo quy trình dưới đây.
 
 **Datasource:** vào **Connections → Data sources → VictoriaMetrics → Save & test**. Nếu báo lỗi, kiểm tra URL trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `http://vmsingle-victoria-metrics.observability.svc.cluster.local:8429`.

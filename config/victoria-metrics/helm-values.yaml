@@ -1,5 +1,8 @@
 fullnameOverride: victoria-metrics
 
+grafana:
+  enabled: false
+
 vmsingle:
   enabled: true
   spec:
