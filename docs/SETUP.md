@@ -48,7 +48,7 @@ Cả hai máy cài **WSL2 Ubuntu 24.04** — K3s agent chạy trong WSL2, join c
 
 > **Khi nào bật:** chỉ trong Giai đoạn 4–5 (stress test, thực nghiệm). Không bật thường xuyên để tránh overhead etcd và tiết kiệm điện.
 
-Mọi lệnh quản trị (`kubectl`, `helm`, `argocd`, `rpk`, `mc`, `psql`) chạy trực tiếp trên `continux-imac`.
+Lệnh data plane (`rpk`, `mc`, `psql`, Helm cho MinIO/Redpanda/RisingWave) chạy trên `continux-imac`. Lệnh observability/control plane từ §9 trở đi (`kubectl`, `helm`, `argocd`) chạy trên `continux-vps` hoặc kube-context trỏ đúng cluster.
 
 ### 0.4. Ký hiệu máy dùng trong tài liệu này
 
@@ -98,7 +98,7 @@ Xem tài liệu đầy đủ cho tất cả script (cú pháp, argument, flags, 
 2. Cài Tailscale trên hai máy, nối chúng vào một tailnet
 3. Cài K3s server #1 trên iMac (cluster-init, dùng Tailscale IP làm node IP)
 4. Join Droplet làm K3s server #2 qua Tailscale
-5. Cài CLI trên continux-imac (kubectl, helm, argocd, rpk, mc, psql)
+5. Cài CLI trên continux-imac và continux-vps
 6. Cài Argo CD lên continux-vps và kết nối repo GitOps
 7. Deploy hạ tầng: MinIO → Redpanda → RisingWave (continux-imac)
 8. Deploy observability: VictoriaMetrics + Grafana (continux-vps)
@@ -336,9 +336,9 @@ sudo /usr/local/bin/k3s-agent-uninstall.sh
 
 ---
 
-## 6. Công cụ CLI trên continux-imac
+## 6. Công cụ CLI trên hai node chính
 
-Tất cả lệnh quản trị cluster chạy trực tiếp trên `continux-imac`.
+`continux-imac` cần đủ CLI cho data plane. `continux-vps` cần tối thiểu `kubectl`, `helm`, `argocd` để chạy các bước observability từ §9.
 
 ### 6.1. Cài CLI
 
@@ -371,9 +371,43 @@ wget https://dl.min.io/client/mc/release/linux-amd64/mc
 chmod +x mc && sudo mv mc /usr/local/bin/
 ```
 
+> **Thực thi trên:** `continux-vps`
+
+```bash
+# Bộ CLI tối thiểu cho ArgoCD/observability từ §9 trở đi.
+sudo apt update
+sudo apt install -y curl ca-certificates unzip
+
+# kubectl lấy từ K3s. Nếu symlink chưa có, tạo symlink về k3s.
+if ! command -v kubectl; then
+  sudo ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl
+  command -v kubectl
+fi
+mkdir -p ~/.kube
+sudo k3s kubectl config view --raw > ~/.kube/config
+chmod 600 ~/.kube/config
+kubectl get nodes -o wide
+
+# Helm latest stable — binary nằm ở /usr/local/bin/helm.
+# Lưu ý: installer mặc định có thể kéo Helm 3; dùng DESIRED_VERSION để lấy latest Helm 4.
+HELM_VERSION=$(curl -sf https://get.helm.sh/helm-latest-version | tr -d '\n')
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o /tmp/get-helm.sh
+chmod 700 /tmp/get-helm.sh
+DESIRED_VERSION="${HELM_VERSION}" /tmp/get-helm.sh
+rm -f /tmp/get-helm.sh
+helm version --short
+
+# argocd CLI 3.4.2
+VERSION=3.4.2
+curl -sSL -o /tmp/argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/v$VERSION/argocd-linux-amd64
+sudo install -m 555 /tmp/argocd-linux-amd64 /usr/local/bin/argocd
+rm -f /tmp/argocd-linux-amd64
+argocd version --client
+```
+
 Verify:
 
-> **Thực thi trên:** `continux-imac`
+> **Thực thi trên:** `continux-imac` và `continux-vps`
 
 [SCRIPTS.md — k3s-check.sh](./SCRIPTS.md#k3s-checksh)
 
@@ -971,7 +1005,9 @@ kubectl -n pipeline create configmap vector-config \
 
 Helm values: [`config/victoria-metrics/helm-values.yaml`](../config/victoria-metrics/helm-values.yaml)
 
-> **Lưu ý:** Grafana datasource URL hardcode service name `vmsingle-victoria-metrics` — service name này được tạo từ Helm release name `victoria-metrics`. Phải dùng đúng release name khi `helm install`:
+> **Thực thi trên:** `continux-vps` / kube-context trỏ tới cluster observability.
+>
+> **Lưu ý:** `config/victoria-metrics/helm-values.yaml` đặt `fullnameOverride: victoria-metrics` để tránh tên resource vượt giới hạn 63 ký tự của Kubernetes. Grafana datasource URL hardcode service name `vmsingle-victoria-metrics`, nên giữ nguyên release name/override này khi deploy.
 >
 > ```bash
 > cd ~/continux
@@ -979,7 +1015,17 @@ Helm values: [`config/victoria-metrics/helm-values.yaml`](../config/victoria-met
 > helm repo add vm https://victoriametrics.github.io/helm-charts/
 > helm repo update
 >
-> helm install victoria-metrics vm/victoria-metrics-k8s-stack \
+> # Install/update VictoriaMetrics Operator CRDs first. The stack renders
+> # VMAgent/VMServiceScrape/VMNodeScrape resources, so Helm needs these
+> # kinds to exist before installing the release.
+> helm show crds vm/victoria-metrics-k8s-stack \
+>     | kubectl apply -f - --server-side
+>
+> kubectl wait --for condition=Established crd/vmagents.operator.victoriametrics.com --timeout=120s
+> kubectl wait --for condition=Established crd/vmservicescrapes.operator.victoriametrics.com --timeout=120s
+> kubectl wait --for condition=Established crd/vmnodescrapes.operator.victoriametrics.com --timeout=120s
+>
+> helm upgrade --install victoria-metrics vm/victoria-metrics-k8s-stack \
 >     --namespace observability --create-namespace \
 >     -f config/victoria-metrics/helm-values.yaml
 > ```

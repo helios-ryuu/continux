@@ -1,3 +1,5 @@
+fullnameOverride: victoria-metrics
+
 vmsingle:
   enabled: true
   spec:
