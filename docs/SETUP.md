@@ -1059,54 +1059,9 @@ kubectl -n observability rollout status deploy/grafana --timeout=300s
 kubectl -n observability get pods,svc -o wide
 ```
 
-Nếu rollout kẹt ở `old replicas are pending termination`, thường là pod cũ đang giữ PVC `grafana` trong lúc pod mới chờ mount cùng volume. Values Grafana dùng RollingUpdate với `maxSurge: 0`, `maxUnavailable: 1` để các lần upgrade sau xoá pod cũ trước khi tạo pod mới. Với lần đang kẹt, kiểm tra rồi xoá pod cũ:
-
-```bash
-kubectl -n observability get pods -l app.kubernetes.io/name=grafana -o wide
-kubectl -n observability describe pod <grafana-pod-moi-dang-PodInitializing>
-kubectl -n observability delete pod <grafana-pod-cu-dang-Running>
-kubectl -n observability rollout status deploy/grafana --timeout=300s
-```
-
-Nếu chỉ còn 1 pod nhưng vẫn kẹt `PodInitializing`, xem event thay vì chỉ xem logs deployment:
-
-```bash
-POD=$(kubectl -n observability get pod -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}')
-
-kubectl -n observability describe pod "$POD"
-kubectl -n observability get events --sort-by=.lastTimestamp | tail -80
-kubectl -n observability get pvc grafana -o wide
-kubectl -n observability get pv | grep grafana
-
-# Nếu đang kẹt ở init container, xem tên init container rồi đọc log.
-kubectl -n observability get pod "$POD" -o jsonpath='{.spec.initContainers[*].name}' && echo
-kubectl -n observability logs "$POD" -c init-chown-data
-```
-
-Nếu `init-chown-data` `CrashLoopBackOff` với exit code `1`, values Grafana đã tắt init chown (`initChownData.enabled: false`) và đặt `fsGroup: 472`. Upgrade lại chart:
-
-```bash
-helm upgrade --install grafana grafana/grafana \
-    --namespace observability \
-    -f config/grafana/helm-values.yaml
-
-kubectl -n observability rollout status deploy/grafana --timeout=300s
-```
-
-Nếu Grafana vẫn lỗi permission sau khi tắt init chown, sửa quyền local-path PV một lần trên node đang giữ volume (`continux-vps`):
-
-```bash
-PV_PATH=$(kubectl get pv "$(kubectl -n observability get pvc grafana -o jsonpath='{.spec.volumeName}')" -o jsonpath='{.spec.local.path}')
-echo "$PV_PATH"
-sudo chown -R 472:472 "$PV_PATH"
-
-kubectl -n observability delete pod -l app.kubernetes.io/name=grafana
-kubectl -n observability rollout status deploy/grafana --timeout=300s
-```
-
 Thư mục `dashboards/` hiện là nơi lưu dashboard sau khi tạo/export từ Grafana. Nếu chưa có file JSON, tạo 4 dashboard trong Grafana rồi export về repo theo quy trình dưới đây.
 
-**Datasource:** vào **Connections → Data sources → VictoriaMetrics → Save & test**. Nếu báo lỗi, kiểm tra URL trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `http://vmsingle-victoria-metrics.observability.svc.cluster.local:8429`.
+**Datasource:** vào **Connections → Data sources → VictoriaMetrics → Save & test**. Nếu báo lỗi, kiểm tra URL trong [`config/grafana/helm-values.yaml`](../config/grafana/helm-values.yaml): `http://vmsingle-victoria-metrics.observability.svc.cluster.local:8428`. Lưu ý `vmsingle` dùng port `8428`; port `8429` là service của `vmagent`.
 
 **Tạo 4 dashboard trong Grafana UI:**
 

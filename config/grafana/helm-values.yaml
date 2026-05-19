@@ -34,7 +34,7 @@ datasources:
     datasources:
       - name: VictoriaMetrics
         type: prometheus
-        url: http://vmsingle-victoria-metrics.observability.svc.cluster.local:8429
+        url: http://vmsingle-victoria-metrics.observability.svc.cluster.local:8428
         isDefault: true
 
 dashboardProviders:
