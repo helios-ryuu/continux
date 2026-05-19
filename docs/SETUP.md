@@ -1059,7 +1059,7 @@ kubectl -n observability rollout status deploy/grafana --timeout=300s
 kubectl -n observability get pods,svc -o wide
 ```
 
-Nếu rollout kẹt ở `old replicas are pending termination`, thường là pod cũ đang giữ PVC `grafana` trong lúc pod mới chờ mount cùng volume. Values Grafana dùng `deploymentStrategy: Recreate` để các lần upgrade sau không kẹt. Với lần đang kẹt, kiểm tra rồi xoá pod cũ:
+Nếu rollout kẹt ở `old replicas are pending termination`, thường là pod cũ đang giữ PVC `grafana` trong lúc pod mới chờ mount cùng volume. Values Grafana dùng RollingUpdate với `maxSurge: 0`, `maxUnavailable: 1` để các lần upgrade sau xoá pod cũ trước khi tạo pod mới. Với lần đang kẹt, kiểm tra rồi xoá pod cũ:
 
 ```bash
 kubectl -n observability get pods -l app.kubernetes.io/name=grafana -o wide

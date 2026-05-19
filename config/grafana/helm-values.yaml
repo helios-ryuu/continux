@@ -3,7 +3,10 @@ adminUser: admin
 # into secret/grafana key admin-password; see docs/SETUP.md §9.3.
 
 deploymentStrategy:
-  type: Recreate
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
 
 nodeSelector: { role: control-plane }
 tolerations:
