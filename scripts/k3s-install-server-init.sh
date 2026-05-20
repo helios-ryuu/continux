@@ -1,8 +1,8 @@
 #!/bin/bash
 # =================================================================
-# k3s-install-server-init.sh — Cài K3s server #1 với --cluster-init
-# Chạy trên : continux-imac (Ubuntu 24.04, bước §5.1 trong SETUP.md)
-# Mục đích  : Khởi tạo cụm K3s mới, embedded etcd, dùng Tailscale IP
+# k3s-install-server-init.sh - Initialize K3s server #1 with --cluster-init.
+# Run on: imac.
+# Purpose: create the embedded-etcd K3s cluster over Tailscale.
 # =================================================================
 set -euo pipefail
 
@@ -15,16 +15,37 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 die()   { echo -e "${RED}[FAIL]${NC}  $*" >&2; exit 1; }
 
+usage() {
+    cat <<'EOF'
+Usage:
+  sudo bash scripts/k3s-install-server-init.sh
+
+Initialize K3s server #1 on imac with embedded etcd over Tailscale.
+EOF
+}
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    "")
+        ;;
+    *)
+        die "Tham số không hợp lệ: $1"
+        ;;
+esac
+
 # ======================== KIỂM TRA ĐIỀU KIỆN ========================
 [ "$(id -u)" -ne 0 ] && die "Chạy với sudo: sudo bash $0"
 
-command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem SETUP.md §4."
+command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem SETUP.md §3."
 tailscale status >/dev/null 2>&1    || die "Tailscale chưa kết nối. Chạy: sudo tailscale up"
 
 TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
 [ -z "$TAILSCALE_IP" ] && die "Không lấy được IP Tailscale (IPv4)."
 
-NODE_NAME="continux-imac"
+NODE_NAME="imac"
 
 echo -e "\n${BOLD}=== K3s Server Init — ${NODE_NAME} ===${NC}"
 info "Tailscale IP : ${TAILSCALE_IP}"
@@ -42,7 +63,6 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
     --disable=servicelb \
-    --disable=local-storage \
     --disable=metrics-server \
     --node-name="${NODE_NAME}" \
     --node-ip="${TAILSCALE_IP}" \
@@ -74,10 +94,10 @@ ok "Cài đặt hoàn tất!"
 echo -e "${YELLOW}Node join token (copy để dùng ở bước tiếp theo):${NC}"
 echo -e "${CYAN}${NODE_TOKEN}${NC}"
 echo ""
-echo -e "${YELLOW}Lệnh join server #2 cho continux-vps:${NC}"
+echo -e "${YELLOW}Join server #2 on continux-vps:${NC}"
 echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> continux-vps edge"
-echo -e "${YELLOW}Lệnh join server #3 cho helios-wsl:${NC}"
-echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> helios-wsl quorum"
+echo -e "${YELLOW}Join server #3 on helios-pc:${NC}"
+echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> helios-pc quorum"
 echo -e "${BOLD}=================================================${NC}"
 
 # ======================== VERIFY ========================

@@ -7,7 +7,7 @@ WITH (
     warehouse.path       = 's3://iceberg-data/',
     s3.endpoint          = 'http://minio.minio.svc.cluster.local:9000',
     s3.access.key        = 'key-risingwave',
-    s3.secret.key        = '<replace: key-risingwave secret từ MinIO console §8.1>',
+    s3.secret.key        = '<replace: key-risingwave secret từ MinIO console SETUP §7.2>',
     s3.path.style.access = 'true',
     database.name        = 'nyc',
     table.name           = 'zone_stats'

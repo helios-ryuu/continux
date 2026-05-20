@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================
 # k3s-check.sh — K3s Cluster Check
-# Chạy trên : continux-imac (node quản trị cluster)
+# Chạy trên : imac (node quản trị cluster)
 # Mục đích  : Kiểm tra tổng thể cụm K3s: node, pod, PVC, workload,
 #             image, Helm release/repo, secrets, tài nguyên hệ thống
 # Cú pháp   : bash k3s-check.sh [-e|--explain] [section] [args]
@@ -51,6 +51,74 @@ check_k3s_connection() {
 
 strip_colors() {
     sed -r 's/\x1B\[[0-9;]*[mK]//g'
+}
+
+color_for_pct() {
+    local pct="${1%.*}"
+    [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
+    if [ "$pct" -lt 60 ]; then
+        printf "%b" "$GREEN"
+    elif [ "$pct" -lt 80 ]; then
+        printf "%b" "$YELLOW"
+    elif [ "$pct" -lt 90 ]; then
+        printf "%b" "$ORANGE"
+    else
+        printf "%b" "$RED"
+    fi
+}
+
+status_color() {
+    case "$1" in
+        Ready|Running|Bound|deployed|ok|healthy) printf "%b" "$GREEN" ;;
+        Succeeded|Complete|completed) printf "%b" "$BLUE" ;;
+        Pending|ContainerCreating|progressing|waiting) printf "%b" "$YELLOW" ;;
+        Terminating|warning|stale) printf "%b" "$ORANGE" ;;
+        *) printf "%b" "$RED" ;;
+    esac
+}
+
+bar_pct() {
+    local pct="${1%.*}"
+    local width="${2:-24}"
+    [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
+    [ "$pct" -lt 0 ] && pct=0
+    [ "$pct" -gt 100 ] && pct=100
+    local fill=$((pct * width / 100))
+    local empty=$((width - fill))
+    local color
+    color=$(color_for_pct "$pct")
+
+    printf "%b[" "$color"
+    for ((i = 0; i < fill; i++)); do printf "█"; done
+    for ((i = 0; i < empty; i++)); do printf "░"; done
+    printf "]%b %3d%%" "$NC" "$pct"
+}
+
+bar_count() {
+    local value="${1:-0}"
+    local max="${2:-0}"
+    local width="${3:-24}"
+    local pct=0
+    [[ "$value" =~ ^[0-9]+$ ]] || value=0
+    [[ "$max" =~ ^[0-9]+$ ]] || max=0
+    if [ "$max" -gt 0 ]; then
+        pct=$((value * 100 / max))
+    fi
+    bar_pct "$pct" "$width"
+}
+
+section_header() {
+    echo -e "\n${BLUE}${BOLD}--- [$1] $2 ---${NC}"
+}
+
+metric_ratio() {
+    local label="$1"
+    local good="$2"
+    local total="$3"
+    local suffix="$4"
+    local pct=0
+    [ "$total" -gt 0 ] && pct=$((good * 100 / total))
+    printf "  ${CYAN}%-18s${NC} %b  %s/%s %s\n" "$label" "$(bar_pct "$pct" 22)" "$good" "$total" "$suffix"
 }
 
 # ======================== TIMING ========================
@@ -189,37 +257,161 @@ get_ts_ip() {
 }
 
 # ======================== SECTIONS ========================
-section_sys() {
-    echo -e "\n${BLUE}--- [1/6] HỆ THỐNG & TẢI ---${NC}"
-    explain "Đọc tài nguyên ngay trên node đang chạy script; phần này giúp phát hiện thiếu RAM/đĩa hoặc tải CPU bất thường trước khi nhìn vào Kubernetes."
-    printf "${CYAN}%-12s${NC} %s" "Hostname:" "$(hostname)"; explain_suffix "Tên Linux host hiện tại"; echo
-    printf "${CYAN}%-12s${NC} %s" "Kernel:" "$(uname -r)"; explain_suffix "Phiên bản Linux kernel"; echo
-    printf "${CYAN}%-12s${NC} %s" "Uptime:" "$(uptime -p)"; explain_suffix "Thời gian máy đã chạy liên tục"; echo
-    uptime | awk -F'load average:' '{ printf "'"${CYAN}"'%-12s'"${NC}"' %s (1m / 5m / 15m)", "Load avg:", $2 }'
-    explain_suffix "Tải trung bình 1/5/15 phút"; echo
+section_overview() {
+    load_cache
+    section_header "1/8" "OVERVIEW: SỨC KHỎE CỤM"
+    explain "Section này đặt các tín hiệu hay xem nhất lên đầu: node Ready, pod lỗi, PVC bound, workload available và tài nguyên local node."
 
-    free -m | awk 'NR==2{
-        used=$3; total=$2; pct=used*100/total;
-        bar=""; for(i=0;i<20;i++) bar=bar (i<pct/5 ? "█" : "░");
-        printf "'"${CYAN}"'%-12s'"${NC}"' %d/%d MB (%d%%) [%s]", "RAM:", used, total, pct, bar
-    }'
-    explain_suffix "Bộ nhớ đang dùng/tổng"; echo
-    free -m | awk 'NR==3{
-        if($2>0) {
-            pct=$3*100/$2;
-            bar=""; for(i=0;i<20;i++) bar=bar (i<pct/5 ? "█" : "░");
-            printf "'"${CYAN}"'%-12s'"${NC}"' %d/%d MB (%d%%) [%s]\n", "Swap:", $3, $2, pct, bar;
-        }
-    }'
-    df -h / | awk 'NR==2{printf "'"${CYAN}"'%-12s'"${NC}"' %s/%s (%s used)", "Disk (/):", $3, $2, $5}'
-    explain_suffix "Dung lượng root filesystem"; echo
-    printf "${CYAN}%-12s${NC} %s cores | %s" "CPU:" "$(nproc)" "$(grep -m 1 'model name' /proc/cpuinfo | sed 's/.*: //')"
+    local nodes_total nodes_ready pods_total pods_healthy pods_problem pod_restarts
+    local pvc_total pvc_bound workloads_total workloads_ready
+
+    nodes_total=$(echo "$RAW_NODES_JSON" | jq '.items | length')
+    nodes_ready=$(echo "$RAW_NODES_JSON" | jq '[.items[] | select(any(.status.conditions[]?; .type=="Ready" and .status=="True"))] | length')
+
+    pods_total=$(echo "$RAW_PODS_JSON" | jq '.items | length')
+    pods_healthy=$(echo "$RAW_PODS_JSON" | jq '[.items[] | select(.status.phase=="Running" or .status.phase=="Succeeded")] | length')
+    pods_problem=$(echo "$RAW_PODS_JSON" | jq '[
+        .items[] |
+        select(
+            (.metadata.deletionTimestamp != null) or
+            (.status.phase != "Running" and .status.phase != "Succeeded") or
+            (((.status.containerStatuses // []) | map(.state.waiting.reason // empty) | length) > 0)
+        )
+    ] | length')
+    pod_restarts=$(echo "$RAW_PODS_JSON" | jq '[.items[].status.containerStatuses[]?.restartCount // 0] | add // 0')
+
+    pvc_total=$(echo "$RAW_PVC_JSON" | jq '.items | length')
+    pvc_bound=$(echo "$RAW_PVC_JSON" | jq '[.items[] | select(.status.phase=="Bound")] | length')
+
+    workloads_total=$(echo "$RAW_WORKLOADS_JSON" | jq '[.items[] | select(.metadata.namespace != "kube-system")] | length')
+    workloads_ready=$(echo "$RAW_WORKLOADS_JSON" | jq '[
+        .items[] |
+        select(.metadata.namespace != "kube-system") |
+        select(
+            (.kind=="Deployment" and ((.spec.replicas // 0) == 0 or ((.status.readyReplicas // 0) >= (.spec.replicas // 0)))) or
+            (.kind=="StatefulSet" and ((.spec.replicas // 0) == 0 or ((.status.readyReplicas // 0) >= (.spec.replicas // 0)))) or
+            (.kind=="DaemonSet" and ((.status.desiredNumberScheduled // 0) == 0 or ((.status.numberReady // 0) >= (.status.desiredNumberScheduled // 0))))
+        )
+    ] | length')
+
+    echo -e "  ${YELLOW}>> HEALTH SUMMARY${NC}"
+    metric_ratio "Nodes Ready" "$nodes_ready" "$nodes_total" "Ready"
+    metric_ratio "Pods Healthy" "$pods_healthy" "$pods_total" "Running/Succeeded"
+    metric_ratio "PVC Bound" "$pvc_bound" "$pvc_total" "Bound"
+    metric_ratio "Workloads Ready" "$workloads_ready" "$workloads_total" "Available"
+
+    local problem_color="$GREEN"
+    [ "$pods_problem" -gt 0 ] && problem_color="$RED"
+    local restart_color="$GREEN"
+    [ "$pod_restarts" -gt 0 ] && restart_color="$ORANGE"
+    printf "  ${CYAN}%-18s${NC} %b%d%b pod cần xem\n" "Pod Problems" "$problem_color" "$pods_problem" "$NC"
+    printf "  ${CYAN}%-18s${NC} %b%d%b container restart\n" "Restarts" "$restart_color" "$pod_restarts" "$NC"
+
+    echo -e "\n  ${YELLOW}>> LOCAL NODE QUICK GRAPH${NC}"
+    local ram_used ram_total ram_pct disk_used_pct disk_used disk_total
+    if command -v free >/dev/null 2>&1; then
+        read -r ram_used ram_total ram_pct < <(free -m | awk 'NR==2{printf "%d %d %d", $3, $2, ($3*100/$2)}')
+        printf "  ${CYAN}%-18s${NC} %b  %s/%s MB\n" "RAM" "$(bar_pct "$ram_pct" 22)" "$ram_used" "$ram_total"
+    else
+        printf "  ${CYAN}%-18s${NC} ${ORANGE}unavailable${NC}\n" "RAM"
+    fi
+    read -r disk_used disk_total disk_used_pct < <(df -hP / | awk 'NR==2{pct=$(NF-1); gsub("%","",pct); print $(NF-3), $(NF-4), pct}')
+    printf "  ${CYAN}%-18s${NC} %b  %s/%s\n" "Disk /" "$(bar_pct "$disk_used_pct" 22)" "$disk_used" "$disk_total"
+
+    echo -e "\n  ${YELLOW}>> POD DENSITY BY NODE${NC}"
+    local max_pods
+    max_pods=$(echo "$ALL_PODS" | awk -F'\t' '{count[$1]++} END{max=0; for (n in count) if (count[n]>max) max=count[n]; print max+0}')
+    for node in $SORTED_NODES; do
+        local count
+        count=$(echo "$ALL_PODS" | awk -F'\t' -v n="$node" '$1==n{c++} END{print c+0}')
+        printf "  ${CYAN}%-18s${NC} %b  %d pods\n" "$node" "$(bar_count "$count" "$max_pods" 22)" "$count"
+    done
+
+    echo -e "\n  ${YELLOW}>> HOT LIST${NC}"
+    local hot_list
+    hot_list=$(echo "$ALL_PODS" | awk -F'\t' '($5!="Running" && $5!="Succeeded") || ($6+0>0) {print $2"\t"$3"\t"$1"\t"$4"\t"$5"\t"$6"\t"$7}' | head -12)
+    if [ -z "$hot_list" ]; then
+        echo -e "     ${GREEN}Không có pod lỗi hoặc restart.${NC}"
+    else
+        (
+            echo -e "NS\tPOD\tNODE\tREADY\tSTATUS\tRESTARTS\tAGE"
+            echo "$hot_list"
+        ) | column -t -s $'\t' | awk '
+        NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"}
+        NR>1{
+            line=$0
+            if (line ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/) sub(/CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/, "'"${RED}"'"&"'"${NC}"'", line)
+            else if (line ~ /Pending|ContainerCreating/) sub(/Pending|ContainerCreating/, "'"${YELLOW}"'"&"'"${NC}"'", line)
+            else if (line ~ /Terminating/) sub("Terminating", "'"${ORANGE}"'Terminating'"${NC}"'", line)
+            else if (line ~ /Running/) sub("Running", "'"${GREEN}"'Running'"${NC}"'", line)
+            print "     " line
+        }'
+    fi
+}
+
+section_sys() {
+    section_header "5/8" "LOCAL NODE: CPU, RAM, DISK"
+    explain "Đọc tài nguyên ngay trên node đang chạy script. Dùng phần này khi cluster chậm, Vector/Redpanda OOM, hoặc disk MinIO gần đầy."
+
+    printf "${CYAN}%-14s${NC} %s" "Hostname:" "$(hostname)"; explain_suffix "Tên Linux host hiện tại"; echo
+    printf "${CYAN}%-14s${NC} %s" "Kernel:" "$(uname -r)"; explain_suffix "Phiên bản Linux kernel"; echo
+    local uptime_text="N/A"
+    command -v uptime >/dev/null 2>&1 && uptime_text=$(uptime -p 2>/dev/null || uptime 2>/dev/null || echo "N/A")
+    printf "${CYAN}%-14s${NC} %s" "Uptime:" "$uptime_text"; explain_suffix "Thời gian máy đã chạy liên tục"; echo
+    printf "${CYAN}%-14s${NC} %s cores | %s" "CPU:" "$(nproc)" "$(grep -m 1 'model name' /proc/cpuinfo | sed 's/.*: //')"
     explain_suffix "Số core và model CPU của node"; echo
+
+    local cores load1 load5 load15 load_pct
+    cores=$(nproc)
+    if command -v uptime >/dev/null 2>&1; then
+        read -r load1 load5 load15 < <(uptime | awk -F'load average:' '{gsub(",","",$2); print $2}' | awk '{print $1, $2, $3}')
+    else
+        load1=0; load5=0; load15=0
+    fi
+    load_pct=$(awk -v l="$load1" -v c="$cores" 'BEGIN{if(c==0)c=1; printf "%d", (l*100/c)}')
+    printf "${CYAN}%-14s${NC} %b  %s / %s / %s\n" "Load avg:" "$(bar_pct "$load_pct" 24)" "$load1" "$load5" "$load15"
+
+    local ram_used ram_total ram_pct swap_used swap_total swap_pct disk_used disk_total disk_pct
+    if command -v free >/dev/null 2>&1; then
+        read -r ram_used ram_total ram_pct < <(free -m | awk 'NR==2{printf "%d %d %d", $3, $2, ($3*100/$2)}')
+        printf "${CYAN}%-14s${NC} %b  %s/%s MB\n" "RAM:" "$(bar_pct "$ram_pct" 24)" "$ram_used" "$ram_total"
+
+        read -r swap_used swap_total swap_pct < <(free -m | awk 'NR==3{if($2>0) printf "%d %d %d", $3, $2, ($3*100/$2); else printf "0 0 0"}')
+        if [ "$swap_total" -gt 0 ]; then
+            printf "${CYAN}%-14s${NC} %b  %s/%s MB\n" "Swap:" "$(bar_pct "$swap_pct" 24)" "$swap_used" "$swap_total"
+        else
+            printf "${CYAN}%-14s${NC} ${GREEN}disabled${NC}\n" "Swap:"
+        fi
+    else
+        printf "${CYAN}%-14s${NC} ${ORANGE}unavailable${NC}\n" "RAM:"
+        printf "${CYAN}%-14s${NC} ${ORANGE}unavailable${NC}\n" "Swap:"
+    fi
+
+    read -r disk_used disk_total disk_pct < <(df -hP / | awk 'NR==2{pct=$(NF-1); gsub("%","",pct); print $(NF-3), $(NF-4), pct}')
+    printf "${CYAN}%-14s${NC} %b  %s/%s\n" "Disk /:" "$(bar_pct "$disk_pct" 24)" "$disk_used" "$disk_total"
+
+    echo -e "\n  ${YELLOW}>> TOP RAM PROCESSES${NC}"
+    local top_rss
+    top_rss=$(ps -eo comm=,rss= --sort=-rss 2>/dev/null | head -5)
+    if [ -z "$top_rss" ]; then
+        echo -e "     ${CYAN}(Không đọc được process list)${NC}"
+    else
+        local max_rss
+        max_rss=$(echo "$top_rss" | awk 'NR==1{print $NF+0}')
+        echo "$top_rss" | awk -v max="$max_rss" '
+        {
+            rss=$NF; name=$1;
+            pct=(max>0 ? int(rss*100/max) : 0);
+            printf "%s\t%d\t%d\n", name, rss/1024, pct
+        }' | while IFS=$'\t' read -r name rss_mb pct; do
+            printf "     ${CYAN}%-22s${NC} %b  %s MB\n" "$name" "$(bar_pct "$pct" 18)" "$rss_mb"
+        done
+    fi
 }
 
 section_node() {
     load_cache
-    echo -e "\n${BLUE}--- [2/6] TOPOLOGY & K3S NODES ---${NC}"
+    section_header "2/8" "TOPOLOGY, NODES & PODS"
     explain "Tóm tắt node, phiên bản K3s, IP Tailscale, độ trễ ping và namespace đang có pod trên từng node."
 
     # --- Collect raw data ---
@@ -368,7 +560,7 @@ section_node() {
 
 section_secrets() {
     load_cache
-    echo -e "\n${BLUE}--- SECRETS (theo namespace, chỉ hiện tên) ---${NC}"
+    section_header "8/8" "SECRETS (TÊN, TYPE, KEYS)"
     explain "Chỉ in tên Secret, type và key; không in giá trị secret để tránh lộ credential trong terminal/report."
     local ns_list=$(echo "$RAW_SECRETS_JSON" | jq -r '
         .items[] | select(.type != "kubernetes.io/service-account-token" and .metadata.namespace != "kube-system") |
@@ -400,7 +592,7 @@ section_secrets() {
 
 section_pvc() {
     load_cache
-    echo -e "\n${BLUE}--- [3/6] STORAGE (PVC) ---${NC}"
+    section_header "4/8" "STORAGE: PVC"
     explain "PVC là claim lưu trữ bền vững cho pod. Bảng này nhóm PVC theo node đang mount để thấy dữ liệu đang nằm ở đâu."
 
     ALL_PVC=$(echo "$RAW_PVC_JSON" | jq -r '
@@ -433,7 +625,7 @@ section_pvc() {
 section_res() {
     load_cache
     local ns_filter="$1"
-    echo -e "\n${BLUE}--- [4/6] DEPLOYED RESOURCES ---${NC}"
+    section_header "3/8" "WORKLOADS, HPA & SERVICES"
     explain "Tổng hợp workload và service ngoài kube-system."
 
     local jq_ns_filter=""
@@ -556,7 +748,7 @@ section_res() {
 
 section_img() {
     load_cache
-    echo -e "\n${BLUE}--- [5/6] CUSTOM IMAGES & USAGE ---${NC}"
+    section_header "6/8" "CUSTOM IMAGES & USAGE"
     explain "Hiển thị image không thuộc nhóm system image. [In-Use] nghĩa đang được pod dùng; [Unused] có thể là cache cũ."
     POD_DATA=$(echo "$RAW_PODS_JSON" | jq -r '.items[] | .spec.nodeName as $node | .metadata.name as $pod | (.spec.containers[], (.spec.initContainers[]? // empty)) | [$node, (.image | split("/") | last | split(":") | first | split("@") | first), $pod] | @tsv' | sort -u)
     SYS_IMAGES="rancher|k8s\.io|gcr\.io|klipper|pause|coredns|traefik|metrics|local-path"
@@ -595,7 +787,7 @@ section_img() {
 
 section_helm() {
     if ! command -v helm >/dev/null 2>&1; then return; fi
-    echo -e "\n${BLUE}--- [6/6] HELM ---${NC}"
+    section_header "7/8" "HELM RELEASES & REPOSITORIES"
     explain "Helm releases là các chart đã cài; repositories là cấu hình repo trên máy đang chạy script, không phải object trong cluster."
 
     echo -e "  ${YELLOW}>> RELEASES${NC}"
@@ -662,13 +854,14 @@ section_helm() {
 generate_full_report() {
     echo "K3s Cluster Check — $(date '+%Y-%m-%d %H:%M:%S')"
     echo "================================================="
-    section_timed section_sys
+    section_timed section_overview
     section_timed section_node
-    section_timed section_secrets
-    section_timed section_pvc
     section_timed section_res
+    section_timed section_pvc
+    section_timed section_sys
     section_timed section_img
     section_timed section_helm
+    section_timed section_secrets
     echo -e "\n>>> Kiểm tra hoàn tất!"
 }
 
@@ -716,22 +909,24 @@ case "${1:-}" in
         echo "  -e, --explain  Hiển thị thêm giải thích ngắn cho từng section/cột chính"
         echo ""
         echo "Sections:"
-        echo "  sys       Hệ thống & tải (CPU, RAM, Disk)"
+        echo "  overview  Tóm tắt sức khỏe cụm, hot list, graph nhanh"
         echo "  node      Topology, nodes, pod layout"
-        echo "  pvc       Persistent Volume Claims"
         echo "  res [ns]  Workloads, HPA, Services (filter by namespace)"
+        echo "  pvc       Persistent Volume Claims"
+        echo "  sys       Local node CPU, RAM, Disk"
         echo "  img       Container images & usage"
         echo "  helm      Helm releases và repositories"
-        echo "  secrets   Secrets (theo namespace)"
+        echo "  secrets   Secrets theo namespace, không in giá trị"
         echo "  export    Xuất report ra file (scripts/k3s-check/)"
         echo ""
         echo "Không có argument = chạy tất cả sections"
-        echo "Ví dụ: bash k3s-check.sh -e | bash k3s-check.sh -e node | bash k3s-check.sh res argocd -e"
+        echo "Ví dụ: bash k3s-check.sh -e | bash k3s-check.sh overview | bash k3s-check.sh res argocd -e"
         ;;
-    sys) section_sys ;;
+    overview|summary) check_dependencies; check_k3s_connection; section_overview ;;
     node|pod) check_dependencies; check_k3s_connection; section_node ;;
-    pvc) check_dependencies; check_k3s_connection; section_pvc ;;
     res) check_dependencies; check_k3s_connection; section_res "${2:-}" ;;
+    pvc) check_dependencies; check_k3s_connection; section_pvc ;;
+    sys) section_sys ;;
     img) check_dependencies; check_k3s_connection; section_img ;;
     helm) check_dependencies; check_k3s_connection; section_helm ;;
     secrets) check_dependencies; check_k3s_connection; section_secrets ;;

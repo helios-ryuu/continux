@@ -26,9 +26,97 @@ Tất cả lệnh có `-n <ns>` chỉ tác động trong namespace đó. Nếu b
 
 ---
 
-## 1. Kubeconfig, context và thông tin cluster
+## 1. Lệnh phổ biến hằng ngày
 
-### 1.1. Kiểm tra phiên bản và cluster
+Phần này đặt các lệnh hay dùng nhất trước các nhóm phân loại chi tiết. Khi mới vào cluster, đi từ trên xuống dưới là có thể nắm nhanh: đang trỏ vào cluster nào, node có khỏe không, pod nào lỗi, service/storage có đủ không, rồi mới sửa hoặc apply.
+
+### 1.1. Cách đọc một lệnh `kubectl`
+
+| Thành phần | Ví dụ | Ý nghĩa |
+|------------|-------|---------|
+| Verb | `get`, `describe`, `logs`, `apply`, `delete` | Hành động muốn làm |
+| Resource | `pods`, `deploy`, `svc`, `pvc`, `nodes` | Loại tài nguyên Kubernetes |
+| Name | `vector`, `redpanda-0` | Tên tài nguyên cụ thể; bỏ qua nếu muốn liệt kê nhiều tài nguyên |
+| Namespace | `-n pipeline` | Phạm vi thao tác; pod/service/deploy thường nằm trong namespace |
+| Output | `-o wide`, `-o yaml`, `-o jsonpath=...` | Cách in kết quả: bảng rộng, YAML đầy đủ, hoặc chỉ một field |
+| Safety | `--dry-run=client`, `kubectl diff` | Kiểm tra trước khi apply/delete/sửa |
+
+Quy tắc đọc nhanh:
+
+```bash
+kubectl <verb> <resource>/<name> -n <ns> <flags>
+```
+
+Ví dụ:
+
+```bash
+kubectl describe pod/vector-abc123 -n pipeline
+```
+
+Nghĩa là: xem chi tiết Pod `vector-abc123` trong namespace `pipeline`, đặc biệt là Events, image, env, volume mount, node scheduling và lý do container chưa Ready.
+
+### 1.2. Checklist nhanh khi vừa mở terminal
+
+| Lệnh | Dùng khi nào | Cần nhìn gì |
+|------|--------------|-------------|
+| `kubectl config current-context` | Trước mọi thao tác | Đúng cluster/context chưa |
+| `kubectl get nodes -o wide` | Kiểm tra nền cluster | `Ready`, đúng node name, đúng internal IP/Tailscale IP |
+| `kubectl get pods -A -o wide` | Quét toàn bộ workload | Pod `Pending`, `CrashLoopBackOff`, `ImagePullBackOff`, `RESTARTS` tăng |
+| `kubectl get events -A --sort-by=.lastTimestamp` | Khi có lỗi chưa rõ nguyên nhân | Warning mới nhất, lỗi scheduling, pull image, mount volume |
+| `kubectl get deploy,sts,ds -A` | Xem workload chính | `READY` có bằng desired replica không |
+| `kubectl get svc -A -o wide` | Kiểm tra endpoint nội bộ | Service có đúng type/port/cluster IP không |
+| `kubectl get pvc -A` | Kiểm tra storage | PVC phải `Bound`, size/storageClass đúng |
+| `kubectl top nodes` | Khi nghi thiếu CPU/RAM | Node nào gần cạn tài nguyên; cần metrics-server |
+| `kubectl top pods -A` | Khi pod OOM hoặc chậm | Pod nào ăn CPU/RAM bất thường; cần metrics-server |
+
+### 1.3. Debug Pod lỗi nhanh
+
+| Mục tiêu | Lệnh | Cách hiểu |
+|----------|------|-----------|
+| Xem trạng thái pod | `kubectl get pod <pod> -n <ns> -o wide` | `STATUS`, `READY`, `RESTARTS`, node đang chạy |
+| Xem nguyên nhân chi tiết | `kubectl describe pod <pod> -n <ns>` | Đọc từ dưới lên ở phần `Events` |
+| Xem log hiện tại | `kubectl logs <pod> -n <ns> --tail=100` | Lỗi app/runtime gần nhất |
+| Xem log container trước | `kubectl logs <pod> -n <ns> --previous --tail=100` | Hữu ích khi `CrashLoopBackOff` |
+| Vào shell trong pod | `kubectl exec -it <pod> -n <ns> -- sh` | Kiểm tra file, env, DNS, network từ trong pod |
+| Xem manifest thực tế | `kubectl get pod <pod> -n <ns> -o yaml` | So sánh spec thực tế với Git/Helm values |
+
+### 1.4. Deploy và rollback an toàn
+
+| Mục tiêu | Lệnh | Cách hiểu |
+|----------|------|-----------|
+| Xem diff trước khi apply | `kubectl diff -f <file.yaml>` | Thấy cluster sẽ đổi gì |
+| Render Kustomize | `kubectl kustomize <dir>` | Kiểm tra YAML sinh ra trước khi apply |
+| Apply manifest | `kubectl apply -f <file.yaml>` | Tạo/cập nhật tài nguyên khai báo |
+| Chờ rollout | `kubectl rollout status deploy/<deploy> -n <ns>` | Chỉ xong khi Deployment Available |
+| Xem lịch sử rollout | `kubectl rollout history deploy/<deploy> -n <ns>` | Biết các revision |
+| Rollback | `kubectl rollout undo deploy/<deploy> -n <ns>` | Quay về revision trước |
+| Scale thủ công | `kubectl scale deploy/<deploy> -n <ns> --replicas=<n>` | Hữu ích cho Vector hoặc workload test |
+
+### 1.5. Lệnh rất dễ gây mất dữ liệu
+
+Chỉ chạy khi đã đọc đúng context, namespace và object:
+
+```bash
+kubectl delete namespace <ns>
+kubectl delete pvc <pvc> -n <ns>
+kubectl delete pv <pv>
+kubectl drain <node> --ignore-daemonsets --delete-emptydir-data
+kubectl replace --force -f <file.yaml>
+```
+
+Trước các lệnh này nên chạy:
+
+```bash
+kubectl config current-context
+kubectl get <resource> <name> -n <ns> -o wide
+kubectl describe <resource> <name> -n <ns>
+```
+
+---
+
+## 2. Kubeconfig, context và thông tin cluster
+
+### 2.1. Kiểm tra phiên bản và cluster
 
 ```bash
 kubectl version
@@ -40,7 +128,7 @@ kubectl api-resources
 kubectl api-versions
 ```
 
-### 1.2. Kiểm tra và đổi context
+### 2.2. Kiểm tra và đổi context
 
 ```bash
 kubectl config current-context
@@ -53,14 +141,14 @@ kubectl config rename-context <old-context> <new-context>
 kubectl config delete-context <context>
 ```
 
-### 1.3. Đặt namespace mặc định
+### 2.3. Đặt namespace mặc định
 
 ```bash
 kubectl config set-context --current --namespace=<ns>
 kubectl config set-context <context> --namespace=<ns>
 ```
 
-### 1.4. Dùng kubeconfig khác
+### 2.4. Dùng kubeconfig khác
 
 ```bash
 kubectl --kubeconfig ./kubeconfig get nodes
@@ -76,9 +164,9 @@ kubectl get nodes
 
 ---
 
-## 2. Xem nhanh tài nguyên
+## 3. Xem nhanh tài nguyên
 
-### 2.1. Toàn cluster
+### 3.1. Toàn cluster
 
 ```bash
 kubectl get nodes
@@ -91,7 +179,7 @@ kubectl get events -A
 kubectl get events -A --field-selector type=Warning
 ```
 
-### 2.2. Trong một namespace
+### 3.2. Trong một namespace
 
 ```bash
 kubectl get all -n <ns>
@@ -108,7 +196,7 @@ kubectl get secret -n <ns>
 kubectl get pvc -n <ns>
 ```
 
-### 2.3. Xem chi tiết
+### 3.3. Xem chi tiết
 
 ```bash
 kubectl describe node <node>
@@ -119,7 +207,7 @@ kubectl describe ingress <ingress> -n <ns>
 kubectl describe pvc <pvc> -n <ns>
 ```
 
-### 2.4. Xuất YAML, JSON và wide
+### 3.4. Xuất YAML, JSON và wide
 
 ```bash
 kubectl get pod <pod> -n <ns> -o yaml
@@ -130,7 +218,7 @@ kubectl get nodes -o wide
 
 ---
 
-## 3. Namespace
+## 4. Namespace
 
 ```bash
 kubectl create namespace <ns>
@@ -156,9 +244,9 @@ kubectl apply -f namespace.yaml
 
 ---
 
-## 4. Manifest, apply, diff và dry-run
+## 5. Manifest, apply, diff và dry-run
 
-### 4.1. Áp dụng manifest
+### 5.1. Áp dụng manifest
 
 ```bash
 kubectl apply -f <file.yaml>
@@ -168,7 +256,7 @@ kubectl apply -k ./overlays/dev
 kubectl apply -f <file.yaml> --server-side
 ```
 
-### 4.2. Kiểm tra trước khi áp dụng
+### 5.2. Kiểm tra trước khi áp dụng
 
 ```bash
 kubectl diff -f <file.yaml>
@@ -181,7 +269,7 @@ kubectl explain pod.spec
 kubectl explain deployment.spec.template.spec.containers
 ```
 
-### 4.3. Xóa theo manifest
+### 5.3. Xóa theo manifest
 
 ```bash
 kubectl delete -f <file.yaml>
@@ -191,9 +279,9 @@ kubectl delete -k ./overlays/dev
 
 ---
 
-## 5. Pod
+## 6. Pod
 
-### 5.1. Xem Pod
+### 6.1. Xem Pod
 
 ```bash
 kubectl get pods -n <ns>
@@ -202,16 +290,16 @@ kubectl get pod <pod> -n <ns> -o yaml
 kubectl describe pod <pod> -n <ns>
 ```
 
-### 5.2. Tạo Pod nhanh
+### 6.2. Tạo Pod nhanh
 
 ```bash
 kubectl run nginx --image=nginx:1.27 -n <ns>
 kubectl run busybox --image=busybox:1.36 -n <ns> -- sleep 3600
-kubectl run curl --image=curlimages/curl:latest -n <ns> -- sleep 3600
+kubectl run curl --image=curlimages/curl:8.20.0 -n <ns> -- sleep 3600
 kubectl run nginx --image=nginx:1.27 -n <ns> --dry-run=client -o yaml > pod.yaml
 ```
 
-### 5.3. Logs
+### 6.3. Logs
 
 ```bash
 kubectl logs <pod> -n <ns>
@@ -226,7 +314,7 @@ kubectl logs -n <ns> -l app=<app> --tail=100
 kubectl logs -n <ns> -l app=<app> -f --max-log-requests=10
 ```
 
-### 5.4. Exec vào container
+### 6.4. Exec vào container
 
 ```bash
 kubectl exec -it <pod> -n <ns> -- sh
@@ -236,7 +324,7 @@ kubectl exec <pod> -n <ns> -- env
 kubectl exec <pod> -n <ns> -- cat /etc/resolv.conf
 ```
 
-### 5.5. Copy file ra/vào Pod
+### 6.5. Copy file ra/vào Pod
 
 ```bash
 kubectl cp <ns>/<pod>:/path/in/pod ./local-file
@@ -246,7 +334,7 @@ kubectl cp <ns>/<pod>:/path/in/pod ./local-file -c <container>
 
 `kubectl cp` cần `tar` trong container. Nếu image quá tối giản không có `tar`, dùng `kubectl exec` với stream hoặc thêm debug container.
 
-### 5.6. Port-forward
+### 6.6. Port-forward
 
 ```bash
 kubectl port-forward pod/<pod> -n <ns> 8080:80
@@ -255,7 +343,7 @@ kubectl port-forward deploy/<deploy> -n <ns> 8080:80
 kubectl port-forward -n <ns> svc/<svc> 127.0.0.1:8080:80
 ```
 
-### 5.7. Xóa và restart Pod
+### 6.7. Xóa và restart Pod
 
 ```bash
 kubectl delete pod <pod> -n <ns>
@@ -267,9 +355,9 @@ Nếu Pod thuộc Deployment, StatefulSet hoặc DaemonSet, controller sẽ tạ
 
 ---
 
-## 6. Deployment
+## 7. Deployment
 
-### 6.1. Tạo và xem Deployment
+### 7.1. Tạo và xem Deployment
 
 ```bash
 kubectl create deployment <deploy> --image=nginx:1.27 -n <ns>
@@ -282,7 +370,7 @@ kubectl get rs -n <ns>
 kubectl get pods -n <ns> -l app=<app>
 ```
 
-### 6.2. Scale và autoscale
+### 7.2. Scale và autoscale
 
 ```bash
 kubectl scale deploy/<deploy> -n <ns> --replicas=3
@@ -290,7 +378,7 @@ kubectl scale deploy <deploy> -n <ns> --replicas=0
 kubectl autoscale deploy/<deploy> -n <ns> --min=2 --max=10 --cpu-percent=70
 ```
 
-### 6.3. Cập nhật image và rollout
+### 7.3. Cập nhật image và rollout
 
 ```bash
 kubectl set image deploy/<deploy> <container>=<image>:<tag> -n <ns>
@@ -304,7 +392,7 @@ kubectl rollout pause deploy/<deploy> -n <ns>
 kubectl rollout resume deploy/<deploy> -n <ns>
 ```
 
-### 6.4. Sửa trực tiếp
+### 7.4. Sửa trực tiếp
 
 ```bash
 kubectl edit deploy/<deploy> -n <ns>
@@ -314,7 +402,7 @@ kubectl annotate deploy/<deploy> -n <ns> kubernetes.io/change-cause="upgrade ima
 
 ---
 
-## 7. StatefulSet
+## 8. StatefulSet
 
 StatefulSet dùng cho workload cần identity ổn định, thứ tự rollout và PVC riêng từng replica: database, queue, storage service.
 
@@ -334,7 +422,7 @@ kubectl describe pvc <pvc> -n <ns>
 
 ---
 
-## 8. DaemonSet
+## 9. DaemonSet
 
 DaemonSet chạy Pod trên mỗi node hoặc một nhóm node: log agent, network plugin, node exporter.
 
@@ -351,9 +439,9 @@ kubectl get pods -n <ns> -l app=<app> -o wide
 
 ---
 
-## 9. Job và CronJob
+## 10. Job và CronJob
 
-### 9.1. Job
+### 10.1. Job
 
 ```bash
 kubectl create job <job> --image=busybox:1.36 -n <ns> -- echo hello
@@ -364,7 +452,7 @@ kubectl logs job/<job> -n <ns>
 kubectl delete job/<job> -n <ns>
 ```
 
-### 9.2. CronJob
+### 10.2. CronJob
 
 ```bash
 kubectl create cronjob <cronjob> --image=busybox:1.36 --schedule="*/5 * * * *" -n <ns> -- echo hello
@@ -378,9 +466,9 @@ kubectl patch cronjob/<cronjob> -n <ns> -p '{"spec":{"suspend":false}}'
 
 ---
 
-## 10. Service và endpoint
+## 11. Service và endpoint
 
-### 10.1. Loại Service
+### 11.1. Loại Service
 
 | Type | Mục đích |
 |------|----------|
@@ -389,7 +477,7 @@ kubectl patch cronjob/<cronjob> -n <ns> -p '{"spec":{"suspend":false}}'
 | `LoadBalancer` | Tạo load balancer bên ngoài nếu cluster có provider |
 | `ExternalName` | Alias DNS tới hostname ngoài cluster |
 
-### 10.2. Tạo và kiểm tra Service
+### 11.2. Tạo và kiểm tra Service
 
 ```bash
 kubectl expose deploy/<deploy> -n <ns> --port=80 --target-port=8080
@@ -413,9 +501,9 @@ kubectl get pods -n <ns> -l app=<app>
 
 ---
 
-## 11. Ingress và Gateway API
+## 12. Ingress và Gateway API
 
-### 11.1. Ingress
+### 12.1. Ingress
 
 ```bash
 kubectl get ingress -A
@@ -428,7 +516,7 @@ kubectl get svc -A | grep ingress
 kubectl logs -n <ingress-namespace> deploy/<ingress-controller>
 ```
 
-### 11.2. Gateway API nếu cluster có CRD
+### 12.2. Gateway API nếu cluster có CRD
 
 ```bash
 kubectl get gatewayclass
@@ -440,9 +528,9 @@ kubectl describe httproute/<route> -n <ns>
 
 ---
 
-## 12. ConfigMap và Secret
+## 13. ConfigMap và Secret
 
-### 12.1. ConfigMap
+### 13.1. ConfigMap
 
 ```bash
 kubectl create configmap <cm> -n <ns> --from-literal=KEY=value
@@ -454,7 +542,7 @@ kubectl get cm/<cm> -n <ns> -o yaml
 kubectl delete cm/<cm> -n <ns>
 ```
 
-### 12.2. Secret
+### 13.2. Secret
 
 ```bash
 kubectl create secret generic <secret> -n <ns> --from-literal=password='change-me'
@@ -481,9 +569,9 @@ $value = kubectl get secret <secret> -n <ns> -o jsonpath="{.data.password}"
 
 ---
 
-## 13. Storage: PV, PVC và StorageClass
+## 14. Storage: PV, PVC và StorageClass
 
-### 13.1. Xem storage
+### 14.1. Xem storage
 
 ```bash
 kubectl get storageclass
@@ -496,7 +584,7 @@ kubectl get pvc -n <ns>
 kubectl describe pvc/<pvc> -n <ns>
 ```
 
-### 13.2. Kiểm tra mount volume
+### 14.2. Kiểm tra mount volume
 
 ```bash
 kubectl describe pod/<pod> -n <ns>
@@ -504,7 +592,7 @@ kubectl exec -it <pod> -n <ns> -- df -h
 kubectl exec -it <pod> -n <ns> -- mount
 ```
 
-### 13.3. Resize PVC nếu StorageClass cho phép
+### 14.3. Resize PVC nếu StorageClass cho phép
 
 ```bash
 kubectl patch pvc/<pvc> -n <ns> -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
@@ -521,9 +609,9 @@ kubectl delete pv/<pv>
 
 ---
 
-## 14. Node operations
+## 15. Node operations
 
-### 14.1. Xem node và Pod trên node
+### 15.1. Xem node và Pod trên node
 
 ```bash
 kubectl get nodes
@@ -533,7 +621,7 @@ kubectl top nodes
 kubectl get pods -A -o wide --field-selector spec.nodeName=<node>
 ```
 
-### 14.2. Label và taint node
+### 15.2. Label và taint node
 
 ```bash
 kubectl label node <node> role=data
@@ -545,7 +633,7 @@ kubectl taint node <node> dedicated=data:NoSchedule-
 kubectl describe node/<node> | grep -i taint
 ```
 
-### 14.3. Cordon, drain và uncordon
+### 15.3. Cordon, drain và uncordon
 
 ```bash
 kubectl cordon <node>
@@ -556,7 +644,7 @@ kubectl get pdb -A
 
 ---
 
-## 15. Label, annotation và selector
+## 16. Label, annotation và selector
 
 ```bash
 kubectl label pod/<pod> -n <ns> app=api
@@ -573,7 +661,7 @@ kubectl annotate pod/<pod> -n <ns> owner-
 
 ---
 
-## 16. Resource requests, limits và metrics
+## 17. Resource requests, limits và metrics
 
 Metrics cần `metrics-server` hoặc hệ thống metrics tương đương.
 
@@ -593,9 +681,9 @@ kubectl describe limitrange/<limitrange> -n <ns>
 
 ---
 
-## 17. Debug và troubleshooting
+## 18. Debug và troubleshooting
 
-### 17.1. Quy trình debug Pod lỗi
+### 18.1. Quy trình debug Pod lỗi
 
 ```bash
 kubectl get pod <pod> -n <ns> -o wide
@@ -606,22 +694,22 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 kubectl get pod <pod> -n <ns> -o yaml
 ```
 
-### 17.2. Debug bằng ephemeral container
+### 18.2. Debug bằng ephemeral container
 
 ```bash
 kubectl debug -it pod/<pod> -n <ns> --image=busybox:1.36 --target=<container>
 kubectl debug -it pod/<pod> -n <ns> --image=nicolaka/netshoot --target=<container>
 ```
 
-### 17.3. Tạo Pod debug riêng
+### 18.3. Tạo Pod debug riêng
 
 ```bash
 kubectl run debug -n <ns> --image=nicolaka/netshoot -it --rm -- bash
-kubectl run curl -n <ns> --image=curlimages/curl:latest -it --rm -- sh
+kubectl run curl -n <ns> --image=curlimages/curl:8.20.0 -it --rm -- sh
 kubectl run busybox -n <ns> --image=busybox:1.36 -it --rm -- sh
 ```
 
-### 17.4. Debug DNS
+### 18.4. Debug DNS
 
 ```bash
 kubectl run dns-test -n <ns> --image=busybox:1.36 -it --rm -- nslookup kubernetes.default
@@ -630,7 +718,7 @@ kubectl get pods -n kube-system -l k8s-app=kube-dns
 kubectl logs -n kube-system -l k8s-app=kube-dns
 ```
 
-### 17.5. Debug network
+### 18.5. Debug network
 
 ```bash
 kubectl run netshoot -n <ns> --image=nicolaka/netshoot -it --rm -- bash
@@ -639,7 +727,7 @@ dig <svc>.<ns>.svc.cluster.local
 nc -vz <host> <port>
 ```
 
-### 17.6. Pod Pending
+### 18.6. Pod Pending
 
 ```bash
 kubectl describe pod/<pod> -n <ns>
@@ -651,7 +739,7 @@ kubectl get quota -n <ns>
 
 Nguyên nhân thường gặp: thiếu CPU/RAM, PVC chưa bound, node selector sai, taint chưa có toleration, thiếu image pull secret hoặc hết quota.
 
-### 17.7. CrashLoopBackOff
+### 18.7. CrashLoopBackOff
 
 ```bash
 kubectl describe pod/<pod> -n <ns>
@@ -660,7 +748,7 @@ kubectl logs <pod> -n <ns> -c <container> --previous
 kubectl get pod <pod> -n <ns> -o jsonpath='{.status.containerStatuses[*].lastState}'
 ```
 
-### 17.8. ImagePullBackOff
+### 18.8. ImagePullBackOff
 
 ```bash
 kubectl describe pod/<pod> -n <ns>
@@ -671,7 +759,7 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 
 ---
 
-## 18. Events
+## 19. Events
 
 ```bash
 kubectl get events -A
@@ -684,9 +772,9 @@ kubectl get events -n <ns> --watch
 
 ---
 
-## 19. RBAC và ServiceAccount
+## 20. RBAC và ServiceAccount
 
-### 19.1. ServiceAccount
+### 20.1. ServiceAccount
 
 ```bash
 kubectl create serviceaccount <sa> -n <ns>
@@ -695,7 +783,7 @@ kubectl describe serviceaccount/<sa> -n <ns>
 kubectl delete serviceaccount/<sa> -n <ns>
 ```
 
-### 19.2. Role, RoleBinding, ClusterRole
+### 20.2. Role, RoleBinding, ClusterRole
 
 ```bash
 kubectl create role <role> -n <ns> --verb=get,list,watch --resource=pods
@@ -710,7 +798,7 @@ kubectl describe clusterrole/<role>
 kubectl describe clusterrolebinding/<binding>
 ```
 
-### 19.3. Kiểm tra quyền
+### 20.3. Kiểm tra quyền
 
 ```bash
 kubectl auth can-i get pods -n <ns>
@@ -722,7 +810,7 @@ kubectl auth can-i list nodes --as=<user>
 
 ---
 
-## 20. NetworkPolicy
+## 21. NetworkPolicy
 
 ```bash
 kubectl get networkpolicy -A
@@ -735,7 +823,7 @@ NetworkPolicy chỉ có tác dụng khi CNI của cluster hỗ trợ enforcement
 
 ---
 
-## 21. Autoscaling
+## 22. Autoscaling
 
 ```bash
 kubectl autoscale deploy/<deploy> -n <ns> --min=2 --max=10 --cpu-percent=70
@@ -748,7 +836,7 @@ kubectl get deploy/<deploy> -n <ns> -o jsonpath='{.status.availableReplicas}'
 
 ---
 
-## 22. CRD và custom resource
+## 23. CRD và custom resource
 
 ```bash
 kubectl get crd
@@ -769,7 +857,7 @@ kubectl describe application/<app> -n argocd
 
 ---
 
-## 23. JSONPath, custom-columns và sort
+## 24. JSONPath, custom-columns và sort
 
 ```bash
 kubectl get pods -n <ns> -o jsonpath='{.items[*].metadata.name}'
@@ -785,22 +873,22 @@ kubectl get pods -A --sort-by=.status.startTime
 
 ---
 
-## 24. Patch nhanh
+## 25. Patch nhanh
 
-### 24.1. Strategic merge patch
+### 25.1. Strategic merge patch
 
 ```bash
 kubectl patch deploy/<deploy> -n <ns> -p '{"spec":{"replicas":3}}'
 ```
 
-### 24.2. JSON patch
+### 25.2. JSON patch
 
 ```bash
 kubectl patch deploy/<deploy> -n <ns> --type=json \
   -p='[{"op":"replace","path":"/spec/replicas","value":3}]'
 ```
 
-### 24.3. Merge patch
+### 25.3. Merge patch
 
 ```bash
 kubectl patch svc/<svc> -n <ns> --type=merge \
@@ -809,7 +897,7 @@ kubectl patch svc/<svc> -n <ns> --type=merge \
 
 ---
 
-## 25. Kustomize
+## 26. Kustomize
 
 ```bash
 kubectl kustomize ./base
@@ -821,11 +909,11 @@ kubectl delete -k ./overlays/dev
 
 ---
 
-## 26. Helm
+## 27. Helm
 
 Helm không phải `kubectl`, nhưng thường dùng để cài ứng dụng vào Kubernetes.
 
-### 26.1. Repo và chart
+### 27.1. Repo và chart
 
 ```bash
 helm repo add <repo> <url>
@@ -836,7 +924,7 @@ helm pull <repo>/<chart>
 helm pull <repo>/<chart> --untar
 ```
 
-### 26.2. Install, upgrade và rollback
+### 27.2. Install, upgrade và rollback
 
 ```bash
 helm install <release> <repo>/<chart> -n <ns> --create-namespace
@@ -848,7 +936,7 @@ helm rollback <release> <revision> -n <ns>
 helm uninstall <release> -n <ns>
 ```
 
-### 26.3. Xem release
+### 27.3. Xem release
 
 ```bash
 helm list -A
@@ -862,9 +950,9 @@ helm template <release> <repo>/<chart> -n <ns> -f values.yaml
 
 ---
 
-## 27. K3s riêng cho dự án này
+## 28. K3s riêng cho dự án này
 
-### 27.1. Kiểm tra K3s
+### 28.1. Kiểm tra K3s
 
 ```bash
 sudo systemctl status k3s
@@ -873,7 +961,7 @@ k3s --version
 k3s kubectl get nodes
 ```
 
-### 27.2. Kubeconfig K3s
+### 28.2. Kubeconfig K3s
 
 ```bash
 sudo cat /etc/rancher/k3s/k3s.yaml
@@ -882,7 +970,7 @@ sudo chown "$USER:$USER" ~/.kube/config
 kubectl get nodes
 ```
 
-### 27.3. Logs service K3s
+### 28.3. Logs service K3s
 
 ```bash
 sudo journalctl -u k3s -f
@@ -891,13 +979,13 @@ sudo journalctl -u k3s-agent -f
 sudo journalctl -u k3s-agent --since "1 hour ago"
 ```
 
-### 27.4. Token join node
+### 28.4. Token join node
 
 ```bash
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
-### 27.5. CRI với K3s/containerd
+### 28.5. CRI với K3s/containerd
 
 ```bash
 sudo k3s crictl ps
@@ -908,9 +996,9 @@ sudo k3s crictl inspect <container-id>
 
 ---
 
-## 28. Backup và restore liên quan Kubernetes
+## 29. Backup và restore liên quan Kubernetes
 
-### 28.1. Export nhanh resource
+### 29.1. Export nhanh resource
 
 ```bash
 kubectl get deploy/<deploy> -n <ns> -o yaml > deploy.yaml
@@ -928,7 +1016,7 @@ Trước khi commit manifest export từ cluster, nên loại bỏ các field ru
 - `metadata.managedFields`
 - `status`
 
-### 28.2. Backup etcd/K3s
+### 29.2. Backup etcd/K3s
 
 Nếu K3s dùng embedded etcd:
 
@@ -941,7 +1029,7 @@ Kiểm tra cấu hình backup thực tế trong tài liệu SETUP của dự án
 
 ---
 
-## 29. Lệnh xóa cần thận trọng trong production
+## 30. Lệnh xóa cần thận trọng trong production
 
 Các lệnh sau có thể gây downtime hoặc mất dữ liệu:
 
@@ -965,9 +1053,9 @@ Checklist trước khi chạy:
 
 ---
 
-## 30. Công thức debug nhanh theo triệu chứng
+## 31. Công thức debug nhanh theo triệu chứng
 
-### 30.1. Pod không Ready
+### 31.1. Pod không Ready
 
 ```bash
 kubectl get pod <pod> -n <ns> -o wide
@@ -976,13 +1064,13 @@ kubectl logs <pod> -n <ns> --all-containers=true --tail=200
 kubectl get events -n <ns> --sort-by=.lastTimestamp
 ```
 
-### 30.2. Service không truy cập được
+### 31.2. Service không truy cập được
 
 ```bash
 kubectl get svc <svc> -n <ns> -o yaml
 kubectl get endpoints <svc> -n <ns>
 kubectl get pods -n <ns> --show-labels
-kubectl run curl -n <ns> --image=curlimages/curl:latest -it --rm -- sh
+kubectl run curl -n <ns> --image=curlimages/curl:8.20.0 -it --rm -- sh
 ```
 
 Trong Pod debug:
@@ -992,7 +1080,7 @@ curl -v http://<svc>.<ns>.svc.cluster.local:<port>
 nslookup <svc>.<ns>.svc.cluster.local
 ```
 
-### 30.3. Ingress trả 404/502/503
+### 31.3. Ingress trả 404/502/503
 
 ```bash
 kubectl describe ingress/<ingress> -n <ns>
@@ -1001,7 +1089,7 @@ kubectl logs -n <ingress-namespace> deploy/<ingress-controller> --tail=200
 kubectl get events -n <ns> --sort-by=.lastTimestamp
 ```
 
-### 30.4. Rollout treo
+### 31.4. Rollout treo
 
 ```bash
 kubectl rollout status deploy/<deploy> -n <ns>
@@ -1012,7 +1100,7 @@ kubectl describe pod/<pod> -n <ns>
 kubectl rollout undo deploy/<deploy> -n <ns>
 ```
 
-### 30.5. Node NotReady
+### 31.5. Node NotReady
 
 ```bash
 kubectl get nodes -o wide
@@ -1032,7 +1120,7 @@ sudo journalctl -u k3s-agent --since "30 minutes ago"
 
 ---
 
-## 31. Alias hữu ích
+## 32. Alias hữu ích
 
 Thêm vào shell profile nếu muốn thao tác nhanh:
 
@@ -1057,7 +1145,7 @@ function kdf { kubectl delete -f @args }
 
 ---
 
-## 32. Checklist trước và sau khi deploy
+## 33. Checklist trước và sau khi deploy
 
 Trước deploy:
 

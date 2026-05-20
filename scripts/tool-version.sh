@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================
 # tool-version.sh — Kiểm tra phiên bản & tình trạng cập nhật
-# Chạy trên : continux-imac hoặc bất kỳ Ubuntu node nào trong cụm
+# Chạy trên : imac hoặc bất kỳ Ubuntu node nào trong cụm
 # Mục đích  : So sánh phiên bản đã cài với latest stable
 #             Hiển thị: ✓ cập nhật | ↑ lỗi thời | ✗ chưa cài | ? không lấy được
 # Nguồn     : HTTP redirect (github.com/releases/latest), update.k3s.io, get.helm.sh

@@ -1,11 +1,11 @@
 #!/bin/bash
 # =================================================================
-# k3s-install.sh — Cài K3s agent (worker) cho nammn hoặc worker phụ trợ
-# Chạy trên : nammn (WSL2 Ubuntu 24.04, bước §5.7 SETUP.md)
-# Mục đích  : Join worker phụ trợ vào cụm K3s khi cần burst
-# Cú pháp   : sudo bash k3s-install.sh <tailscale-ip-imac> <token> [node-name]
+# k3s-install.sh - Join a generic K3s agent.
+# Run on: optional worker node only.
+# Purpose: keep a minimal agent join helper outside the default v0.2.0 setup path.
+# Usage: sudo bash k3s-install.sh <tailscale-ip-imac> <token> [node-name]
 #             node-name mặc định lấy từ $(hostname) nếu không truyền
-# Gỡ worker : từ continux-imac chạy k3s-check.sh rồi drain + delete node
+# Gỡ worker : từ imac chạy k3s-check.sh rồi drain + delete node
 #           : trên node này chạy: sudo /usr/local/bin/k3s-agent-uninstall.sh
 # =================================================================
 set -euo pipefail
@@ -17,6 +17,22 @@ info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 die()   { echo -e "${RED}[FAIL]${NC}  $*" >&2; exit 1; }
+
+usage() {
+    cat <<'EOF'
+Usage:
+  sudo bash scripts/k3s-install.sh <imac-ts-ip> <k3s-token> [node-name]
+
+Join an optional generic K3s agent. This helper is outside the default v0.2.0 setup path.
+EOF
+}
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
 
 # ======================== KIỂM TRA ĐIỀU KIỆN ========================
 [ "$(id -u)" -ne 0 ] && die "Chạy với sudo: sudo bash $0 <imac-ip> <token> [node-name]"
@@ -33,14 +49,20 @@ tailscale status >/dev/null 2>&1 || die "Tailscale chưa kết nối. Chạy: su
 # ======================== ĐỌC THAM SỐ ========================
 IMAC_IP="${1:-}"
 K3S_TOKEN="${2:-}"
-NODE_NAME="${3:-$(hostname)}"
+HOSTNAME_RAW="$(hostname)"
+HOSTNAME_LOWER="$(printf '%s' "$HOSTNAME_RAW" | tr '[:upper:]' '[:lower:]')"
+NODE_NAME="${3:-$HOSTNAME_RAW}"
 
-if [ "$NODE_NAME" = "helios-wsl" ] || [ "$NODE_NAME" = "helios" ] || [ "$(hostname)" = "helios-wsl" ] || [ "$(hostname)" = "helios" ]; then
-    die "helios-wsl là K3s server #3 quorum-only. Dùng: sudo bash scripts/k3s-install-server.sh <imac-ip> <token> helios-wsl quorum"
+if [ "$NODE_NAME" = "Helios-PC" ]; then
+    NODE_NAME="helios-pc"
+fi
+
+if [ "$NODE_NAME" = "helios-pc" ] || [ "$HOSTNAME_LOWER" = "helios-pc" ]; then
+    die "helios-pc là K3s server #3 quorum-only. Dùng: sudo bash scripts/k3s-install-server.sh <imac-ip> <token> helios-pc quorum"
 fi
 
 if [ -z "$IMAC_IP" ]; then
-    read -r -p "$(echo -e "${YELLOW}Tailscale IP của continux-imac (100.x.x.x): ${NC}")" IMAC_IP
+    read -r -p "$(echo -e "${YELLOW}Tailscale IP của imac (100.x.x.x): ${NC}")" IMAC_IP
 fi
 if [ -z "$K3S_TOKEN" ]; then
     read -r -p "$(echo -e "${YELLOW}Node join token: ${NC}")" K3S_TOKEN
@@ -58,13 +80,13 @@ info "Node name           : ${NODE_NAME}"
 info "Tailscale IP local  : ${TAILSCALE_IP}"
 info "K3s server (iMac)   : ${K3S_URL}"
 echo ""
-warn "Node này sẽ join cluster với label workload=heavy (cần gán từ continux-imac sau)."
+warn "Node này sẽ join cluster với label workload=heavy (cần gán từ imac sau)."
 echo ""
 read -r -p "$(echo -e "${YELLOW}Tiếp tục? [y/N]${NC} ")" confirm
 [[ "${confirm,,}" == "y" ]] || { info "Đã huỷ."; exit 0; }
 
 # ======================== KIỂM TRA KẾT NỐI ========================
-info "Kiểm tra ping đến continux-imac (${IMAC_IP})..."
+info "Kiểm tra ping đến imac (${IMAC_IP})..."
 ping -c 2 -W 3 "${IMAC_IP}" >/dev/null 2>&1 || die "Không ping được ${IMAC_IP}. Kiểm tra Tailscale."
 ok "Ping OK"
 
@@ -85,11 +107,11 @@ echo ""
 echo -e "${BOLD}=================================================${NC}"
 ok "Agent join thành công!"
 echo ""
-echo -e "${YELLOW}Bước tiếp theo — chạy trên continux-imac:${NC}"
+echo -e "${YELLOW}Bước tiếp theo — chạy trên imac:${NC}"
 echo -e "  kubectl label node ${NODE_NAME} workload=heavy role=data-plane"
 echo -e "  kubectl get nodes -o wide"
 echo ""
-echo -e "${YELLOW}Khi không cần worker nữa — chạy trên continux-imac:${NC}"
+echo -e "${YELLOW}Khi không cần worker nữa — chạy trên imac:${NC}"
 echo -e "  kubectl drain ${NODE_NAME} --ignore-daemonsets --delete-emptydir-data"
 echo -e "  kubectl delete node ${NODE_NAME}"
 echo -e "${YELLOW}Sau đó trên máy này (WSL2):${NC}"

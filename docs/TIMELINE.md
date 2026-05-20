@@ -1,138 +1,143 @@
-# TIMELINE — LỘ TRÌNH THỰC HIỆN ĐỒ ÁN
+# TIMELINE
 
-> **Đề tài:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
-> **Khoảng thời gian:** 05/04/2026 → 31/05/2026 (≈ 8 tuần).
-> **Mốc tài liệu (document freeze):** 19/04/2026 — toàn bộ tài liệu đề cương, ARCHITECTURE, TIMELINE phải được chốt với GVHD trước ngày này.
-> **Cập nhật tiến độ:** 20/05/2026 — M3 đang được gia cố thêm server #3 quorum (`helios-wsl`); SETUP §10 hoàn tất: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL, Taxi Zone đã upload MinIO, Vector đã sync an toàn ở `replicas: 0` và scale thủ công lên `1` chạy ổn định vào Redpanda.
-> **Deadline cuối cùng:** 31/05/2026 — nộp báo cáo + demo hệ thống.
+> Cập nhật ngày 20/05/2026: hiện trạng mới có repo và tài liệu/config/script trong repo. Công việc thực tế đang ở bước chuẩn bị tài nguyên máy để có thể chạy lệnh setup trên 3 node. Mọi hạng mục phải hoàn tất trước ngày 31/05/2026.
 
----
+## Mục Tiêu
 
-## 1. Nguyên tắc lập lịch
+Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC end-to-end, thu bằng chứng thực nghiệm và hoàn thiện báo cáo trước deadline.
 
-- **Song song hóa tài liệu & hạ tầng:** từ 13/04, trong khi tài liệu còn đang hoàn thiện, nhóm bắt đầu setup cluster K3s để kịp mốc tài liệu 19/04 mà không chậm tiến độ kỹ thuật.
-- **Gối đầu (overlap) giữa các giai đoạn:** giai đoạn sau bắt đầu 2–3 ngày trước khi giai đoạn trước kết thúc, nhằm hấp thụ rủi ro và tận dụng thời gian chờ (verify, stress test).
-- **Hai luồng song song ở cuối:** từ 18/05, luồng triển khai/thực nghiệm và luồng viết báo cáo chạy đồng thời — kết quả đo đến đâu, viết Chương 4 đến đó.
-- **Phân công:** Sỹ (23521367) đảm nhận toàn bộ công việc chính; Nam (23520982) hỗ trợ một số nhiệm vụ cụ thể (chi tiết trong [ARCHITECTURE.md](./ARCHITECTURE.md)).
-- **Quorum & máy phụ trợ:** `helios-wsl` (i5-12500H, 16 GB DDR5, WSL2 Ubuntu 24.04) là K3s server #3 quorum-only để cụm embedded etcd có quorum `2/3`; `nammn` (Ryzen 5 7640HS, 32 GB DDR5, WSL2 Ubuntu 24.04) chỉ bật làm K3s worker trong Giai đoạn 4–5 khi cần burst hoặc stress test throughput cao (xem [SETUP.md §5.4-§5.7](./SETUP.md)).
+Deadline vận hành nội bộ: **30/05/2026 23:59**. Ngày **31/05/2026** chỉ dùng để rà soát, chụp lại bằng chứng thiếu và đóng gói nộp.
 
----
+## Hiện Trạng Ngày 20/05/2026
 
-## 2. Các mốc lớn (Milestones)
+| Hạng mục | Trạng thái | Việc còn lại |
+|----------|------------|--------------|
+| Repo, docs, scripts, config | Đã chuẩn hóa trong repo | Kiểm tra lại sau khi chạy thật trên cluster |
+| Máy `imac` | Đang chuẩn bị | Cài Ubuntu, hostname, user, SSH, Tailscale, clone repo |
+| Máy `continux-vps` | Đang chuẩn bị | Tạo user `helios`, hostname, SSH, Tailscale |
+| Máy `helios-pc` | Đang chuẩn bị | WSL Ubuntu, systemd, hostname, Tailscale |
+| K3s cluster | Chưa dựng | Init `imac`, join `continux-vps`, join `helios-pc` |
+| GitOps/Argo CD | Chưa deploy | Cài Argo CD, đăng ký repo, sync App-of-Apps |
+| Data plane | Chưa deploy | MinIO, Redpanda, RisingWave |
+| Observability | Chưa deploy | VictoriaMetrics, Grafana, dashboard |
+| Pipeline dữ liệu | Chưa chạy | Tải parquet, convert JSONL, Vector ingest, SQL verify |
+| Báo cáo/kết quả | Chưa có số liệu thực nghiệm | Thu log, ảnh, metric, query output |
 
-| #  | Mốc | Ngày | Tiêu chí hoàn thành | Trạng thái |
-|----|-----|------|----------------------|------------|
-| M1 | **Chốt scope & đề cương với GVHD** | 08/04/2026 | GVHD phê duyệt phạm vi, bài toán, kiến trúc sơ bộ | ✓ Xong |
-| M2 | **Document Freeze** | 19/04/2026 | PROPOSE, ARCHITECTURE, TIMELINE đã review | ✓ Xong |
-| M3 | **Cluster & hạ tầng nền sẵn sàng** | 21/05/2026 | K3s 3 server + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | Đang gia cố quorum |
-| M4 | **Pipeline Blue (MV v1) hoạt động end-to-end** | 23/05/2026 | Vector → Redpanda → RisingWave (JOIN Zone) → Iceberg chạy tối thiểu 2h không lỗi | Đang làm |
-| M5 | **Blue/Green Swap qua GitOps thành công** | 27/05/2026 | Commit SQL mới → ArgoCD sync → Atomic Swap 0s downtime, không mất/trùng dữ liệu | Chưa làm |
-| M6 | **Bộ số liệu thực nghiệm hoàn chỉnh** | 29/05/2026 | 4 nhóm chỉ số đã đo, tổng hợp bảng biểu/biểu đồ | Chưa làm |
-| M7 | **Nộp báo cáo + demo hệ thống** | 31/05/2026 | File báo cáo final + demo trực tiếp trên cluster | Chưa làm |
+## Lịch Chạy Nước Rút
 
----
+| Ngày | Ưu tiên | Việc phải xong | Bằng chứng |
+|------|---------|----------------|------------|
+| 20/05 | Chuẩn bị tài nguyên | Chốt repo, kiểm tra docs/scripts/config; bắt đầu chuẩn bị 3 máy | `git status`, checklist máy |
+| 21/05 | OS và mạng | Hoàn tất hostname, user `helios`, SSH, Tailscale trên `imac`, `continux-vps`, `helios-pc` | `tailscale status`, ping 3 node |
+| 22/05 | K3s HA | Init server #1 trên `imac`; join `continux-vps` và `helios-pc`; labels/taints đúng | `kubectl get nodes -o wide`, `bash scripts/k3s-check.sh overview` |
+| 23/05 | Control plane | Cài CLI, Argo CD, Cloudflare Tunnel, đăng ký repo, sync App-of-Apps | Argo CD UI, `argocd app list` |
+| 24/05 | Data plane | Deploy MinIO, Redpanda, RisingWave; tạo buckets/secrets/topic | `kubectl get pods -A`, `rpk topic describe`, `psql SHOW CLUSTER` |
+| 25/05 | Observability | Deploy VictoriaMetrics, Grafana, scrape configs, import dashboards | Grafana datasource xanh, dashboard có dữ liệu |
+| 26/05 | Dataset và ingest | Tải TLC parquet, convert JSONL, upload Taxi Zone, bật Vector có kiểm soát | File JSONL, Vector log, Redpanda topic có event |
+| 27/05 | SQL và Iceberg | Apply source/table/MV/sink; verify query và object output | `SELECT COUNT(*)`, `mc ls --recursive iceberg-data` |
+| 28/05 | Thực nghiệm | Chạy kịch bản ingest, ghi throughput/lag/resource, chụp dashboard | CSV/log/screenshot kết quả |
+| 29/05 | Báo cáo | Hoàn thiện REPORT, cập nhật hình/chứng cứ, rà tính nhất quán docs | Bản báo cáo gần cuối |
+| 30/05 | Đóng băng | Chạy lại full checklist, fix lỗi cuối, đóng gói nộp | Checklist xanh, tag/commit cuối |
+| 31/05 | Buffer | Chỉ rà soát và bổ sung bằng chứng thiếu | Không thêm thay đổi kiến trúc lớn |
 
-## 3. Sáu giai đoạn chi tiết
+## Gantt
 
-### Giai đoạn 1 — Chuẩn bị tài liệu & đề cương (05/04 → 19/04) ✓
+Ký hiệu: `█` đang làm/chính, `▓` phụ thuộc gần, `◆` mốc chốt.
 
-| # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
-|---|-----------|---------|----------|-----------|---------|
-| 1.1 | Rà soát đề cương, chốt scope & mục tiêu với GVHD | 05/04 | 08/04 | Sỹ | ✓ Mốc M1 |
-| 1.2 | Đọc kỹ Ursa (VLDB 2025), tổng hợp lý thuyết Lakehouse Streaming | 05/04 | 10/04 | Sỹ | ✓ |
-| 1.3 | Viết FR/NFR + cây thư mục → ARCHITECTURE.md | 08/04 | 12/04 | Sỹ | ✓ |
-| 1.4 | Thiết kế kiến trúc tổng thể, luận giải thiết kế → ARCHITECTURE.md §2 | 10/04 | 14/04 | Sỹ | ✓ |
-| 1.5 | Hoàn thiện TIMELINE.md & ARCHITECTURE.md | 12/04 | 15/04 | Sỹ | ✓ |
-| 1.6 | Review toàn bộ tài liệu với GVHD — **Document Freeze** | 16/04 | 19/04 | Sỹ | ✓ **Mốc M2** |
-
-### Giai đoạn 2 — Hạ tầng K3s & GitOps (13/04 → 21/05) ✓
-
-| # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
-|---|-----------|---------|----------|-----------|---------|
-| 2.0 | Tạo DigitalOcean Droplet ($12/mo, nâng lên $24/mo khi cần) + cài Tailscale trên iMac và Droplet, lập mesh VPN | 13/04 | 14/04 | Sỹ | ✓ |
-| 2.1 | Cài K3s cluster 3 server — `continux-imac` (server #1), `continux-vps` (server #2), `helios-wsl` (server #3 quorum-only) qua Tailscale; `kubectl`, Helm | 14/04 | 21/05 | Sỹ | Đang cập nhật để có quorum `2/3` |
-| 2.2 | Deploy Argo CD lên `continux-vps` | 18/05 | 18/05 | Sỹ | ✓ Helm release `argocd`, chart `argo-cd-9.5.14`, app `v3.4.2` |
-| 2.3 | Cấu hình GitOps repo cho Argo CD | 18/05 | 19/05 | Sỹ | ✓ Đăng ký repo, clone repo trên `continux-imac`, apply App-of-Apps |
-| 2.4 | Deploy MinIO + tạo bucket `iceberg-data`, `rw-checkpoint`, `tlc-zone` | 18/05 | 19/05 | Sỹ | ✓ |
-| 2.5 | Deploy Redpanda + tạo topic `nyc-taxi-events` | 19/05 | 20/05 | Sỹ | ✓ |
-| 2.6 | Deploy RisingWave v2.8+, kết nối MinIO & Redpanda | 20/05 | 21/05 | Sỹ | ✓ Meta/compute/frontend/compactor ổn định |
-| 2.7 | Deploy VictoriaMetrics + Grafana + cấu hình scrape | 20/05 | 21/05 | Sỹ | ✓ Hoàn tất M3; 4 dashboard JSON đã thêm vào `dashboards/` |
-
-### Giai đoạn 3 — Pipeline dữ liệu & Materialized View Blue (19/05 → 23/05)
-
-| # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
-|---|-----------|---------|----------|-----------|---------|
-| 3.1 | Tải NYC TLC Trip Record; upload TLC Taxi Zone CSV lên MinIO | 20/05 | 20/05 | Sỹ | ✓ Yellow Taxi `2026-03` đã convert full JSONL trong `data/raw/`; Taxi Zone đã upload MinIO |
-| 3.2 | Cấu hình Vector đọc JSONL → mô phỏng luồng → Redpanda | 19/05 | 20/05 | Sỹ | ✓ Vector app synced, PV/PVC `vector-data` Bound, pod Running `0` restart khi scale thủ công lên `1` |
-| 3.3 | SQL: `CREATE SOURCE` (Redpanda) + `CREATE TABLE` (Taxi Zone) | 20/05 | 21/05 | Sỹ | |
-| 3.4 | Viết MV v1 (**Blue**): JOIN luồng với Taxi Zone, phân tích theo Zone | 21/05 | 22/05 | Sỹ | Baseline |
-| 3.5 | Cấu hình Iceberg Sink (Built-in Hosted Catalog) | 22/05 | 23/05 | Sỹ | Verify metadata/data file |
-| 3.6 | Test end-to-end Vector → Redpanda → RisingWave → Iceberg | 23/05 | 23/05 | Sỹ | Chạy tối thiểu 2h, M4 |
-
-### Giai đoạn 4 — Blue/Green MV Swap + GitOps (23/05 → 27/05)
-
-| # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
-|---|-----------|---------|----------|-----------|---------|
-| 4.1 | Viết MV v2 (**Green**) với logic phân tích mới | 23/05 | 24/05 | Sỹ | Chạy song song Blue |
-| 4.2 | Thiết kế cơ chế phát hiện Green backfill hoàn tất (`consumer_lag → 0`) | 24/05 | 25/05 | Sỹ | Metric từ RisingWave/Redpanda |
-| 4.3 | K8s Job: Argo CD trigger → check backfill → `ALTER MV SWAP WITH` | 25/05 | 26/05 | Sỹ | Chạy SQL khi Green sẵn sàng |
-| 4.4 | Argo CD Application + PostSync Hook kích hoạt Job swap | 26/05 | 26/05 | Sỹ | |
-| 4.5 | Test toàn bộ flow: commit Git → sync → backfill → Atomic Swap | 26/05 | 27/05 | Sỹ | 0s downtime, M5 |
-
-### Giai đoạn 5 — Thực nghiệm & Thu thập kết quả (26/05 → 29/05)
-
-| # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
-|---|-----------|---------|----------|-----------|---------|
-| 5.1 | Verify Exactly-Once qua Iceberg Sink trong lúc swap | 26/05 | 27/05 | Sỹ | So sánh record count |
-| 5.2 | Stress test throughput Vector; đo events/s, latency, consumer lag | 27/05 | 28/05 | Sỹ | Ghi từng mức tải |
-| 5.3 | Đo Cutover Metrics (swap time, recovery, downtime) — 3 lần | 27/05 | 28/05 | Sỹ | Lấy trung bình |
-| 5.4 | Kiểm chứng Data Integrity: in vs out, duplicate/loss rate | 28/05 | 29/05 | Sỹ | Query Iceberg |
-| 5.5 | Thu thập Resource Utilization (CPU, RAM) qua VM/Grafana | 28/05 | 29/05 | Sỹ | Screenshot dashboard |
-| 5.6 | Tổng hợp kết quả, bảng biểu, biểu đồ cho báo cáo | 29/05 | 29/05 | Sỹ | M6 |
-
-### Giai đoạn 6 — Viết báo cáo & Nộp (18/05 → 31/05)
-
-| # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
-|---|-----------|---------|----------|-----------|---------|
-| 6.1 | Chương 1 — Giới thiệu tổng quan | 18/05 | 20/05 | Sỹ | IMRAD-adapted |
-| 6.2 | Chương 2 — Cơ sở lý thuyết (Lakehouse, Streaming, Blue/Green, Ursa review) | 18/05 | 23/05 | Sỹ | Trích dẫn APA |
-| 6.3 | Chương 3 — Phương pháp & Kiến trúc hệ thống | 21/05 | 25/05 | Sỹ | Sơ đồ + sequence diagram |
-| 6.4 | Chương 4 — Kết quả thực nghiệm (4 nhóm chỉ số) | 27/05 | 30/05 | Sỹ | Dựa trên dữ liệu Giai đoạn 5 |
-| 6.5 | Chương 5 — Thảo luận & Kết luận | 29/05 | 30/05 | Sỹ | So sánh Ursa, hạn chế, hướng phát triển |
-| 6.6 | Abstract (VI + EN), Tài liệu tham khảo, Phụ lục | 29/05 | 30/05 | Sỹ | Abstract viết cuối |
-| 6.7 | Rà soát format, APA, review GVHD | 30/05 | 30/05 | Sỹ | |
-| 6.8 | **NỘP báo cáo hoàn chỉnh + DEMO hệ thống** | 31/05 | 31/05 | Sỹ & Nam | **Mốc M7 — DEADLINE** |
-
----
-
-## 4. Biểu đồ Gantt (tóm tắt)
-
-```
-Tuần           | 05/04  12/04  19/04  26/04  03/05  10/05  17/05  24/05  31/05
----------------|---------------------------------------------------------------
-G1 Tài liệu    | ████████████▓
-G2 Hạ tầng     |        ▓███████████████████████████▓
-G3 Pipeline+Blue|                                      ▓████▓
-G4 Blue/Green  |                                           ▓████▓
-G5 Thực nghiệm |                                              ▓███▓
-G6 Báo cáo     |                                  ▓██████████████▓
-Mốc            | M1─────M2──────────────────────────M3─M4───M5─M6─M7
+```text
+Ngày                         20 21 22 23 24 25 26 27 28 29 30 31
+------------------------------------------------------------------
+Repo, docs, scripts          █
+Chuẩn bị 3 máy + Tailscale   █  █
+K3s HA 3 server                    █
+Labels, taints, quorum             ▓  █
+Argo CD + Cloudflare                  █
+Repo GitOps + App-of-Apps              ▓  █
+MinIO + Redpanda + RisingWave             █
+VictoriaMetrics + Grafana                   █
+Dataset + JSONL + Taxi Zone                    █
+Vector ingest có kiểm soát                    ▓  █
+SQL + MV + Iceberg sink                           █
+Thực nghiệm + dashboard                               █
+Báo cáo + chứng cứ                                     █
+Full checklist + đóng băng                                █
+Buffer nộp bài                                               ◆
 ```
 
-Ô `█` = công việc chính; ô `▓` = giai đoạn gối đầu.
+## Critical Path
 
----
+1. 3 máy phải vào được Tailscale và ping qua lại.
+2. K3s phải đủ 3 server Ready để có quorum.
+3. Argo CD phải sync được repo.
+4. MinIO, Redpanda, RisingWave phải Ready trước khi bật Vector.
+5. Vector chỉ scale lên sau khi topic, PVC và JSONL đã sẵn sàng.
+6. SQL chỉ apply sau khi secrets MinIO/RisingWave đúng.
+7. Báo cáo chỉ chốt sau khi có query output, object Iceberg và dashboard.
 
-## 5. Rủi ro & phương án dự phòng
+## Phân Công
 
-| Rủi ro | Tác động | Phương án giảm nhẹ |
-|--------|----------|---------------------|
-| RAM `continux-imac` 8 GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → bật `nammn` (32 GB) qua WSL2 làm K3s worker theo [SETUP.md §5.7](./SETUP.md). `helios-wsl` giữ quorum, không chạy workload mặc định |
-| RAM `continux-vps` 2GB không đủ khi chạy đồng thời ArgoCD + VM + Grafana | Trung bình | Dùng profile values nhẹ trong `config/argocd/helm-values.yaml`, giới hạn retention VictoriaMetrics; nếu vẫn thiếu RAM thì resize lên $24/mo (2 vCPU, 4 GB RAM) |
-| Tailscale rớt session do NAT modem tại nhà | Trung bình | Enable `--ssh` + systemd unit autorestart; thêm IPv6 fallback |
-| Droplet hết băng thông 2 TB/mo | Thấp | Giữ traffic chính trong Tailscale; Grafana public chỉ cho GVHD khi demo |
-| Iceberg Sink gặp sự cố tương thích | Trung bình | Fallback sang Parquet file trên MinIO, vẫn giữ kiến trúc Blue/Green |
-| Backfill Green chậm hơn dự kiến → Consumer Lag không về 0 | Trung bình | Giảm tải Vector trong lúc backfill; điều chỉnh parallelism của MV |
-| Lịch triển khai bị nén sau 18/05 | Cao | Ưu tiên demo path tối thiểu: MinIO → Redpanda → RisingWave → Blue/Green swap; giảm số lần stress test nếu thiếu thời gian |
-| Version K3s lệch giữa `continux-imac`, `continux-vps`, `helios-wsl` | Trung bình | Nâng cả ba K3s server lên cùng kênh stable trước khi triển khai workload nặng |
-| Mất dữ liệu đo do K3s restart | Trung bình | VictoriaMetrics lưu trữ persistent volume trên MinIO |
+| Nhóm việc | Sỹ | Nam | GVHD |
+|-----------|:--:|:--:|:----:|
+| Chuẩn bị máy, K3s, Tailscale | A/R | C | I |
+| Argo CD, GitOps, Cloudflare Tunnel | A/R | C | I |
+| MinIO, Redpanda, RisingWave | A/R | C | I |
+| Dataset, Vector, topic bootstrap | A/R | R | I |
+| SQL, Iceberg sink, verify dữ liệu | A/R | R | C |
+| Grafana, thực nghiệm, báo cáo | R | A/R | C |
+
+## Checklist Theo Mốc
+
+### Trước khi chạy lệnh setup
+
+- [ ] `imac`, `continux-vps`, `helios-pc` có hostname đúng.
+- [ ] User `helios` có sudo và SSH hoạt động.
+- [ ] Tailscale hoạt động trên cả 3 máy.
+- [ ] Repo có clone ở `~/continux` trên `imac`.
+- [ ] `docs/SETUP.md` được đọc theo đúng thứ tự, không nhảy bước.
+
+### Sau khi dựng K3s
+
+- [ ] `kubectl get nodes -o wide` có đủ 3 node Ready.
+- [ ] `imac` có `role=data-plane`.
+- [ ] `continux-vps` có `role=control-plane` và taint `dedicated=edge:NoSchedule`.
+- [ ] `helios-pc` có `role=quorum` và taint `dedicated=quorum:NoSchedule`.
+- [ ] `bash scripts/k3s-check.sh overview` không có hot list nghiêm trọng.
+
+### Trước khi bật Vector
+
+- [ ] MinIO buckets đã có.
+- [ ] Redpanda topic `nyc-taxi-events` tồn tại.
+- [ ] RisingWave kết nối được qua `psql`.
+- [ ] PVC Vector `Bound` và trỏ đúng `imac`.
+- [ ] JSONL đã tồn tại trong `data/raw/`.
+- [ ] Deployment Vector vẫn `replicas: 0`.
+
+### Trước khi chốt báo cáo
+
+- [ ] `SELECT COUNT(*) FROM mv_zone_stats` trả số dương.
+- [ ] MinIO có Iceberg metadata/data object.
+- [ ] Grafana có dashboard đọc được VictoriaMetrics.
+- [ ] Có ảnh hoặc log chứng minh cluster, pipeline, query, object output.
+- [ ] README, SETUP, REPORT nhất quán với topology 3 máy.
+
+## Rủi Ro
+
+| Rủi ro | Mức | Dấu hiệu | Giảm thiểu |
+|--------|-----|----------|------------|
+| Chuẩn bị máy trễ | Cao | Chưa ping được đủ 3 node qua Tailscale sau 21/05 | Ưu tiên K3s trước, dashboard/báo cáo để sau |
+| iMac 8 GB RAM quá tải | Cao | Pod OOMKilled, node memory cao | Giữ Vector `replicas: 0`, giới hạn resource, chạy dataset nhỏ trước |
+| WSL sleep làm mất quorum | Trung bình | `helios-pc` NotReady, etcd mất quorum | Giữ Windows awake khi setup/benchmark |
+| VPS thiếu RAM | Trung bình | Grafana/VictoriaMetrics restart | Giảm retention, giữ workload nhẹ trên VPS |
+| Secret sai | Trung bình | RisingWave không đọc/ghi S3 | Tạo lại Secret bằng `kubectl create secret ... --dry-run=client -o yaml \| kubectl apply -f -` |
+| Dataset schema thay đổi | Trung bình | Converter hoặc SQL source lỗi field | Dùng `partojsonl.py` chỉ lấy field cần thiết; smoke run `--limit` trước |
+| Không đủ thời gian thực nghiệm | Cao | Pipeline chạy được nhưng thiếu số liệu | Ưu tiên 1 kịch bản ingest ổn định và chứng cứ end-to-end |
+
+## Definition Of Done
+
+- Repo sạch về topology hiện tại, không còn node/script cũ trong docs/config/script.
+- 3 máy chạy K3s server Ready qua Tailscale.
+- Argo CD quản lý được các app chính.
+- MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana Ready.
+- Dataset được convert, Vector publish event vào Redpanda.
+- RisingWave query được MV và Iceberg sink ghi object ra MinIO.
+- Báo cáo có đủ lệnh, output, ảnh/dashboard hoặc log chứng minh.

@@ -1,6 +1,9 @@
 adminUser: admin
 # adminPassword intentionally omitted. The Grafana Helm chart generates it
-# into secret/grafana key admin-password; see docs/SETUP.md §9.3.
+# into secret/grafana key admin-password; see docs/SETUP.md §8.2.
+
+image:
+  tag: 13.0.1-security-01
 
 deploymentStrategy:
   type: RollingUpdate

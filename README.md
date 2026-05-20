@@ -3,51 +3,42 @@
     <img src="https://i.imgur.com/WmMnSRt.png" alt="Trường Đại học Công nghệ Thông tin | University of Information Technology">
   </a>
 </p>
+
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.7-0A7CC7?style=flat-square" alt="Version v0.1.7">
-  <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu">
+  <img src="https://img.shields.io/badge/version-v0.2.0-0A7CC7?style=flat-square" alt="Version v0.2.0">
+  <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
 <p align="center">
-  <!-- Nền tảng & điều phối -->
   <img src="https://img.shields.io/badge/K3s-v1.35.4-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
-  <img src="https://img.shields.io/badge/Helm-v4.2.0-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
-  <img src="https://img.shields.io/badge/ArgoCD-v3.4.2-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="ArgoCD">
+  <img src="https://img.shields.io/badge/Helm-v4.1.4-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
+  <img src="https://img.shields.io/badge/ArgoCD-v3.4.2-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="Argo CD">
   <img src="https://img.shields.io/badge/Tailscale-v1.98.2-242424?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale">
 </p>
 
 <p align="center">
-  <!-- Thu thập & truyền tải -->
-  <img src="https://img.shields.io/badge/Vector-v0.45-10E7FF?style=flat-square&logoColor=white" alt="Vector">
-  <img src="https://img.shields.io/badge/Redpanda-v26.1-E3402B?style=flat-square&logo=redpanda&logoColor=white" alt="Redpanda">
-</p>
-
-<p align="center">
-  <!-- Xử lý luồng & lưu trữ -->
+  <img src="https://img.shields.io/badge/Vector-v0.55.0-10E7FF?style=flat-square&logoColor=white" alt="Vector">
+  <img src="https://img.shields.io/badge/Redpanda-v26.1.8-E3402B?style=flat-square&logo=redpanda&logoColor=white" alt="Redpanda">
   <img src="https://img.shields.io/badge/RisingWave-v2.8.3-5B7FFF?style=flat-square&logoColor=white" alt="RisingWave">
   <img src="https://img.shields.io/badge/Apache_Iceberg-v2-3E5F8A?style=flat-square&logo=apache&logoColor=white" alt="Apache Iceberg">
-  <img src="https://img.shields.io/badge/MinIO-latest-C72E49?style=flat-square&logo=minio&logoColor=white" alt="MinIO">
-</p>
-
-<p align="center">
-  <!-- Giám sát -->
-  <img src="https://img.shields.io/badge/VictoriaMetrics-v1.110-621773?style=flat-square&logoColor=white" alt="VictoriaMetrics">
-  <img src="https://img.shields.io/badge/Grafana-v11.6-F46800?style=flat-square&logo=grafana&logoColor=white" alt="Grafana">
+  <img src="https://img.shields.io/badge/MinIO-self--hosted-C72E49?style=flat-square&logo=minio&logoColor=white" alt="MinIO">
+  <img src="https://img.shields.io/badge/VictoriaMetrics-v1.143.0-621773?style=flat-square&logoColor=white" alt="VictoriaMetrics">
+  <img src="https://img.shields.io/badge/Grafana-v13.0.1%2Bsecurity--01-F46800?style=flat-square&logo=grafana&logoColor=white" alt="Grafana">
 </p>
 
 ## BẢNG MỤC LỤC
+
 * [Giới thiệu môn học](#giới-thiệu-môn-học)
 * [Giới thiệu đồ án môn học](#giới-thiệu-đồ-án-môn-học)
 * [Thành viên nhóm](#thành-viên-nhóm)
 * [Hạ tầng máy chủ](#hạ-tầng-máy-chủ)
-* [Cài đặt phần mềm](#cài-đặt-phần-mềm)
 * [Khởi chạy dự án](#khởi-chạy-dự-án)
 * [Công nghệ sử dụng](#công-nghệ-sử-dụng)
 
-
 ## GIỚI THIỆU MÔN HỌC
+
 * **Tên các môn học**: Cơ sở dữ liệu phân tán & Dữ liệu lớn
 * **Mã các môn học**: IS211 & IS405
 * **Lớp học**: IS211.Q22 & IS405.Q23
@@ -58,92 +49,79 @@
 ---
 
 ## GIỚI THIỆU ĐỒ ÁN MÔN HỌC
+
 * **Tiếng Việt**: Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes
 * **Tiếng Anh**: Building a Real-Time Data Lakehouse Architecture for Intelligent Transportation Systems on a Kubernetes Cluster
 
-Đề tài thiết kế một kiến trúc **Data Lakehouse thời gian thực** vận hành trên cụm **Kubernetes (K3s)**, giải quyết bài toán **Zero-Downtime** khi cập nhật thuật toán phân tích luồng cho hệ thống giao thông thông minh. Hệ thống sử dụng tập dữ liệu **NYC TLC Trip Record Data**, với Vector giả lập luồng sự kiện vào Redpanda, RisingWave làm lõi tính toán streaming (JOIN với bảng TLC Taxi Zone trên MinIO), ghi xuống Apache Iceberg, và ArgoCD điều phối triển khai Blue/Green ở cấp Materialized View.
+Đề tài xây dựng một kiến trúc **Data Lakehouse thời gian thực** trên cụm **K3s** 3 máy. Hệ thống dùng NYC TLC Trip Record Data, Vector giả lập luồng sự kiện, Redpanda làm broker Kafka-compatible, RisingWave xử lý streaming SQL, MinIO lưu checkpoint/Iceberg, Argo CD điều phối GitOps và Grafana/VictoriaMetrics giám sát.
 
 Chi tiết đề cương xem tại [docs/PROPOSE.md](./docs/PROPOSE.md).
 
 Tài liệu liên quan:
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Kiến trúc hệ thống, cấu trúc repo, yêu cầu chức năng & phi chức năng (FR/NFR), ràng buộc, quy ước Git.
-- [docs/TIMELINE.md](./docs/TIMELINE.md) — Lộ trình thực hiện theo mốc thời gian, phân công, biểu đồ Gantt.
-- [docs/SETUP.md](./docs/SETUP.md) — Hướng dẫn thiết lập hệ thống toàn diện (bootstrap K3s → chạy pipeline).
-- [docs/SCRIPTS.md](./docs/SCRIPTS.md) — Tài liệu các script vận hành trong `scripts/` (cú pháp, argument, flags, cách dùng từ Windows).
-- [docs/REPORT.md](./docs/REPORT.md) — Báo cáo tổng thể đồ án (nguồn để chuyển sang LaTeX).
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - Kiến trúc, topology, placement và yêu cầu hệ thống.
+- [docs/SETUP.md](./docs/SETUP.md) - Trình tự setup từ máy sạch tới pipeline chạy được.
+- [docs/SCRIPTS.md](./docs/SCRIPTS.md) - Tài liệu script vận hành.
+- [docs/TIMELINE.md](./docs/TIMELINE.md) - Mốc triển khai v0.2.0.
+- [docs/REPORT.md](./docs/REPORT.md) - Báo cáo đồ án.
 
 ---
 
 ## THÀNH VIÊN NHÓM
-| STT |   MSSV   |           Họ và Tên |                                                      Github |                  Email |
-|-----|:--------:|--------------------:|------------------------------------------------------------:|-----------------------:|
-| 1   | 23521367 |         Ngô Tiến Sỹ |               [helios-ryuu](https://github.com/helios-ryuu) | 23521367@gm.uit.edu.vn |
-| 2   | 23520982 |      Nguyễn Văn Nam |               [Sinister-VN](https://github.com/Sinister-VN) | 23520982@gm.uit.edu.vn |
+
+| STT | MSSV | Họ và Tên | Github | Email |
+|-----|:----:|----------:|-------:|------:|
+| 1 | 23521367 | Ngô Tiến Sỹ | [helios-ryuu](https://github.com/helios-ryuu) | 23521367@gm.uit.edu.vn |
+| 2 | 23520982 | Nguyễn Văn Nam | [Sinister-VN](https://github.com/Sinister-VN) | 23520982@gm.uit.edu.vn |
 
 ---
 
 ## HẠ TẦNG MÁY CHỦ
 
-Cụm gồm **4 máy** — 3 K3s server giữ quorum `2/3` và 1 worker phụ trợ bật khi cần burst/stress test. Tất cả kết nối qua **Tailscale mesh VPN**.
+Cụm tham chiếu v0.2.0 gồm **3 K3s server** nối với nhau bằng **Tailscale mesh VPN**.
 
-| Tên node | Phần cứng | Hệ điều hành | Vai trò |
-|----------|-----------|-------------|---------|
-| **`continux-imac`** | iMac19,2 · Intel i5-8500 (6 cores) · 8 GB DDR4 · 200 GB SSD | Ubuntu Server 24.04 LTS (native) | K3s server #1 · Data plane (MinIO, Redpanda, RisingWave, Vector) |
-| **`continux-vps`** | DigitalOcean Droplet $12→$24/mo · 1→2 vCPU · 2→4 GB RAM · 50→80 GB SSD · SGP1 | Ubuntu 24.04 LTS (native) | K3s server #2 · Control & observability plane (ArgoCD, VictoriaMetrics, Grafana) |
-| **`helios-wsl`** | Laptop HP (HELIOS-PC) · Intel i5-12500H (12C) · 16 GB DDR5 4800 MHz · NVIDIA RTX 3050 Ti 4 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s server #3 · quorum-only, taint `dedicated=quorum:NoSchedule` |
-| **`nammn`** | Laptop HP (SINISTER) · AMD Ryzen 5 7640HS (8C) · 32 GB DDR5 5600 MHz · NVIDIA RTX 3050 6 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi iMac OOM hoặc cần > 10 k events/s |
+| Node Kubernetes | Máy | Hệ điều hành | Vai trò |
+|-----------------|-----|--------------|---------|
+| **`imac`** | iMac19,2 · Intel i5-8500 · 6 cores · 8 GB DDR4 · 200 GB SSD | Ubuntu 26.04 native | K3s server #1 · data plane: MinIO, Redpanda, RisingWave, Vector |
+| **`continux-vps`** | VPS user `helios` · 2 vCPU · 4 GB RAM · 80 GB SSD · 4 TB transfer | Ubuntu 24.04 native | K3s server #2 · control/observability: Argo CD, VictoriaMetrics, Grafana |
+| **`helios-pc`** | Windows host `Helios-PC` · WSL Ubuntu 26.04 · Intel i5-12500H · 16 GB DDR5 | WSL2 Ubuntu 26.04 | K3s server #3 · quorum-only, taint `dedicated=quorum:NoSchedule` |
 
-Chi tiết thiết lập từng máy: [docs/SETUP.md](./docs/SETUP.md).
+Tailscale inventory chuẩn:
 
----
+| Tailscale IP | Tailscale device | Tailnet user | OS | Dùng trong dự án |
+|--------------|------------------|--------------|----|------------------|
+| `100.120.64.5` | `imac` | `ngotiensy2005@` | Linux | K3s server #1 |
+| `100.113.151.56` | `continux-vps` | `ngotiensy2005@` | Linux | K3s server #2 |
+| `100.78.46.87` | `helios-pc-wsl` | `ngotiensy2005@` | Linux | K3s server #3; shell hostname `Helios-PC`, Kubernetes node `helios-pc` |
+| `100.125.106.89` | `helios-pc` | `ngotiensy2005@` | Windows | Windows host, không phải node K3s |
 
-## CÀI ĐẶT PHẦN MỀM
-
-Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
-
-**Phiên bản công cụ tối thiểu (stable):**
-- K3s ≥ v1.35.4 · Helm ≥ v4.2.0 · Argo CD v3.4.2 (chart `argo-cd` 9.5.14) · RisingWave ≥ v2.8 · Redpanda ≥ v26.1 · Vector ≥ 0.45 · Tailscale ≥ 1.98.2.
+Lưu ý: WSL trên `Helios-PC` được Tailscale đặt tên `helios-pc-wsl` để tránh trùng với Windows host `helios-pc`; shell prompt vẫn dạng `helios@Helios-PC`, còn Kubernetes dùng node name `helios-pc`.
 
 ---
 
 ## KHỞI CHẠY DỰ ÁN
 
-**Phiên bản tài liệu hiện tại:** `v0.1.7` — hoàn tất SETUP §10: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL trong `data/raw/`, Taxi Zone đã upload MinIO, Vector sync an toàn ở `replicas: 0` và chạy thủ công ổn định vào Redpanda.
+**Phiên bản hiện tại:** `v0.2.0` - refactor topology 3 máy, tinh gọn tài liệu vận hành, cập nhật scripts và pin image/tag chính.
 
-**Các bước tổng quát:**
-1. Khởi tạo cụm K3s (`continux-imac` server #1, `continux-vps` server #2, `helios-wsl` server #3 quorum-only) và cấu hình `kubectl`.
-2. Cài đặt ArgoCD và đăng ký repository Git của dự án.
-3. Triển khai hạ tầng nền: MinIO, Redpanda, RisingWave (trên `continux-imac`), VictoriaMetrics và Grafana (trên `continux-vps`) bằng Helm/ArgoCD theo SETUP.
-4. Import 4 dashboard Grafana từ `dashboards/*.json` để theo dõi Streaming Performance, Resource Utilization, Cutover và Data Integrity.
-5. Tải dataset NYC TLC vào `data/raw/` và bảng tham chiếu TLC Taxi Zone vào `data/zone/`, sau đó upload Taxi Zone lên MinIO.
-6. Khởi chạy Vector để phát luồng sự kiện NYC TLC vào Redpanda.
-7. Đăng ký các Source, Sink và Materialized View Blue trên RisingWave.
-8. Truy cập Grafana để giám sát Consumer Lag, throughput, latency.
-9. *(Khi cần burst)* Join `nammn` vào cụm làm K3s worker qua WSL2.
+Quy trình tổng quát:
 
-**Workflow dev hiện tại:** phát triển chính trên Windows, commit/push lên GitHub; `continux-imac` là máy quản trị cluster, cần có clone repo ở `~/continux` để bootstrap các manifest local ban đầu như `gitops/apps/root-app.yaml`.
+1. Chuẩn bị user `helios`, hostname, SSH, systemd/WSL và Tailscale trên 3 máy.
+2. Init K3s server #1 trên `imac`, lấy token bằng `scripts/k3s-token.sh`.
+3. Join `continux-vps` profile `edge` và `helios-pc` profile `quorum`.
+4. Cài CLI quản trị, deploy Argo CD, đăng ký repo GitOps và apply App-of-Apps.
+5. Deploy MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana theo [docs/SETUP.md](./docs/SETUP.md).
+6. Tải NYC TLC parquet, convert bằng `scripts/partojsonl.py`, sync Vector ở `replicas: 0`, rồi scale thủ công khi preflight xanh.
+7. Apply SQL source/table/MV/sink, verify bằng RisingWave query, Redpanda topic, Iceberg object output và Grafana dashboard.
 
 ---
 
 ## CÔNG NGHỆ SỬ DỤNG
 
-**Nền tảng & điều phối:**
-- **K3s / Kubernetes** — điều phối container trên cụm phân tán.
-- **ArgoCD** — GitOps Continuous Delivery: Git là nguồn chân lý duy nhất.
-- **Tailscale** — Mesh VPN mã hóa đầu-cuối, kết nối các node trên nhiều mạng khác nhau.
+**Nền tảng & điều phối:** K3s, Argo CD, Helm, Tailscale, Cloudflare Tunnel.
 
-**Thu thập & truyền tải dữ liệu:**
-- **Vector** — Đường ống dữ liệu hiệu năng cao (Rust), đóng vai trò load generator giả lập luồng sự kiện.
-- **Redpanda** — Message Broker tương thích Kafka API, không JVM, không ZooKeeper.
+**Thu thập & truyền tải dữ liệu:** Vector, Redpanda.
 
-**Xử lý luồng & lưu trữ:**
-- **RisingWave** — Streaming Database xử lý SQL thời gian thực (Rust), hỗ trợ Blue/Green Materialized View Swap nguyên tử.
-- **Apache Iceberg** — Table Format ACID, Time Travel, Schema Evolution trên Object Storage.
-- **MinIO** — Object Storage tương thích S3: lưu Iceberg data, RisingWave checkpoint, TLC Taxi Zone.
+**Xử lý luồng & lưu trữ:** RisingWave, Apache Iceberg, MinIO.
 
-**Giám sát:**
-- **VictoriaMetrics** — Time-Series Database tiêu thụ ít tài nguyên.
-- **Grafana** — Trực quan hóa 4 nhóm chỉ số: Streaming Perf, Resource, Cutover, Data Integrity.
+**Giám sát:** VictoriaMetrics, Grafana.
 
-**Dataset:**
-- **NYC Taxi & Limousine Commission (TLC) Trip Record Data** — <https://registry.opendata.aws/nyc-tlc-trip-records-pds/>.
+**Dataset:** [NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).

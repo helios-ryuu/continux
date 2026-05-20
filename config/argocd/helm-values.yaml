@@ -3,6 +3,8 @@
 # Profile: single-node lightweight install for continux-vps.
 
 global:
+  image:
+    tag: v3.4.2
   nodeSelector: { role: control-plane }
   tolerations:
     - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
@@ -31,8 +33,6 @@ dex:
   enabled: false
 
 applicationSet:
-  # Chart argo-cd 9.x luôn cài ApplicationSet controller; dự án chưa dùng
-  # ApplicationSet nên chỉ giới hạn tài nguyên ở mức nhẹ.
   resources:
     requests: { cpu: 25m, memory: 64Mi }
     limits: { memory: 128Mi }

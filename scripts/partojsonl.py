@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert NYC TLC Yellow Taxi Parquet rows into JSONL for the Vector pipeline."""
+"""Convert NYC TLC Yellow Taxi Parquet rows into JSONL for Vector."""
 
 from __future__ import annotations
 
@@ -7,9 +7,6 @@ import argparse
 import json
 from pathlib import Path
 from typing import Any
-
-import pyarrow.parquet as pq
-
 
 COLUMNS = {
     "tpep_pickup_datetime": "pickup_time",
@@ -27,6 +24,8 @@ def json_value(value: Any) -> Any:
 
 
 def convert(input_path: Path, output_path: Path, batch_size: int, limit: int | None) -> int:
+    import pyarrow.parquet as pq
+
     parquet = pq.ParquetFile(input_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

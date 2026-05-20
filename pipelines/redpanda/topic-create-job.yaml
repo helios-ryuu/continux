@@ -18,7 +18,7 @@ spec:
         role: data-plane
       containers:
         - name: rpk
-          image: redpandadata/redpanda:v26.1.1
+          image: redpandadata/redpanda:v26.1.8
           resources:
             requests: { cpu: 25m, memory: 64Mi }
             limits:   { cpu: 200m, memory: 128Mi }

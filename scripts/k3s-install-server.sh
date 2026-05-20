@@ -1,10 +1,10 @@
 #!/bin/bash
 # =================================================================
-# k3s-install-server.sh — Join thêm K3s server vào cluster hiện có
-# Chạy trên : continux-vps hoặc helios-wsl Ubuntu 24.04 (SETUP.md §5)
-# Mục đích  : Tạo cụm embedded etcd 3 server: imac + vps + helios-wsl
-# Cú pháp   : sudo bash k3s-install-server.sh <tailscale-ip-imac> <token> [node-name] [profile]
-# Profile   : edge | quorum
+# k3s-install-server.sh - Join a K3s server to the existing cluster.
+# Run on: continux-vps or helios-pc.
+# Purpose: create a 3-server embedded-etcd cluster: imac + continux-vps + helios-pc.
+# Usage: sudo bash k3s-install-server.sh <tailscale-ip-imac> <token> [node-name] [profile]
+# Profile: edge | quorum
 # =================================================================
 set -euo pipefail
 
@@ -15,26 +15,49 @@ info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 die()   { echo -e "${RED}[FAIL]${NC}  $*" >&2; exit 1; }
 
+usage() {
+    cat <<'EOF'
+Usage:
+  sudo bash scripts/k3s-install-server.sh <imac-ts-ip> <k3s-token> [node-name] [profile]
+
+Profiles:
+  edge    Join continux-vps as control/observability node.
+  quorum  Join helios-pc as quorum-only node.
+EOF
+}
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
+
 # ======================== KIỂM TRA ĐIỀU KIỆN ========================
 [ "$(id -u)" -ne 0 ] && die "Chạy với sudo: sudo bash $0 <imac-ip> <token> [node-name] [profile]"
 
-command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem SETUP.md §4."
+command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem SETUP.md §3."
 tailscale status >/dev/null 2>&1    || die "Tailscale chưa kết nối. Chạy: sudo tailscale up"
 
 # ======================== ĐỌC THAM SỐ ========================
 IMAC_IP="${1:-}"
 K3S_TOKEN="${2:-}"
-NODE_NAME="${3:-$(hostname)}"
+HOSTNAME_RAW="$(hostname)"
+NODE_NAME="${3:-$HOSTNAME_RAW}"
 PROFILE="${4:-}"
 
+if [ "$NODE_NAME" = "Helios-PC" ]; then
+    NODE_NAME="helios-pc"
+fi
+
 if [ -z "$IMAC_IP" ]; then
-    read -r -p "$(echo -e "${YELLOW}Tailscale IP của continux-imac (100.x.x.x): ${NC}")" IMAC_IP
+    read -r -p "$(echo -e "${YELLOW}Tailscale IP của imac (100.x.x.x): ${NC}")" IMAC_IP
 fi
 if [ -z "$K3S_TOKEN" ]; then
     read -r -p "$(echo -e "${YELLOW}Node join token (từ k3s-install-server-init.sh): ${NC}")" K3S_TOKEN
 fi
 if [ -z "$NODE_NAME" ]; then
-    read -r -p "$(echo -e "${YELLOW}Node name (vd: continux-vps hoặc helios-wsl): ${NC}")" NODE_NAME
+    read -r -p "$(echo -e "${YELLOW}Node name (vd: continux-vps hoặc helios-pc): ${NC}")" NODE_NAME
 fi
 
 [[ -z "$IMAC_IP" || -z "$K3S_TOKEN" || -z "$NODE_NAME" ]] && die "Thiếu IP, token hoặc node-name."
@@ -67,7 +90,7 @@ read -r -p "$(echo -e "${YELLOW}Tiếp tục cài đặt? [y/N]${NC} ")" confirm
 [[ "${confirm,,}" == "y" ]] || { info "Đã huỷ."; exit 0; }
 
 # ======================== KIỂM TRA KẾT NỐI ========================
-info "Kiểm tra ping đến continux-imac..."
+info "Kiểm tra ping đến imac..."
 ping -c 2 -W 3 "${IMAC_IP}" >/dev/null 2>&1 || die "Không ping được ${IMAC_IP}. Kiểm tra Tailscale."
 ok "Ping OK"
 
@@ -80,7 +103,6 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
     --disable=servicelb \
-    --disable=local-storage \
     --disable=metrics-server \
     --node-name="${NODE_NAME}" \
     --node-ip="${TAILSCALE_IP}" \

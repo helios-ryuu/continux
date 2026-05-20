@@ -15,7 +15,7 @@ spec:
         - matchExpressions:
             - key: kubernetes.io/hostname
               operator: In
-              values: [continux-imac]
+              values: [imac]
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

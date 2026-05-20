@@ -6,6 +6,8 @@ grafana:
 vmsingle:
   enabled: true
   spec:
+    image:
+      tag: v1.143.0
     retentionPeriod: "7d"
     storage:
       accessModes: ["ReadWriteOnce"]
@@ -20,6 +22,8 @@ vmsingle:
 vmagent:
   enabled: true
   spec:
+    image:
+      tag: v1.143.0
     nodeSelector: { role: control-plane }
     tolerations:
       - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
