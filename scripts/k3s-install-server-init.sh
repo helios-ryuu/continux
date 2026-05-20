@@ -74,8 +74,10 @@ ok "Cài đặt hoàn tất!"
 echo -e "${YELLOW}Node join token (copy để dùng ở bước tiếp theo):${NC}"
 echo -e "${CYAN}${NODE_TOKEN}${NC}"
 echo ""
-echo -e "${YELLOW}Lệnh join cho continux-vps:${NC}"
-echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token>"
+echo -e "${YELLOW}Lệnh join server #2 cho continux-vps:${NC}"
+echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> continux-vps edge"
+echo -e "${YELLOW}Lệnh join server #3 cho helios-wsl:${NC}"
+echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> helios-wsl quorum"
 echo -e "${BOLD}=================================================${NC}"
 
 # ======================== VERIFY ========================

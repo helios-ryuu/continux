@@ -3,7 +3,7 @@
 > **Đề tài:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
 > **Khoảng thời gian:** 05/04/2026 → 31/05/2026 (≈ 8 tuần).
 > **Mốc tài liệu (document freeze):** 19/04/2026 — toàn bộ tài liệu đề cương, ARCHITECTURE, TIMELINE phải được chốt với GVHD trước ngày này.
-> **Cập nhật tiến độ:** 20/05/2026 — M3 hoàn tất; SETUP §10 hoàn tất: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL, Taxi Zone đã upload MinIO, Vector đã sync an toàn ở `replicas: 0` và scale thủ công lên `1` chạy ổn định vào Redpanda.
+> **Cập nhật tiến độ:** 20/05/2026 — M3 đang được gia cố thêm server #3 quorum (`helios-wsl`); SETUP §10 hoàn tất: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL, Taxi Zone đã upload MinIO, Vector đã sync an toàn ở `replicas: 0` và scale thủ công lên `1` chạy ổn định vào Redpanda.
 > **Deadline cuối cùng:** 31/05/2026 — nộp báo cáo + demo hệ thống.
 
 ---
@@ -14,7 +14,7 @@
 - **Gối đầu (overlap) giữa các giai đoạn:** giai đoạn sau bắt đầu 2–3 ngày trước khi giai đoạn trước kết thúc, nhằm hấp thụ rủi ro và tận dụng thời gian chờ (verify, stress test).
 - **Hai luồng song song ở cuối:** từ 18/05, luồng triển khai/thực nghiệm và luồng viết báo cáo chạy đồng thời — kết quả đo đến đâu, viết Chương 4 đến đó.
 - **Phân công:** Sỹ (23521367) đảm nhận toàn bộ công việc chính; Nam (23520982) hỗ trợ một số nhiệm vụ cụ thể (chi tiết trong [ARCHITECTURE.md](./ARCHITECTURE.md)).
-- **Máy phụ trợ:** `nammn` (Ryzen 5 7640HS, 32 GB DDR5, WSL2 Ubuntu 24.04) và `helios` (i5-12500H, 16 GB DDR5, WSL2 Ubuntu 24.04) — chỉ bật làm K3s worker trong Giai đoạn 4–5 khi cần burst hoặc stress test throughput cao (xem [SETUP.md §5.6](./SETUP.md)).
+- **Quorum & máy phụ trợ:** `helios-wsl` (i5-12500H, 16 GB DDR5, WSL2 Ubuntu 24.04) là K3s server #3 quorum-only để cụm embedded etcd có quorum `2/3`; `nammn` (Ryzen 5 7640HS, 32 GB DDR5, WSL2 Ubuntu 24.04) chỉ bật làm K3s worker trong Giai đoạn 4–5 khi cần burst hoặc stress test throughput cao (xem [SETUP.md §5.4-§5.7](./SETUP.md)).
 
 ---
 
@@ -24,7 +24,7 @@
 |----|-----|------|----------------------|------------|
 | M1 | **Chốt scope & đề cương với GVHD** | 08/04/2026 | GVHD phê duyệt phạm vi, bài toán, kiến trúc sơ bộ | ✓ Xong |
 | M2 | **Document Freeze** | 19/04/2026 | PROPOSE, ARCHITECTURE, TIMELINE đã review | ✓ Xong |
-| M3 | **Cluster & hạ tầng nền sẵn sàng** | 21/05/2026 | K3s + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | ✓ Xong |
+| M3 | **Cluster & hạ tầng nền sẵn sàng** | 21/05/2026 | K3s 3 server + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | Đang gia cố quorum |
 | M4 | **Pipeline Blue (MV v1) hoạt động end-to-end** | 23/05/2026 | Vector → Redpanda → RisingWave (JOIN Zone) → Iceberg chạy tối thiểu 2h không lỗi | Đang làm |
 | M5 | **Blue/Green Swap qua GitOps thành công** | 27/05/2026 | Commit SQL mới → ArgoCD sync → Atomic Swap 0s downtime, không mất/trùng dữ liệu | Chưa làm |
 | M6 | **Bộ số liệu thực nghiệm hoàn chỉnh** | 29/05/2026 | 4 nhóm chỉ số đã đo, tổng hợp bảng biểu/biểu đồ | Chưa làm |
@@ -50,7 +50,7 @@
 | # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
 |---|-----------|---------|----------|-----------|---------|
 | 2.0 | Tạo DigitalOcean Droplet ($12/mo, nâng lên $24/mo khi cần) + cài Tailscale trên iMac và Droplet, lập mesh VPN | 13/04 | 14/04 | Sỹ | ✓ |
-| 2.1 | Cài K3s cluster 2 node — `continux-imac` (iMac, server #1) + `continux-vps` (Droplet, server #2) qua Tailscale; `kubectl`, Helm | 14/04 | 16/04 | Sỹ | ✓ |
+| 2.1 | Cài K3s cluster 3 server — `continux-imac` (server #1), `continux-vps` (server #2), `helios-wsl` (server #3 quorum-only) qua Tailscale; `kubectl`, Helm | 14/04 | 21/05 | Sỹ | Đang cập nhật để có quorum `2/3` |
 | 2.2 | Deploy Argo CD lên `continux-vps` | 18/05 | 18/05 | Sỹ | ✓ Helm release `argocd`, chart `argo-cd-9.5.14`, app `v3.4.2` |
 | 2.3 | Cấu hình GitOps repo cho Argo CD | 18/05 | 19/05 | Sỹ | ✓ Đăng ký repo, clone repo trên `continux-imac`, apply App-of-Apps |
 | 2.4 | Deploy MinIO + tạo bucket `iceberg-data`, `rw-checkpoint`, `tlc-zone` | 18/05 | 19/05 | Sỹ | ✓ |
@@ -127,12 +127,12 @@ Mốc            | M1─────M2──────────────
 
 | Rủi ro | Tác động | Phương án giảm nhẹ |
 |--------|----------|---------------------|
-| RAM `continux-imac` 8 GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → bật `nammn` (32 GB) hoặc `helios` (16 GB) qua WSL2 làm K3s worker theo [SETUP.md §5.6](./SETUP.md) |
+| RAM `continux-imac` 8 GB không đủ cho RisingWave + Redpanda + MinIO | Cao | Giới hạn chặt memory trong Helm values (xem [SETUP.md §8](./SETUP.md)); giảm throughput Vector; nếu vẫn OOM → bật `nammn` (32 GB) qua WSL2 làm K3s worker theo [SETUP.md §5.7](./SETUP.md). `helios-wsl` giữ quorum, không chạy workload mặc định |
 | RAM `continux-vps` 2GB không đủ khi chạy đồng thời ArgoCD + VM + Grafana | Trung bình | Dùng profile values nhẹ trong `config/argocd/helm-values.yaml`, giới hạn retention VictoriaMetrics; nếu vẫn thiếu RAM thì resize lên $24/mo (2 vCPU, 4 GB RAM) |
 | Tailscale rớt session do NAT modem tại nhà | Trung bình | Enable `--ssh` + systemd unit autorestart; thêm IPv6 fallback |
 | Droplet hết băng thông 2 TB/mo | Thấp | Giữ traffic chính trong Tailscale; Grafana public chỉ cho GVHD khi demo |
 | Iceberg Sink gặp sự cố tương thích | Trung bình | Fallback sang Parquet file trên MinIO, vẫn giữ kiến trúc Blue/Green |
 | Backfill Green chậm hơn dự kiến → Consumer Lag không về 0 | Trung bình | Giảm tải Vector trong lúc backfill; điều chỉnh parallelism của MV |
 | Lịch triển khai bị nén sau 18/05 | Cao | Ưu tiên demo path tối thiểu: MinIO → Redpanda → RisingWave → Blue/Green swap; giảm số lần stress test nếu thiếu thời gian |
-| Version K3s lệch giữa `continux-imac` và `continux-vps` | Trung bình | Nâng `continux-vps` lên cùng kênh stable trước khi triển khai thêm workload nặng |
+| Version K3s lệch giữa `continux-imac`, `continux-vps`, `helios-wsl` | Trung bình | Nâng cả ba K3s server lên cùng kênh stable trước khi triển khai workload nặng |
 | Mất dữ liệu đo do K3s restart | Trung bình | VictoriaMetrics lưu trữ persistent volume trên MinIO |

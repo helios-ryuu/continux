@@ -10,9 +10,9 @@
 
 ## TÓM TẮT (Abstract)
 
-**Tiếng Việt.** Báo cáo trình bày một kiến trúc Data Lakehouse thời gian thực triển khai trên cụm Kubernetes nhẹ (K3s) hai node, hướng tới hệ thống giao thông thông minh (ITS). Điểm khác biệt so với các công trình gần đây — đặc biệt là Ursa (VLDB 2025) — là tập trung giải bài toán **Zero-Downtime** khi cập nhật logic phân tích luồng: nhóm đề xuất cơ chế **Blue/Green Materialized View Swap ở cấp engine** kết hợp **GitOps qua ArgoCD**. Dữ liệu thử nghiệm là NYC TLC Trip Record; luồng sự kiện được mô phỏng bằng Vector, đưa qua Redpanda, xử lý bởi RisingWave (JOIN với bảng TLC Taxi Zone lưu trên MinIO) và ghi xuống Apache Iceberg. Hệ thống được đánh giá trên bốn nhóm chỉ số: Cutover & GitOps, Data Integrity & Exactly-Once, Streaming Performance, và Resource Utilization.
+**Tiếng Việt.** Báo cáo trình bày một kiến trúc Data Lakehouse thời gian thực triển khai trên cụm Kubernetes nhẹ (K3s) ba server, hướng tới hệ thống giao thông thông minh (ITS). Điểm khác biệt so với các công trình gần đây — đặc biệt là Ursa (VLDB 2025) — là tập trung giải bài toán **Zero-Downtime** khi cập nhật logic phân tích luồng: nhóm đề xuất cơ chế **Blue/Green Materialized View Swap ở cấp engine** kết hợp **GitOps qua ArgoCD**. Dữ liệu thử nghiệm là NYC TLC Trip Record; luồng sự kiện được mô phỏng bằng Vector, đưa qua Redpanda, xử lý bởi RisingWave (JOIN với bảng TLC Taxi Zone lưu trên MinIO) và ghi xuống Apache Iceberg. Hệ thống được đánh giá trên bốn nhóm chỉ số: Cutover & GitOps, Data Integrity & Exactly-Once, Streaming Performance, và Resource Utilization.
 
-**English.** This report presents a real-time Data Lakehouse architecture deployed on a lightweight two-node Kubernetes (K3s) cluster, targeting Intelligent Transportation Systems. The novelty with respect to recent work — notably Ursa (VLDB 2025) — is addressing **Zero-Downtime** algorithm upgrades for live streams via an in-engine **Blue/Green Materialized View Swap** coordinated by **GitOps (ArgoCD)**. Using the NYC TLC Trip Record dataset, events are simulated by Vector, transported through Redpanda, joined with the TLC Taxi Zone lookup (MinIO) inside RisingWave, and persisted to Apache Iceberg. Four metric families are reported: Cutover & GitOps, Data Integrity & Exactly-Once, Streaming Performance, Resource Utilization.
+**English.** This report presents a real-time Data Lakehouse architecture deployed on a lightweight three-server Kubernetes (K3s) cluster, targeting Intelligent Transportation Systems. The novelty with respect to recent work — notably Ursa (VLDB 2025) — is addressing **Zero-Downtime** algorithm upgrades for live streams via an in-engine **Blue/Green Materialized View Swap** coordinated by **GitOps (ArgoCD)**. Using the NYC TLC Trip Record dataset, events are simulated by Vector, transported through Redpanda, joined with the TLC Taxi Zone lookup (MinIO) inside RisingWave, and persisted to Apache Iceberg. Four metric families are reported: Cutover & GitOps, Data Integrity & Exactly-Once, Streaming Performance, Resource Utilization.
 
 **Từ khoá / Keywords:** Data Lakehouse, Streaming Database, RisingWave, Apache Iceberg, Redpanda, GitOps, ArgoCD, Blue/Green Deployment, Zero-Downtime, Exactly-Once, Kubernetes, K3s, Intelligent Transportation Systems.
 
@@ -65,20 +65,20 @@ Hệ thống giao thông thông minh (ITS) sản sinh dữ liệu luồng với 
 
 ## 1.3. Mục tiêu nghiên cứu
 
-1. Xây dựng kiến trúc Lakehouse streaming JVM-free trên cụm K3s 2 node.
+1. Xây dựng kiến trúc Lakehouse streaming JVM-free trên cụm K3s 3 server.
 2. Đề xuất & hiện thực cơ chế **Blue/Green Materialized View Swap** cấp engine (RisingWave) kết hợp GitOps (ArgoCD).
 3. Đánh giá định lượng trên bốn nhóm chỉ số: Cutover, Data Integrity, Streaming Performance, Resource Utilization.
 
 ## 1.4. Đối tượng & Phạm vi
 
 - **Đối tượng:** kiến trúc xử lý luồng cho dữ liệu giao thông, cụ thể là NYC TLC Trip Record.
-- **Phạm vi:** cụm K3s 4 máy — `continux-imac` (iMac Ubuntu 24.04, 8 GB RAM) server #1 data plane; `continux-vps` (DigitalOcean Droplet $12→$24/mo, 2→4 GB RAM) server #2 observability/control plane; `helios` (i5-12500H, 16 GB, WSL2) và `nammn` (Ryzen 5 7640HS, 32 GB, WSL2) làm K3s worker khi cần burst; nối qua Tailscale overlay VPN; stack JVM-free; Built-in Hosted Catalog RisingWave cho Iceberg; không multi-tenant, không ML pipeline (xem [ARCHITECTURE.md §8](./ARCHITECTURE.md)).
+- **Phạm vi:** cụm K3s 4 máy — `continux-imac` (iMac Ubuntu 24.04, 8 GB RAM) server #1 data plane; `continux-vps` (DigitalOcean Droplet $12→$24/mo, 2→4 GB RAM) server #2 observability/control plane; `helios-wsl` (i5-12500H, 16 GB, WSL2) server #3 quorum-only; `nammn` (Ryzen 5 7640HS, 32 GB, WSL2) làm K3s worker khi cần burst; nối qua Tailscale overlay VPN; stack JVM-free; Built-in Hosted Catalog RisingWave cho Iceberg; không multi-tenant, không ML pipeline (xem [ARCHITECTURE.md §8](./ARCHITECTURE.md)).
 
 ## 1.5. Câu hỏi nghiên cứu / Giả thuyết
 
 - **H1:** Có thể đạt Zero-Downtime (downtime ≤ 1s, mục tiêu 0s) khi hoán đổi MV Blue/Green cấp engine không?
 - **H2:** Exactly-Once Semantics có được duy trì xuyên suốt quá trình swap xuống tầng Iceberg Sink không?
-- **H3:** Consumer Lag có được kiểm soát ≤ 2s ở tải mục tiêu 10k events/s trên K3s 2 node không?
+- **H3:** Consumer Lag có được kiểm soát ≤ 2s ở tải mục tiêu 10k events/s trên cụm K3s 3 server không?
 
 ## 1.6. Đóng góp của đề tài
 
@@ -219,7 +219,7 @@ Bốn dashboard Grafana tương ứng bốn nhóm chỉ số — xem `dashboards
 
 - **Phần cứng `continux-imac`:** iMac19,2 chạy Ubuntu Server 24.04.4 LTS · Intel i5-8500 (6 cores @ 4.1 GHz) · 8 GB DDR4 · 200 GB SSD · LAN 1 Gbps.
 - **Phần cứng `continux-vps`:** DigitalOcean Droplet (Singapore `sgp1`) · khởi đầu gói **$12/mo** (1 vCPU, 2 GB RAM, 50 GB SSD, 2 TB/mo transfer) · nâng lên **$24/mo** (2 vCPU, 4 GB RAM, 80 GB SSD) khi cần · Ubuntu 24.04 LTS.
-- **Liên kết mạng:** Tailscale 1.98.2+ mesh VPN (WireGuard) — K3s dùng `tailscale0` làm Flannel interface; độ trễ quan trắc giữa hai node: ~45–70 ms (VN ↔ SGP1).
+- **Liên kết mạng:** Tailscale 1.98.2+ mesh VPN (WireGuard) — K3s dùng `tailscale0` làm Flannel interface; độ trễ quan trắc giữa các server chính khoảng ~45–70 ms cho tuyến VN ↔ SGP1.
 - **CLI:** kubectl/helm/argocd/rpk/mc/psql cài trực tiếp trên `continux-imac`.
 - **Phần mềm:** K3s v1.35.4+k3s1 · Helm v4.2.0 · Argo CD v3.4.2 (Helm chart `argo-cd` 9.5.14) · MinIO RELEASE.2025-08-13 · Redpanda v26.1 · RisingWave v2.4 · Vector 0.45 · VictoriaMetrics 1.110 · Grafana 11.6.
 
@@ -257,7 +257,7 @@ So sánh với khoảng trống Ursa: đề tài bổ sung tầng vận hành Ze
 ## 5.2. Hạn chế
 
 - Tài nguyên phần cứng giới hạn (`continux-imac` 8 GB + `continux-vps` 4 GB = 12 GB RAM tổng) — không thử nghiệm được tải trên ~10k events/s; mục tiêu thực tế là 5k events/s (xem NFR-01).
-- Độ trễ xuyên quốc gia giữa hai node qua Tailscale (~50 ms) làm tăng nhẹ latency của metric scrape VictoriaMetrics — không ảnh hưởng data plane (nằm trọn trên `continux-imac`).
+- Độ trễ xuyên quốc gia giữa `continux-imac` và `continux-vps` qua Tailscale (~50 ms) làm tăng nhẹ latency của metric scrape VictoriaMetrics — không ảnh hưởng data plane (nằm trọn trên `continux-imac`).
 - Chưa test multi-tenant, chưa áp dụng cho IoT data nguồn thật.
 - Dataset mô phỏng; throughput thực tế của ITS có thể khác.
 - Không đo trên mạng WAN/multi-region.
@@ -271,7 +271,7 @@ So sánh với khoảng trống Ursa: đề tài bổ sung tầng vận hành Ze
 
 ## 5.4. Kết luận
 
-Báo cáo đã đề xuất, hiện thực hoá và đánh giá một kiến trúc Data Lakehouse thời gian thực lấp đầy khoảng trống vận hành của Ursa (VLDB 2025). **Blue/Green Materialized View Swap kết hợp GitOps** là đóng góp chính, chứng minh tính khả thi ngay trên cụm K3s 2 node với tài nguyên khiêm tốn. Kết quả bốn nhóm chỉ số (sẽ cập nhật ở bản final) kỳ vọng khẳng định ba giả thuyết H1–H3.
+Báo cáo đã đề xuất, hiện thực hoá và đánh giá một kiến trúc Data Lakehouse thời gian thực lấp đầy khoảng trống vận hành của Ursa (VLDB 2025). **Blue/Green Materialized View Swap kết hợp GitOps** là đóng góp chính, chứng minh tính khả thi ngay trên cụm K3s 3 server với tài nguyên khiêm tốn. Kết quả bốn nhóm chỉ số (sẽ cập nhật ở bản final) kỳ vọng khẳng định ba giả thuyết H1–H3.
 
 ---
 

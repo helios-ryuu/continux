@@ -1,8 +1,8 @@
 #!/bin/bash
 # =================================================================
-# k3s-install.sh — Cài K3s agent (worker) cho helios hoặc nammn
-# Chạy trên : helios hoặc nammn (WSL2 Ubuntu 24.04, bước §5.6 SETUP.md)
-# Mục đích  : Join máy phụ trợ vào cụm K3s làm worker khi cần burst
+# k3s-install.sh — Cài K3s agent (worker) cho nammn hoặc worker phụ trợ
+# Chạy trên : nammn (WSL2 Ubuntu 24.04, bước §5.7 SETUP.md)
+# Mục đích  : Join worker phụ trợ vào cụm K3s khi cần burst
 # Cú pháp   : sudo bash k3s-install.sh <tailscale-ip-imac> <token> [node-name]
 #             node-name mặc định lấy từ $(hostname) nếu không truyền
 # Gỡ worker : từ continux-imac chạy k3s-check.sh rồi drain + delete node
@@ -34,6 +34,10 @@ tailscale status >/dev/null 2>&1 || die "Tailscale chưa kết nối. Chạy: su
 IMAC_IP="${1:-}"
 K3S_TOKEN="${2:-}"
 NODE_NAME="${3:-$(hostname)}"
+
+if [ "$NODE_NAME" = "helios-wsl" ] || [ "$NODE_NAME" = "helios" ] || [ "$(hostname)" = "helios-wsl" ] || [ "$(hostname)" = "helios" ]; then
+    die "helios-wsl là K3s server #3 quorum-only. Dùng: sudo bash scripts/k3s-install-server.sh <imac-ip> <token> helios-wsl quorum"
+fi
 
 if [ -z "$IMAC_IP" ]; then
     read -r -p "$(echo -e "${YELLOW}Tailscale IP của continux-imac (100.x.x.x): ${NC}")" IMAC_IP

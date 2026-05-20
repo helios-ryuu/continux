@@ -2,14 +2,17 @@
 
 ## 0. Tổng quan hạ tầng
 
-### 0.1. Hai node chính của cluster
+### 0.1. Ba K3s server chính của cluster
 
 | Vai trò | Máy | Cấu hình | OS | Vị trí mạng |
 |---------|-----|----------|----|-------------|
 | `continux-imac` (K3s **server #1**) | iMac19,2 | Intel i5-8500, 6 cores, 8 GB DDR4, 200 GB SSD | **Ubuntu Server 24.04.4 LTS** (đã cài sẵn) | LAN nhà — sau NAT |
 | `continux-vps` (K3s **server #2**) | DigitalOcean Droplet — gói **$12/mo** (nâng lên **$24/mo** khi cần) | 1 vCPU, 2 GB RAM, 50 GB SSD, 2 TB transfer → 2 vCPU, 4 GB RAM, 80 GB SSD, 4 TB transfer | **Ubuntu 24.04 LTS** | Public IPv4/IPv6 |
+| `helios-wsl` (K3s **server #3**) | Laptop HP Helios — WSL2 | Intel i5-12500H, 16 GB DDR5 | **WSL2 Ubuntu 24.04** trên Windows 11 | Tailscale — bật khi cần quorum |
 
 > **Chiến lược chọn gói:** Bắt đầu với gói **$12/mo** (1 vCPU, 2 GB RAM) — đủ RAM để chạy ArgoCD + VictoriaMetrics hoặc Grafana riêng lẻ trong giai đoạn phát triển. Nâng lên **$24/mo** (2 vCPU, 4 GB RAM) khi cần chạy đầy đủ cả ba service cùng lúc liên tục (~800 MB + ~512 MB + ~256 MB = ~1.6 GB). Việc resize Droplet trên DigitalOcean chỉ mất 1–2 phút và giữ nguyên IP, không cần cấu hình lại cluster.
+>
+> **Lý do cần server #3:** embedded etcd với 2 server cần quorum `2/2`; chỉ cần một peer chập chờn là K3s API có thể timeout. Thêm `helios-wsl` làm server #3 tạo quorum `2/3`, giúp `continux-imac` + `continux-vps` vẫn sống khi một peer tạm lỗi.
 >
 > **Lý do iMac làm workflow chính (không phải droplet):** iMac có RAM gấp đôi (8 GB) và SSD 200 GB — đủ chỗ cho data plane nặng (RisingWave + MinIO + Redpanda). Dữ liệu Iceberg nằm trên iMac giúp tránh chi phí egress từ droplet.
 
@@ -28,25 +31,30 @@
 │  ArgoCD ── VictoriaMetrics ── Grafana                                        │
 │  (Cloudflare Tunnel, điều phối GitOps, dashboard giám sát)                   │
 └─────────────────────────────────────────────────────────────────────────────┘
+                              │  Tailscale overlay / etcd peer 2379-2380
+                              ▼
+      ┌──────────── helios-wsl (WSL2, K3s server #3, quorum) ────────────┐
+      │  Không chạy workload mặc định; chỉ giữ etcd quorum 2/3           │
+      │  label: role=quorum · taint: dedicated=quorum:NoSchedule         │
+      └──────────────────────────────────────────────────────────────────┘
                               │  Tailscale (chỉ khi cần burst)
-                  ┌───────────┴───────────┐
-                  ▼                       ▼
-      ┌─── helios (WSL2, 16 GB) ──┐  ┌─── nammn (WSL2, 32 GB) ──┐
-      │  K3s worker phụ trợ       │  │  K3s worker phụ trợ        │
-      │  (bật khi cần)            │  │  (bật khi OOM hoặc burst)  │
-      └───────────────────────────┘  └────────────────────────────┘
+                              ▼
+                  ┌─── nammn (WSL2, 32 GB) ──┐
+                  │  K3s worker phụ trợ      │
+                  │  (bật khi OOM hoặc burst) │
+                  └───────────────────────────┘
 ```
 
-### 0.3. Hai node phụ trợ (WSL2 Ubuntu 24.04 — bật khi cần)
+### 0.3. Node WSL2 và quy ước bật/tắt
 
 | Node | Máy chủ | CPU | RAM | GPU rời | Vai trò |
 |------|---------|-----|-----|---------|---------|
 | **`nammn`** | Laptop Nam — Windows 11 (SINISTER) | AMD Ryzen 5 7640HS — 8C/16T, boost 4.3 GHz | 32 GB DDR5 5600 MHz (2×16 GB Hynix) | NVIDIA GeForce RTX 3050 6 GB | K3s worker burst — bật khi `continux-imac` OOM hoặc cần > 10 k events/s |
-| **`helios`** | Laptop Helios — Windows 11 (HELIOS-PC) | Intel Core i5-12500H — 12C/16T, max 4.5 GHz | 16 GB DDR5 4800 MHz (2×8 GB Samsung) | NVIDIA GeForce RTX 3050 Ti 4 GB | K3s worker dự phòng — bật khi thực nghiệm song song hoặc cần node bổ sung |
+| **`helios-wsl`** | Laptop Helios — Windows 11 (HELIOS-PC) | Intel Core i5-12500H — 12C/16T, max 4.5 GHz | 16 GB DDR5 4800 MHz (2×8 GB Samsung) | NVIDIA GeForce RTX 3050 Ti 4 GB | K3s server #3 — quorum-only, không nhận workload mặc định |
 
-Cả hai máy cài **WSL2 Ubuntu 24.04** — K3s agent chạy trong WSL2, join cluster qua Tailscale (xem §5.6).
+Hai máy đều dùng **WSL2 Ubuntu 24.04** và join cluster qua Tailscale.
 
-> **Khi nào bật:** chỉ trong Giai đoạn 4–5 (stress test, thực nghiệm). Không bật thường xuyên để tránh overhead etcd và tiết kiệm điện.
+> **Quy ước:** `helios-wsl` nên bật trước khi chạy workload nặng hoặc Vector full ingest để cụm có quorum `2/3`. `nammn` vẫn là worker burst, chỉ bật khi cần thêm tài nguyên data plane.
 
 ### 0.4. Ký hiệu máy dùng trong tài liệu này
 
@@ -54,9 +62,9 @@ Cả hai máy cài **WSL2 Ubuntu 24.04** — K3s agent chạy trong WSL2, join c
 |---------|-----|----------------------|
 | **`[continux-imac]`** | iMac Ubuntu 24.04 | Chạy lệnh trực tiếp trên data plane — nơi mọi quản trị cluster diễn ra |
 | **`[continux-vps]`** | DigitalOcean Droplet Ubuntu 24.04 | Chạy lệnh trên observability/control plane |
-| **`[cả hai máy]`** | `continux-imac` + `continux-vps` | Chạy lần lượt trên cả hai node chính |
-| **`[helios]`** | Laptop Helios — WSL2 Ubuntu 24.04 | Chạy khi `helios` đang là K3s worker (§5.6) |
-| **`[nammn]`** | Laptop Nam — WSL2 Ubuntu 24.04 | Chạy khi `nammn` đang là K3s worker (§5.6) |
+| **`[ba server]`** | `continux-imac` + `continux-vps` + `helios-wsl` | Chạy lần lượt trên ba K3s server |
+| **`[helios-wsl]`** | Laptop Helios — WSL2 Ubuntu 24.04 | Chạy khi `helios-wsl` làm K3s server #3 quorum (§5.4) |
+| **`[nammn]`** | Laptop Nam — WSL2 Ubuntu 24.04 | Chạy khi `nammn` đang là K3s worker (§5.7) |
 | **`[local]`** | Bất kỳ máy nào trong nhóm | Thao tác cục bộ: git push, SSH vào cluster |
 
 ### 0.5. Liên kết mạng (Tailscale)
@@ -92,29 +100,29 @@ Xem tài liệu đầy đủ cho tất cả script (cú pháp, argument, flags, 
 ## 2. Bản đồ 10 bước (Quickstart)
 
 ```
-1. Chuẩn bị hai máy (iMac Ubuntu + Droplet Ubuntu) & bật SSH khoá công khai
-2. Cài Tailscale trên hai máy, nối chúng vào một tailnet
+1. Chuẩn bị ba K3s server (iMac Ubuntu + Droplet Ubuntu + helios-wsl) & bật SSH/kết nối Tailscale
+2. Cài Tailscale trên ba server, nối chúng vào một tailnet
 3. Cài K3s server #1 trên iMac (cluster-init, dùng Tailscale IP làm node IP)
 4. Join Droplet làm K3s server #2 qua Tailscale
-5. Cài CLI trên continux-imac và continux-vps
-6. Cài Argo CD lên continux-vps và kết nối repo GitOps
-7. Deploy hạ tầng: MinIO → Redpanda → RisingWave (continux-imac)
-8. Deploy observability: VictoriaMetrics + Grafana (continux-vps)
-9. Chuẩn bị dataset NYC TLC + cấu hình Vector
-10. Apply SQL Blue + Iceberg Sink → verify end-to-end
+5. Join helios-wsl làm K3s server #3 quorum-only
+6. Cài CLI trên continux-imac và continux-vps
+7. Cài Argo CD lên continux-vps và kết nối repo GitOps
+8. Deploy hạ tầng: MinIO → Redpanda → RisingWave (continux-imac)
+9. Deploy observability: VictoriaMetrics + Grafana (continux-vps)
+10. Chuẩn bị dataset + Vector, rồi apply SQL Blue + Iceberg Sink
 ```
 
 Nếu đủ 10 bước, Grafana dashboard cho Consumer Lag ≤ 2s, và `SELECT COUNT(*) FROM mv_zone_stats` trả về số dương và tăng liên tục.
 
 ---
 
-## 3. Chuẩn bị hai máy
+## 3. Chuẩn bị ba K3s server
 
 ### 3.1. iMac `continux-imac` (Ubuntu 24.04 đã cài)
 
-Đã có `helios@helios-imac-ubuntu` chạy sẵn. Thêm các bước sau:
+Đã có Ubuntu Server chạy sẵn. Thêm các bước sau:
 
-> **Thực thi trên:** `continux-vps`
+> **Thực thi trên:** `continux-imac`
 
 ```bash
 # Cập nhật hệ thống
@@ -190,13 +198,64 @@ sudo ufw allow from 10.42.0.0/16 to any #pods
 sudo ufw allow from 10.43.0.0/16 to any #services
 ```
 
+### 3.3. Laptop `helios-wsl` WSL2 Ubuntu 24.04 (server #3 quorum-only)
+
+`helios-wsl` là K3s server #3 để giữ quorum etcd `2/3`. Node này có taint `dedicated=quorum:NoSchedule`, không nhận workload ứng dụng mặc định.
+
+> **Thực thi trên:** Windows PowerShell (Admin)
+
+```powershell
+wsl --install -d Ubuntu-24.04
+wsl --set-default-version 2
+wsl -d Ubuntu-24.04
+```
+
+Nếu WSL2 chưa bật systemd, tạo `/etc/wsl.conf` trong Ubuntu:
+
+> **Thực thi trên:** `helios-wsl`
+
+```bash
+sudo tee /etc/wsl.conf >/dev/null <<'EOF'
+[boot]
+systemd=true
+EOF
+```
+
+Sau đó khởi động lại WSL:
+
+> **Thực thi trên:** Windows PowerShell
+
+```powershell
+wsl --shutdown
+wsl -d Ubuntu-24.04
+```
+
+Chuẩn bị OS:
+
+> **Thực thi trên:** `helios-wsl`
+
+```bash
+sudo apt update && sudo apt -y upgrade
+sudo apt install -y curl wget git ca-certificates jq netcat-openbsd
+
+sudo swapoff -a
+sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
+
+echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-k3s.conf
+sudo sysctl --system
+
+sudo hostnamectl set-hostname helios-wsl || sudo sh -c 'echo helios-wsl > /etc/hostname'
+```
+
+> **Lưu ý vận hành:** vì đây là WSL2, giữ session Ubuntu chạy trong Windows Terminal khi muốn `helios-wsl` tham gia quorum. Không sleep/hibernate Windows trong lúc chạy ingest hoặc benchmark.
+
 ---
 
-## 4. Tailscale mesh — nối iMac ↔ Droplet
+## 4. Tailscale mesh — nối ba K3s server
 
-### 4.1. Cài Tailscale trên cả hai máy
+### 4.1. Cài Tailscale trên ba server
 
-> **Thực thi trên:** `cả hai máy` — lần lượt trên `continux-imac` rồi `continux-vps`
+> **Thực thi trên:** `ba server` — lần lượt trên `continux-imac`, `continux-vps`, `helios-wsl`
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
@@ -204,25 +263,26 @@ curl -fsSL https://tailscale.com/install.sh | sh
 
 ### 4.2. Đăng ký vào cùng một tailnet
 
-> **Thực thi trên:** `cả hai máy` — lần lượt trên `continux-imac` rồi `continux-vps`
+> **Thực thi trên:** `ba server` — lần lượt trên `continux-imac`, `continux-vps`, `helios-wsl`
 
 ```bash
 sudo tailscale up
 # Đăng nhập bằng Google/GitHub trên URL được in ra
 ```
 
-Verify ở cả hai máy:
+Verify ở ba server:
 
-> **Thực thi trên:** `cả hai máy`
+> **Thực thi trên:** `ba server`
 
 ```bash
 tailscale status
 # Kết quả mong đợi:
 # 100.x.x.x    continux-imac             username@  linux    -
 # 100.x.x.x    continux-vps              username@  linux    active; direct [<IPv6>]:41641, tx 1187744 rx 729784
+# 100.x.x.x    helios-wsl                username@  linux    active; relay "..."
 ```
 
-Ghi lại hai IP Tailscale — ta sẽ dùng làm **node IP của K3s** ở bước 5.
+Ghi lại ba IP Tailscale — ta sẽ dùng làm **node IP của K3s** ở bước 5.
 
 ### 4.3. Kiểm tra kết nối
 
@@ -236,9 +296,23 @@ ping -c 3 continux-imac     # Magic DNS giải IP tailscale
 
 ```bash
 ping -c 3 continux-vps
+ping -c 3 helios-wsl
 ```
 
-Nếu cả hai ping được thì mesh đã hoạt động.
+> **Thực thi trên:** `helios-wsl`
+
+```bash
+ping -c 3 continux-imac
+ping -c 3 continux-vps
+```
+
+Nếu cả ba server ping được thì mesh đã hoạt động. Trước khi join server #2/#3, kiểm tra thêm các port K3s/etcd qua Tailscale:
+
+```bash
+nc -vz <tailscale-ip-imac> 6443
+nc -vz <tailscale-ip-vps> 2380
+nc -vz <tailscale-ip-helios-wsl> 2380
+```
 
 ---
 
@@ -273,38 +347,70 @@ grep -qxF 'export KUBECONFIG=$HOME/.kube/config' ~/.bashrc \
   || echo 'export KUBECONFIG=$HOME/.kube/config' >> ~/.bashrc
 ```
 
-### 5.3. Cài K3s server #2 trên Droplet
+### 5.3. Join K3s server #2 trên Droplet
 
 > **Thực thi trên:** `continux-vps`
 
 [SCRIPTS.md — k3s-install-server.sh](./SCRIPTS.md#k3s-install-serversh)
 
-### 5.4. Gán label phân biệt vai trò cho hai node chính
+```bash
+sudo bash scripts/k3s-install-server.sh <tailscale-ip-imac> <node-token> continux-vps edge
+```
+
+### 5.4. Join `helios-wsl` làm K3s server #3 quorum-only
+
+> **Thực thi trên:** `helios-wsl`
+
+[SCRIPTS.md — k3s-install-server.sh](./SCRIPTS.md#k3s-install-serversh)
+
+```bash
+sudo bash scripts/k3s-install-server.sh <tailscale-ip-imac> <node-token> helios-wsl quorum
+```
+
+### 5.5. Gán label/taint theo vai trò cuối cùng
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-kubectl label node continux-imac workload=heavy role=data-plane
-kubectl label node continux-vps  workload=light role=control-plane
-kubectl taint node continux-vps  dedicated=edge:NoSchedule
-# Chỉ pod có toleration { key: dedicated, value: edge } mới chạy trên continux-vps
+kubectl label node continux-imac workload=heavy role=data-plane --overwrite
+
+kubectl label node continux-vps workload=light role=control-plane --overwrite
+kubectl taint node continux-vps dedicated=edge:NoSchedule --overwrite
+
+kubectl label node helios-wsl workload=quorum role=quorum --overwrite
+kubectl taint node helios-wsl dedicated=quorum:NoSchedule --overwrite
 ```
 
 Helm values sử dụng:
 - Workload nặng (MinIO, Redpanda, RisingWave, Vector) → `nodeSelector: { role: data-plane }`
 - Workload nhẹ (ArgoCD, VictoriaMetrics, Grafana) → `nodeSelector: { role: control-plane }` + `tolerations: [{key: dedicated, value: edge, effect: NoSchedule}]`
+- `helios-wsl` quorum-only → không đặt workload ứng dụng lên node này; chỉ DaemonSet/system pod được phép chạy nếu cần.
 
-### 5.5. Verify cụm 2 node chính
+### 5.6. Verify cụm 3 server và quorum `2/3`
 
 > **Thực thi trên:** `continux-imac`
 
 [SCRIPTS.md — k3s-check.sh](./SCRIPTS.md#k3s-checksh)
 
-### 5.6. Join node phụ trợ `helios` hoặc `nammn` (chỉ khi cần burst)
+```bash
+kubectl get nodes -o wide
+kubectl get nodes -l 'node-role.kubernetes.io/etcd' -o wide
+kubectl get nodes -l role=quorum -o wide
+kubectl get --raw='/readyz?verbose' | grep -E 'etcd|readyz|ok'
 
-Bật WSL2 Ubuntu 24.04 trên máy tương ứng, sau đó chạy:
+tailscale ping continux-vps
+tailscale ping helios-wsl
+nc -vz <tailscale-ip-vps> 2380
+nc -vz <tailscale-ip-helios-wsl> 2380
+```
 
-> **Thực thi trên:** `helios` hoặc `nammn` (WSL2 Ubuntu 24.04)
+Kỳ vọng: `continux-imac`, `continux-vps`, `helios-wsl` đều `Ready`, đều có role `control-plane,etcd`. Node `helios-wsl` có label `role=quorum` và taint `dedicated=quorum:NoSchedule`.
+
+### 5.7. Join worker phụ trợ `nammn` (chỉ khi cần burst)
+
+Bật WSL2 Ubuntu 24.04 trên máy `nammn`, sau đó chạy:
+
+> **Thực thi trên:** `nammn` (WSL2 Ubuntu 24.04)
 
 [SCRIPTS.md — k3s-install.sh](./SCRIPTS.md#k3s-installsh)
 
@@ -313,7 +419,7 @@ Sau khi script chạy xong, gán label từ node quản trị:
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-kubectl label node helios workload=heavy role=data-plane  # hoặc nammn
+kubectl label node nammn workload=heavy role=data-plane --overwrite
 kubectl get nodes -o wide
 ```
 
@@ -326,7 +432,7 @@ kubectl drain <tên-node> --ignore-daemonsets --delete-emptydir-data
 kubectl delete node <tên-node>
 ```
 
-> **Thực thi trên:** `helios` hoặc `nammn` (WSL2)
+> **Thực thi trên:** `nammn` (WSL2)
 
 ```bash
 sudo /usr/local/bin/k3s-agent-uninstall.sh
@@ -334,9 +440,9 @@ sudo /usr/local/bin/k3s-agent-uninstall.sh
 
 ---
 
-## 6. Công cụ CLI trên hai node chính
+## 6. Công cụ CLI trên node quản trị
 
-`continux-imac` cần đủ CLI cho data plane. `continux-vps` cần tối thiểu `kubectl`, `helm`, `argocd` để chạy các bước observability từ §9.
+`continux-imac` cần đủ CLI cho data plane. `continux-vps` cần tối thiểu `kubectl`, `helm`, `argocd` để chạy các bước observability từ §9. `helios-wsl` chỉ cần các gói nền, Tailscale và K3s server từ §3-5 vì đây là node quorum-only.
 
 ### 6.1. Cài CLI
 
@@ -423,7 +529,7 @@ Kiểm tra trạng thái trước khi cập nhật:
 
 Các lệnh cập nhật cần sudo — chạy trong SSH session tương tác trực tiếp trên máy đích:
 
-> **Thực thi trên:** `cả hai máy` — lần lượt `continux-imac` rồi `continux-vps`
+> **Thực thi trên:** `ba server` — lần lượt `continux-imac`, `continux-vps`, `helios-wsl`
 
 ```bash
 sudo apt update && sudo apt -y upgrade && sudo apt -y autoremove
@@ -442,6 +548,7 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
     --disable=servicelb \
+    --disable=local-storage \
     --disable=metrics-server \
     --node-name=continux-imac \
     --node-ip="${TAILSCALE_IP}" \
@@ -467,11 +574,39 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
     --disable=servicelb \
+    --disable=local-storage \
     --disable=metrics-server \
     --node-name=continux-vps \
     --node-ip="${TAILSCALE_IP}" \
     --advertise-address="${TAILSCALE_IP}" \
-    --flannel-iface=tailscale0
+    --flannel-iface=tailscale0 \
+    --tls-san="${TAILSCALE_IP}" \
+    --etcd-expose-metrics=true
+```
+
+> **Thực thi trên:** `helios-wsl`
+
+```bash
+# K3s server #3 / quorum-only (helios-wsl)
+# Lấy IMAC_TS_IP từ `tailscale ip -4` trên continux-imac.
+# K3S_TOKEN lấy từ continux-imac: sudo cat /var/lib/rancher/k3s/server/node-token
+IMAC_TS_IP=<tailscale-ip-imac>
+K3S_TOKEN=<node-token>
+TAILSCALE_IP=$(tailscale ip -4)
+
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+    --server="https://${IMAC_TS_IP}:6443" \
+    --token="${K3S_TOKEN}" \
+    --write-kubeconfig-mode=644 \
+    --disable=traefik \
+    --disable=servicelb \
+    --disable=metrics-server \
+    --node-name=helios-wsl \
+    --node-ip="${TAILSCALE_IP}" \
+    --advertise-address="${TAILSCALE_IP}" \
+    --flannel-iface=tailscale0 \
+    --tls-san="${TAILSCALE_IP}" \
+    --etcd-expose-metrics=true
 ```
 
 Sau khi cập nhật từng K3s server, kiểm tra lại từ `continux-imac`:
@@ -481,7 +616,7 @@ kubectl get nodes -o wide
 bash scripts/k3s-check.sh node
 ```
 
-> Nếu có worker `helios` hoặc `nammn` đang bật, cập nhật agent bằng cách chạy lại lệnh join agent trong [SCRIPTS.md — k3s-install.sh](./SCRIPTS.md#k3s-installsh) với cùng `IMAC_TS_IP`, `K3S_TOKEN`, `node-name`.
+> Nếu worker `nammn` đang bật, cập nhật agent bằng cách chạy lại lệnh join agent trong [SCRIPTS.md — k3s-install.sh](./SCRIPTS.md#k3s-installsh) với cùng `IMAC_TS_IP`, `K3S_TOKEN`, `node-name`.
 
 > **Thực thi trên:** `continux-imac`
 
@@ -1185,9 +1320,13 @@ Không chạy `argocd app diff/sync` khi K3s API chưa khỏe. Khôi phục cont
 ```bash
 ~/continux/scripts/k3s-check.sh
 kubectl get nodes -o wide
+kubectl get nodes -l role=quorum -o wide
 kubectl get --raw='/readyz?verbose'
+kubectl get --raw='/readyz?verbose' | grep -E 'etcd|readyz|ok'
 kubectl get pods -A --field-selector=status.phase!=Running
 ```
+
+Nếu bất kỳ K3s server nào chưa `Ready`, hoặc port etcd peer `2380` timeout giữa các server, **không scale Vector**. Đợi quorum `2/3` ổn định trước rồi mới tiếp tục.
 
 ### 10.2. Tải dataset + convert full JSONL
 
@@ -1503,7 +1642,19 @@ sudo /usr/local/bin/k3s-uninstall.sh
 sudo /usr/local/bin/k3s-uninstall.sh
 ```
 
-> **Thực thi trên:** `cả hai máy` — gỡ Tailscale nếu muốn
+> **Thực thi trên:** `helios-wsl` — reset K3s server #3
+
+```bash
+sudo /usr/local/bin/k3s-uninstall.sh
+```
+
+> **Thực thi trên:** `nammn` — nếu worker đang join
+
+```bash
+sudo /usr/local/bin/k3s-agent-uninstall.sh
+```
+
+> **Thực thi trên:** `ba server` và worker đang bật — gỡ Tailscale nếu muốn
 
 ```bash
 sudo tailscale down
@@ -1519,10 +1670,10 @@ sudo apt purge tailscale -y
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
 |-------------|------------------------|------------|
 | `kubectl get nodes` báo `permission denied` với `/etc/rancher/k3s/k3s.yaml` | User thường không có quyền đọc kubeconfig mặc định của K3s | Dùng `sudo kubectl ...`, hoặc copy kubeconfig sang `~/.kube/config` cho user; nếu muốn dùng chung, cài K3s với `--write-kubeconfig-mode=644` |
-| `kubectl get nodes` chỉ thấy `continux-imac` | Server #2 chưa join được qua Tailscale | `tailscale status` trên droplet → ping `continux-imac`; kiểm tra `K3S_URL` đúng dạng `https://100.x.x.x:6443` và lệnh cài là `server` |
-| Cài server #2 báo lỗi datastore | Server #1 đang chạy SQLite (không có `--cluster-init`) | Re-bootstrap `continux-imac` theo §5.1 để bật embedded etcd rồi join lại §5.2 |
-| K3s API không kết nối được, journal có `failed to publish local member to cluster through raft` / `TLS handshake timeout` | Embedded etcd mất quorum, peer chậm/kẹt, hoặc Tailscale giữa các server lỗi. Cụm 2 server không có quorum dự phòng: cần cả 2 node healthy | Kiểm tra `tailscale ping`, port `2379/2380/6443` hai chiều; kiểm tra `free -h`, `df -h`; restart K3s trên VPS trước, rồi iMac nếu cần. Về lâu dài dùng 1 server + agent, hoặc 3 server etcd |
-| Pod bị `Pending` — `FailedScheduling` vì taint | Workload nặng bị đẩy sang continux-vps (taint) | Đặt `nodeSelector: workload=heavy` cho workload đó |
+| `kubectl get nodes` chỉ thấy `continux-imac` | Server #2/#3 chưa join được qua Tailscale | `tailscale status` trên node cần join → ping `continux-imac`; kiểm tra `K3S_URL` đúng dạng `https://100.x.x.x:6443` và lệnh cài là `server` |
+| Cài server #2/#3 báo lỗi datastore | Server #1 đang chạy SQLite (không có `--cluster-init`) | Re-bootstrap `continux-imac` theo §5.1 để bật embedded etcd rồi join lại §5.3-§5.4 |
+| K3s API không kết nối được, journal có `failed to publish local member to cluster through raft` / `TLS handshake timeout` | Embedded etcd mất quorum, peer chậm/kẹt, hoặc Tailscale giữa các server lỗi. Cụm 3 server cần ít nhất `2/3` peer healthy | Kiểm tra `tailscale ping`, port `2379/2380/6443` giữa ba server; đảm bảo `helios-wsl` còn chạy; kiểm tra `free -h`, `df -h`; restart K3s từng server nếu cần |
+| Pod bị `Pending` — `FailedScheduling` vì taint | Workload bị đẩy sang node có taint (`continux-vps` hoặc `helios-wsl`) | Đặt `nodeSelector` đúng vai trò. Workload nặng dùng `role=data-plane`; workload nhẹ dùng `role=control-plane` + toleration `dedicated=edge`; không schedule app lên `role=quorum` |
 | RisingWave compute `OOMKilled` | Vượt `limits.memory=2.5Gi` của iMac 8GB | Giảm parallelism MV; tăng `compute.limits.memory` nếu còn chỗ; giảm load Vector |
 | MinIO `ReadOnly` mode | Disk iMac gần đầy (200 GB) | `df -h`; xoá snapshot Iceberg cũ bằng `expire_snapshots` |
 | Droplet CPU `100%` liên tục | ArgoCD app-controller ôm quá nhiều app | Giảm số App-of-Apps; hoặc resize droplet lên $24/mo (nếu chưa) |
@@ -1540,8 +1691,9 @@ sudo apt purge tailscale -y
 
 ## 17. Checklist hoàn tất
 
-- [ ] `kubectl get nodes` → 2 node `Ready`, cả hai node có `ROLES` chứa `control-plane,etcd`, node IP thuộc range `100.64.0.0/10` (Tailscale).
-- [ ] `tailscale status` hiển thị cả hai máy, ping qua lại < 100 ms.
+- [ ] `kubectl get nodes` → 3 K3s server `Ready`, cả ba có `ROLES` chứa `control-plane,etcd`, node IP thuộc range `100.64.0.0/10` (Tailscale).
+- [ ] `continux-imac` có `role=data-plane`, `continux-vps` có `role=control-plane`, `helios-wsl` có `role=quorum` và taint `dedicated=quorum:NoSchedule`.
+- [ ] `tailscale status` hiển thị ba server, ping qua lại < 100 ms; port `2380` thông giữa các etcd peer.
 - [ ] ArgoCD UI truy cập được qua Tailscale IP hoặc NodePort; `root-app` `Synced + Healthy`.
 - [ ] MinIO có 3 bucket (`iceberg-data`, `rw-checkpoint`, `tlc-zone`), 3 access key riêng biệt.
 - [ ] `rpk topic list` trả về `nyc-taxi-events` với 3 partitions.

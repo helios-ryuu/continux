@@ -3,30 +3,30 @@
 > **Dự án:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
 > **Nền tảng:** K3s · ArgoCD v3.4.2 (Helm chart `argo-cd` 9.5.14) · MinIO · Redpanda · RisingWave · Apache Iceberg · Vector · VictoriaMetrics · Grafana.
 > **Dataset:** NYC TLC Trip Record Data + TLC Taxi Zone Lookup (265 zones).
-> **Cụm:** 4 máy — `continux-imac`, `continux-vps`, `helios`, `nammn` (chi tiết §1).
+> **Cụm:** 4 máy — `continux-imac`, `continux-vps`, `helios-wsl`, `nammn` (chi tiết §1).
 > Các mã `FR-xx`, `NFR-xx` được tham chiếu trong [SETUP.md](./SETUP.md) và [REPORT.md](./REPORT.md).
 
 ---
 
 ## 1. Hạ tầng — Bốn máy của cụm
 
-### 1.1. Hai node chính (luôn bật)
+### 1.1. Ba K3s server chính
 
 | Node | Phần cứng | Hệ điều hành | Vai trò |
 |------|-----------|-------------|---------|
 | **`continux-imac`** | iMac19,2 · Intel i5-8500 (6 cores, 3.0–4.1 GHz) · 8 GB DDR4 · 200 GB SSD | Ubuntu Server 24.04 LTS (native) | K3s server #1, `--cluster-init` · **Data plane**: MinIO, Redpanda, RisingWave, Vector · Nơi chạy mọi lệnh quản trị |
 | **`continux-vps`** | DigitalOcean Droplet · 1 vCPU / 2 GB RAM (gói $12/mo, nâng lên 2 vCPU / 4 GB khi cần) · 50 GB SSD · SGP1 | Ubuntu 24.04 LTS (native) | K3s server #2 · **Control & observability plane**: ArgoCD, VictoriaMetrics, Grafana |
+| **`helios-wsl`** | Laptop HP (HELIOS-PC) · Intel Core i5-12500H (12C/16T, max 4.5 GHz) · 16 GB DDR5 4800 MHz (2×8 GB Samsung) · NVIDIA GeForce RTX 3050 Ti 4 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s server #3 · **Quorum-only**: giữ embedded etcd quorum `2/3`, không nhận workload ứng dụng mặc định |
 
 > **Mạng liên node:** Tailscale mesh VPN — mọi lưu lượng K3s, Flannel, etcd đi qua đường hầm mã hóa Tailscale (IP range `100.64.0.0/10`). Không node nào expose trực tiếp ra internet; chỉ ArgoCD và Grafana được expose qua Cloudflare Tunnel.
 
-### 1.2. Hai node phụ trợ (bật khi cần burst)
+### 1.2. Worker phụ trợ (bật khi cần burst)
 
 | Node | Phần cứng | Hệ điều hành | Vai trò |
 |------|-----------|-------------|---------|
-| **`helios`** | Laptop HP (HELIOS-PC) · Intel Core i5-12500H (12C/16T, max 4.5 GHz) · 16 GB DDR5 4800 MHz (2×8 GB Samsung) · NVIDIA GeForce RTX 3050 Ti 4 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi cần thực nghiệm song song hoặc dự phòng |
 | **`nammn`** | Laptop HP (SINISTER) · AMD Ryzen 5 7640HS (8C/16T, boost 4.3 GHz) · 32 GB DDR5 5600 MHz (2×16 GB Hynix) · NVIDIA GeForce RTX 3050 6 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi `continux-imac` OOM hoặc cần throughput > 10 k events/s |
 
-> **Khi nào bật `helios` / `nammn`:** Chỉ trong Giai đoạn 4–5 khi stress test. Không bật thường xuyên để tránh overhead etcd và tiết kiệm điện.
+> **Khi nào bật:** `helios-wsl` nên bật khi chạy workload nặng để cụm có quorum `2/3`; `nammn` chỉ bật trong Giai đoạn 4–5 khi stress test hoặc cần thêm data-plane capacity.
 
 ### 1.3. Sơ đồ phân bổ workload
 
@@ -43,13 +43,17 @@
 │  ArgoCD ── VictoriaMetrics ── Grafana                                      │
 │  (public UI qua Cloudflare Tunnel, điều phối GitOps, dashboard giám sát)   │
 └────────────────────────────────────────────────────────────────────────────┘
-                                │  Tailscale (chỉ bật khi cần burst)
-                    ┌───────────┴───────────┐
-                    ▼                       ▼
-        ┌─── helios (WSL2) ───┐  ┌─── nammn (WSL2) ───┐
-        │  K3s worker         │  │  K3s worker         │
-        │  workload=heavy     │  │  workload=heavy      │
-        └─────────────────────┘  └─────────────────────┘
+                                │  Tailscale overlay / etcd peer
+                                ▼
+        ┌──────────── helios-wsl (WSL2, K3s server #3) ────────┐
+        │  quorum-only · role=quorum · dedicated=quorum taint   │
+        └───────────────────────────────────────────────────────┘
+                                │  Tailscale (chỉ khi cần burst)
+                                ▼
+                    ┌─── nammn (WSL2) ───┐
+                    │  K3s worker         │
+                    │  workload=heavy     │
+                    └─────────────────────┘
 ```
 
 ---
@@ -194,19 +198,22 @@ Thứ tự dependency rõ ràng: Source → Table → MV → Sink. Job `mv-apply
 
 ### 3.5. Node placement qua `nodeSelector` + `tolerations`
 
-Mọi `helm-values.yaml` trong `config/` **bắt buộc** khai báo nodeSelector phù hợp. Lệnh gán label thực hiện trong [SETUP.md §5.4](./SETUP.md):
+Mọi `helm-values.yaml` trong `config/` **bắt buộc** khai báo nodeSelector phù hợp. Lệnh gán label thực hiện trong [SETUP.md §5.5](./SETUP.md):
 
 ```yaml
-# Workload nặng → continux-imac (hoặc helios/nammn khi đang làm worker)
+# Workload nặng → continux-imac (hoặc nammn khi đang làm worker burst)
 nodeSelector: { role: data-plane }
 
 # Workload nhẹ → continux-vps
 nodeSelector: { role: control-plane }
 tolerations:
   - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
+
+# Quorum-only → helios-wsl
+# Không schedule workload ứng dụng lên role=quorum.
 ```
 
-Quy tắc này ngăn scheduler đặt nhầm RisingWave vào Droplet (OOM) và Grafana vào iMac (chiếm RAM data plane).
+Quy tắc này ngăn scheduler đặt nhầm RisingWave vào Droplet (OOM), Grafana vào iMac (chiếm RAM data plane), hoặc workload ứng dụng lên `helios-wsl` làm nhiễu quorum.
 
 ### 3.6. `data/` không commit
 
@@ -271,7 +278,7 @@ NYC TLC dataset có thể lên đến vài GB — `.gitignore` loại trừ `dat
 
 | Mã | Yêu cầu | Mục tiêu |
 |----|---------|----------|
-| NFR-01 | Throughput pipeline end-to-end trên hạ tầng tham chiếu (`continux-imac` + `continux-vps`). | ≥ 5.000 events/s ổn định; stretch goal 10.000 events/s (có thể đạt khi thêm `helios`/`nammn` làm worker). |
+| NFR-01 | Throughput pipeline end-to-end trên hạ tầng tham chiếu (`continux-imac` data plane + `continux-vps` observability + `helios-wsl` quorum). | ≥ 5.000 events/s ổn định; stretch goal 10.000 events/s (có thể đạt khi thêm `nammn` làm worker). |
 | NFR-02 | Độ trễ end-to-end Vector → Iceberg. | P95 ≤ 5 giây ở mức tải mục tiêu. |
 | NFR-03 | Consumer Lag trong điều kiện thường. | ≤ 2 giây. Spike trong lúc backfill Green được chấp nhận. |
 
@@ -297,8 +304,8 @@ NYC TLC dataset có thể lên đến vài GB — `.gitignore` loại trừ `dat
 
 | Mã | Yêu cầu | Mục tiêu |
 |----|---------|----------|
-| NFR-12 | Chạy trên hạ tầng tham chiếu 2 node chính (§1.1) mà không pod nào `OOMKilled` trong 4h. | Swap không vượt quá 20% trên cả hai node. |
-| NFR-13 | Mỗi thành phần có thể scale horizontally khi thêm worker (`helios`, `nammn`, hoặc node mới). | Verified qua cấu hình `replicas` trong Helm values. |
+| NFR-12 | Chạy trên hạ tầng tham chiếu 3 K3s server (§1.1) mà không pod ứng dụng nào `OOMKilled` trong 4h. | Swap không vượt quá 20% trên `continux-imac` và `continux-vps`; `helios-wsl` chỉ giữ quorum. |
+| NFR-13 | Mỗi thành phần có thể scale horizontally khi thêm worker (`nammn` hoặc node mới). | Verified qua cấu hình `replicas` trong Helm values. |
 | NFR-14 | Dung lượng Iceberg ≤ 50 GB trong suốt đồ án. | Compact và retention được cấu hình. |
 
 ### 5.5. Bảo mật (Security)
@@ -345,7 +352,7 @@ NYC TLC dataset có thể lên đến vài GB — `.gitignore` loại trừ `dat
 - Các node kết nối ổn định qua Tailscale; ping inter-node < 100 ms.
 - GVHD sẵn sàng review tài liệu trong khoảng 15–19/04/2026.
 - Dataset NYC TLC còn truy cập được; nếu không, dùng bản snapshot đã tải sẵn.
-- Nhóm có quyền admin trên `continux-imac`, `continux-vps`; có thể bật WSL2 trên `helios` và `nammn` khi cần.
+- Nhóm có quyền admin trên `continux-imac`, `continux-vps`; có thể bật WSL2 trên `helios-wsl` để giữ quorum và `nammn` khi cần burst.
 - Droplet DigitalOcean duy trì từ 13/04 → 31/05/2026; chi phí ước tính $20–40 tuỳ có resize hay không.
 
 ---
@@ -374,7 +381,7 @@ NYC TLC dataset có thể lên đến vài GB — `.gitignore` loại trừ `dat
 | Deploy VictoriaMetrics + Grafana | A/R | C | I |
 | Pipeline Vector → Redpanda → RisingWave → Iceberg | A/R | C | I |
 | Blue/Green MV Swap + PostSync Hook | A/R | C | I |
-| Join `helios` / `nammn` làm K3s worker khi cần | R | R | I |
+| Join `helios-wsl` làm K3s server #3 quorum và `nammn` làm worker khi cần | R | R | I |
 | Thực nghiệm & thu thập số liệu | A/R | C | I |
 | Viết báo cáo (REPORT.md → LaTeX) | A/R | C | A |
 | Demo hệ thống 31/05/2026 | A/R | C | A |
@@ -425,8 +432,8 @@ docs: update ARCHITECTURE NFR-12
 
 ```make
 make bootstrap           # Cài K3s + join node + install ArgoCD (chạy lần đầu)
-make join-worker NODE=helios   # Join helios làm K3s worker qua WSL2
-make join-worker NODE=nammn    # Join nammn làm K3s worker qua WSL2
+make join-server NODE=helios-wsl PROFILE=quorum  # Join helios-wsl làm K3s server #3
+make join-worker NODE=nammn                  # Join nammn làm K3s worker qua WSL2
 make argocd-sync         # Sync thủ công toàn bộ App-of-Apps
 make upload-zone         # Upload TLC Taxi Zone lên MinIO
 make vector-start        # Chạy Vector với preset throughput

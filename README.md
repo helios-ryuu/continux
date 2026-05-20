@@ -84,13 +84,13 @@ Tài liệu liên quan:
 
 ## HẠ TẦNG MÁY CHỦ
 
-Cụm gồm **4 máy** — 2 node chính luôn bật, 2 node phụ trợ bật khi cần burst hoặc stress test. Tất cả kết nối qua **Tailscale mesh VPN**.
+Cụm gồm **4 máy** — 3 K3s server giữ quorum `2/3` và 1 worker phụ trợ bật khi cần burst/stress test. Tất cả kết nối qua **Tailscale mesh VPN**.
 
 | Tên node | Phần cứng | Hệ điều hành | Vai trò |
 |----------|-----------|-------------|---------|
 | **`continux-imac`** | iMac19,2 · Intel i5-8500 (6 cores) · 8 GB DDR4 · 200 GB SSD | Ubuntu Server 24.04 LTS (native) | K3s server #1 · Data plane (MinIO, Redpanda, RisingWave, Vector) |
 | **`continux-vps`** | DigitalOcean Droplet $12→$24/mo · 1→2 vCPU · 2→4 GB RAM · 50→80 GB SSD · SGP1 | Ubuntu 24.04 LTS (native) | K3s server #2 · Control & observability plane (ArgoCD, VictoriaMetrics, Grafana) |
-| **`helios`** | Laptop HP (HELIOS-PC) · Intel i5-12500H (12C) · 16 GB DDR5 4800 MHz · NVIDIA RTX 3050 Ti 4 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi burst hoặc thực nghiệm song song |
+| **`helios-wsl`** | Laptop HP (HELIOS-PC) · Intel i5-12500H (12C) · 16 GB DDR5 4800 MHz · NVIDIA RTX 3050 Ti 4 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s server #3 · quorum-only, taint `dedicated=quorum:NoSchedule` |
 | **`nammn`** | Laptop HP (SINISTER) · AMD Ryzen 5 7640HS (8C) · 32 GB DDR5 5600 MHz · NVIDIA RTX 3050 6 GB | Windows 11 → **WSL2 Ubuntu 24.04** | K3s worker phụ trợ — bật khi iMac OOM hoặc cần > 10 k events/s |
 
 Chi tiết thiết lập từng máy: [docs/SETUP.md](./docs/SETUP.md).
@@ -111,7 +111,7 @@ Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 **Phiên bản tài liệu hiện tại:** `v0.1.7` — hoàn tất SETUP §10: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL trong `data/raw/`, Taxi Zone đã upload MinIO, Vector sync an toàn ở `replicas: 0` và chạy thủ công ổn định vào Redpanda.
 
 **Các bước tổng quát:**
-1. Khởi tạo cụm K3s (`continux-imac` làm server #1, `continux-vps` làm server #2) và cấu hình `kubectl`.
+1. Khởi tạo cụm K3s (`continux-imac` server #1, `continux-vps` server #2, `helios-wsl` server #3 quorum-only) và cấu hình `kubectl`.
 2. Cài đặt ArgoCD và đăng ký repository Git của dự án.
 3. Triển khai hạ tầng nền: MinIO, Redpanda, RisingWave (trên `continux-imac`), VictoriaMetrics và Grafana (trên `continux-vps`) bằng Helm/ArgoCD theo SETUP.
 4. Import 4 dashboard Grafana từ `dashboards/*.json` để theo dõi Streaming Performance, Resource Utilization, Cutover và Data Integrity.
@@ -119,7 +119,7 @@ Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 6. Khởi chạy Vector để phát luồng sự kiện NYC TLC vào Redpanda.
 7. Đăng ký các Source, Sink và Materialized View Blue trên RisingWave.
 8. Truy cập Grafana để giám sát Consumer Lag, throughput, latency.
-9. *(Khi cần burst)* Join `helios` hoặc `nammn` vào cụm làm K3s worker qua WSL2.
+9. *(Khi cần burst)* Join `nammn` vào cụm làm K3s worker qua WSL2.
 
 **Workflow dev hiện tại:** phát triển chính trên Windows, commit/push lên GitHub; `continux-imac` là máy quản trị cluster, cần có clone repo ở `~/continux` để bootstrap các manifest local ban đầu như `gitops/apps/root-app.yaml`.
 

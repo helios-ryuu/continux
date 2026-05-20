@@ -7,8 +7,8 @@ Tất cả script nằm trong thư mục `scripts/`. Mỗi script có ghi rõ **
 | Script | Chạy trên | Mục đích |
 |--------|-----------|----------|
 | [k3s-install-server-init.sh](#k3s-install-server-initsh) | `continux-imac` | Khởi tạo K3s cluster (server #1, `--cluster-init`) |
-| [k3s-install-server.sh](#k3s-install-serversh) | `continux-vps` | Join K3s server #2 vào cluster hiện có |
-| [k3s-install.sh](#k3s-installsh) | `helios` / `nammn` (WSL2) | Join K3s agent (worker phụ trợ) |
+| [k3s-install-server.sh](#k3s-install-serversh) | `continux-vps` / `helios-wsl` | Join K3s server #2/#3 vào cluster hiện có |
+| [k3s-install.sh](#k3s-installsh) | `nammn` (WSL2) | Join K3s agent (worker phụ trợ) |
 | [file-update.ps1](#file-updateps1) | Windows local | Đồng bộ repo local sang `imac:~/continux` |
 | [k3s-check.sh](#k3s-checksh) | `continux-imac` | Kiểm tra tổng thể cluster: nodes, pods, PVC, workloads, images, Helm releases/repositories |
 | [k3s-purge.sh](#k3s-purgesh) | bất kỳ node nào | Gỡ **toàn bộ** K3s — dùng khi reset hạ tầng |
@@ -46,13 +46,13 @@ bash scripts/k3s-check.sh
 sudo bash scripts/k3s-install-server-init.sh
 ```
 
-Script tự phát hiện Tailscale IP, cài K3s stable, gán label `workload=heavy role=data-plane`, rồi in **node token** để dùng ở bước join server #2.
+Script tự phát hiện Tailscale IP, cài K3s stable, gán label `workload=heavy role=data-plane`, rồi in **node token** để dùng ở bước join server #2 và #3.
 
 ### Flags K3s được dùng
 
 | Tham số | Ý nghĩa kỹ thuật | Vai trò trong đồ án |
 |:--------|:-----------------|:--------------------|
-| `--cluster-init` | Kích hoạt embedded etcd thay vì SQLite. | Cho phép cụm HA — có thể thêm server #2 (VPS) vào chung control-plane. |
+| `--cluster-init` | Kích hoạt embedded etcd thay vì SQLite. | Cho phép cụm HA — thêm server #2 (VPS) và server #3 (`helios-wsl`) vào chung control-plane. |
 | `--write-kubeconfig-mode=644` | Quyền đọc `/etc/rancher/k3s/k3s.yaml` cho non-root. | Chạy `kubectl` không cần `sudo`. |
 | `--disable=traefik` | Tắt Ingress Controller mặc định. | Thay bằng Cloudflare Tunnel — không cần mở port. |
 | `--disable=servicelb` | Tắt Klipper LoadBalancer. | Tránh xung đột port; dùng port-forward + Cloudflare. |
@@ -69,11 +69,12 @@ Script tự phát hiện Tailscale IP, cài K3s stable, gán label `workload=hea
 
 ## k3s-install-server.sh
 
-**Chạy trên:** `continux-vps`
-**Mục đích:** Join DigitalOcean Droplet làm K3s **server #2** vào cluster đã có trên `continux-imac`.
+**Chạy trên:** `continux-vps` hoặc `helios-wsl`
+**Mục đích:** Join thêm K3s server vào cluster đã có trên `continux-imac`. `continux-vps` dùng profile `edge`; `helios-wsl` dùng profile `quorum`.
 
 ```bash
-sudo bash scripts/k3s-install-server.sh <tailscale-ip-imac> <token>
+sudo bash scripts/k3s-install-server.sh <tailscale-ip-imac> <token> continux-vps edge
+sudo bash scripts/k3s-install-server.sh <tailscale-ip-imac> <token> helios-wsl quorum
 # Hoặc chạy không arg để nhập tương tác:
 sudo bash scripts/k3s-install-server.sh
 ```
@@ -82,17 +83,19 @@ sudo bash scripts/k3s-install-server.sh
 |----------|-------|-------|
 | `<tailscale-ip-imac>` | `100.102.51.39` | IP Tailscale của `continux-imac` (lấy từ `tailscale ip -4` trên iMac) |
 | `<token>` | `K10...::server:...` | Node join token — in ra ở cuối `k3s-install-server-init.sh` |
+| `<node-name>` | `continux-vps` hoặc `helios-wsl` | Tên node trong cluster |
+| `<profile>` | `edge` hoặc `quorum` | `edge` cho VPS chạy workload nhẹ; `quorum` cho `helios-wsl` giữ etcd quorum |
 
 Script tự ping kiểm tra kết nối trước, cài K3s server joining, rồi gán:
-- Label: `workload=light role=control-plane`
-- Taint: `dedicated=edge:NoSchedule` — chỉ pod có toleration `dedicated=edge` mới schedule trên VPS
+- `edge`: label `workload=light role=control-plane`, taint `dedicated=edge:NoSchedule`
+- `quorum`: label `workload=quorum role=quorum`, taint `dedicated=quorum:NoSchedule`
 
 ---
 
 ## k3s-install.sh
 
-**Chạy trên:** `helios` hoặc `nammn` (WSL2 Ubuntu 24.04)
-**Mục đích:** Join máy phụ trợ làm K3s **agent (worker)** — dùng khi cần burst capacity (Giai đoạn 4–5).
+**Chạy trên:** `nammn` (WSL2 Ubuntu 24.04)
+**Mục đích:** Join máy phụ trợ làm K3s **agent (worker)** — dùng khi cần burst capacity (Giai đoạn 4–5). Không dùng script này cho `helios-wsl`; `helios-wsl` là server #3 quorum-only.
 
 ```bash
 sudo bash scripts/k3s-install.sh <tailscale-ip-imac> <token> <node-name>
@@ -104,12 +107,12 @@ sudo bash scripts/k3s-install.sh
 |----------|-------|-------|
 | `<tailscale-ip-imac>` | `100.102.51.39` | IP Tailscale của `continux-imac` |
 | `<token>` | `K10...::server:...` | Node join token |
-| `<node-name>` | `helios` hoặc `nammn` | Tên node trong cluster (mặc định: `hostname`) |
+| `<node-name>` | `nammn` | Tên node trong cluster (mặc định: `hostname`) |
 
 Script tự cài Tailscale nếu chưa có. Sau khi join, chạy lệnh sau trên `continux-imac` để gán label:
 
 ```bash
-kubectl label node helios workload=heavy role=data-plane   # hoặc nammn
+kubectl label node nammn workload=heavy role=data-plane --overwrite
 ```
 
 **Gỡ worker khi xong:**
@@ -119,7 +122,7 @@ kubectl label node helios workload=heavy role=data-plane   # hoặc nammn
 kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
 kubectl delete node <node-name>
 
-# Trên helios / nammn (WSL2):
+# Trên nammn (WSL2):
 sudo /usr/local/bin/k3s-agent-uninstall.sh
 ```
 
