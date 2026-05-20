@@ -6,7 +6,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.6-0A7CC7?style=flat-square" alt="Version v0.1.6">
+  <img src="https://img.shields.io/badge/version-v0.1.7-0A7CC7?style=flat-square" alt="Version v0.1.7">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu">
 </p>
 
@@ -108,7 +108,7 @@ Hướng dẫn chi tiết từng bước: [docs/SETUP.md](./docs/SETUP.md).
 
 ## KHỞI CHẠY DỰ ÁN
 
-**Phiên bản tài liệu hiện tại:** `v0.1.6` — hoàn tất hạ tầng nền M3: K3s, ArgoCD, MinIO, Redpanda, RisingWave, VictoriaMetrics/Grafana; bổ sung 4 dashboard JSON và chuẩn hóa dataset vào `data/`.
+**Phiên bản tài liệu hiện tại:** `v0.1.7` — hoàn tất SETUP §10: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL trong `data/raw/`, Taxi Zone đã upload MinIO, Vector sync an toàn ở `replicas: 0` và chạy thủ công ổn định vào Redpanda.
 
 **Các bước tổng quát:**
 1. Khởi tạo cụm K3s (`continux-imac` làm server #1, `continux-vps` làm server #2) và cấu hình `kubectl`.

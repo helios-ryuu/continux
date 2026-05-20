@@ -3,7 +3,7 @@
 > **Đề tài:** Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes.
 > **Khoảng thời gian:** 05/04/2026 → 31/05/2026 (≈ 8 tuần).
 > **Mốc tài liệu (document freeze):** 19/04/2026 — toàn bộ tài liệu đề cương, ARCHITECTURE, TIMELINE phải được chốt với GVHD trước ngày này.
-> **Cập nhật tiến độ:** 20/05/2026 — M3 hoàn tất: K3s 2 server Ready, Argo CD v3.4.2, MinIO, Redpanda, RisingWave v2.8.3, VictoriaMetrics/Grafana và 4 dashboard JSON đã sẵn sàng; chuẩn bị bước dataset & Vector ở SETUP §10.
+> **Cập nhật tiến độ:** 20/05/2026 — M3 hoàn tất; SETUP §10 hoàn tất: NYC TLC Yellow Taxi `2026-03` đã convert full JSONL, Taxi Zone đã upload MinIO, Vector đã sync an toàn ở `replicas: 0` và scale thủ công lên `1` chạy ổn định vào Redpanda.
 > **Deadline cuối cùng:** 31/05/2026 — nộp báo cáo + demo hệ thống.
 
 ---
@@ -25,7 +25,7 @@
 | M1 | **Chốt scope & đề cương với GVHD** | 08/04/2026 | GVHD phê duyệt phạm vi, bài toán, kiến trúc sơ bộ | ✓ Xong |
 | M2 | **Document Freeze** | 19/04/2026 | PROPOSE, ARCHITECTURE, TIMELINE đã review | ✓ Xong |
 | M3 | **Cluster & hạ tầng nền sẵn sàng** | 21/05/2026 | K3s + ArgoCD + MinIO + Redpanda + RisingWave + VM/Grafana chạy ổn định | ✓ Xong |
-| M4 | **Pipeline Blue (MV v1) hoạt động end-to-end** | 23/05/2026 | Vector → Redpanda → RisingWave (JOIN Zone) → Iceberg chạy tối thiểu 2h không lỗi | Chưa làm |
+| M4 | **Pipeline Blue (MV v1) hoạt động end-to-end** | 23/05/2026 | Vector → Redpanda → RisingWave (JOIN Zone) → Iceberg chạy tối thiểu 2h không lỗi | Đang làm |
 | M5 | **Blue/Green Swap qua GitOps thành công** | 27/05/2026 | Commit SQL mới → ArgoCD sync → Atomic Swap 0s downtime, không mất/trùng dữ liệu | Chưa làm |
 | M6 | **Bộ số liệu thực nghiệm hoàn chỉnh** | 29/05/2026 | 4 nhóm chỉ số đã đo, tổng hợp bảng biểu/biểu đồ | Chưa làm |
 | M7 | **Nộp báo cáo + demo hệ thống** | 31/05/2026 | File báo cáo final + demo trực tiếp trên cluster | Chưa làm |
@@ -62,8 +62,8 @@
 
 | # | Công việc | Bắt đầu | Kết thúc | Phụ trách | Ghi chú |
 |---|-----------|---------|----------|-----------|---------|
-| 3.1 | Tải NYC TLC Trip Record; upload TLC Taxi Zone CSV lên MinIO | 20/05 | 20/05 | Sỹ | Chuẩn bị ở SETUP §10; dữ liệu lưu trong `data/raw/`, Zone trong `data/zone/` |
-| 3.2 | Cấu hình Vector đọc JSONL → mô phỏng luồng → Redpanda | 19/05 | 20/05 | Sỹ | Convert từ NYC TLC Parquet trước khi sync Vector |
+| 3.1 | Tải NYC TLC Trip Record; upload TLC Taxi Zone CSV lên MinIO | 20/05 | 20/05 | Sỹ | ✓ Yellow Taxi `2026-03` đã convert full JSONL trong `data/raw/`; Taxi Zone đã upload MinIO |
+| 3.2 | Cấu hình Vector đọc JSONL → mô phỏng luồng → Redpanda | 19/05 | 20/05 | Sỹ | ✓ Vector app synced, PV/PVC `vector-data` Bound, pod Running `0` restart khi scale thủ công lên `1` |
 | 3.3 | SQL: `CREATE SOURCE` (Redpanda) + `CREATE TABLE` (Taxi Zone) | 20/05 | 21/05 | Sỹ | |
 | 3.4 | Viết MV v1 (**Blue**): JOIN luồng với Taxi Zone, phân tích theo Zone | 21/05 | 22/05 | Sỹ | Baseline |
 | 3.5 | Cấu hình Iceberg Sink (Built-in Hosted Catalog) | 22/05 | 23/05 | Sỹ | Verify metadata/data file |

@@ -48,8 +48,6 @@ Cả hai máy cài **WSL2 Ubuntu 24.04** — K3s agent chạy trong WSL2, join c
 
 > **Khi nào bật:** chỉ trong Giai đoạn 4–5 (stress test, thực nghiệm). Không bật thường xuyên để tránh overhead etcd và tiết kiệm điện.
 
-Lệnh data plane (`rpk`, `mc`, `psql`, Helm cho MinIO/Redpanda/RisingWave) chạy trên `continux-imac`. Lệnh observability/control plane từ §9 trở đi (`kubectl`, `helm`, `argocd`) chạy trên `continux-vps` hoặc kube-context trỏ đúng cluster.
-
 ### 0.4. Ký hiệu máy dùng trong tài liệu này
 
 | Ký hiệu | Máy | Nghĩa trong hướng dẫn |
@@ -695,7 +693,7 @@ argocd app list
 argocd app sync cloudflared
 ```
 
-Các app con còn lại sync ở đúng section tương ứng: `redpanda-topics` ở §8.3, `victoria-scrapes` ở §9.1, `vector` ở §10.2, `pipeline` ở §11.4. Không sync quá sớm khi service phụ thuộc chưa sẵn sàng.
+Các app con còn lại sync ở đúng section tương ứng: `redpanda-topics` ở §8.3, `victoria-scrapes` ở §9.1, `vector` ở §10.5, `pipeline` ở §11.4. Không sync quá sớm khi service phụ thuộc chưa sẵn sàng.
 
 Khi muốn xem app lệch gì trước khi sync:
 
@@ -1023,7 +1021,7 @@ psql -h localhost -p 4567 -d dev -U root
 
 Manifest: [`config/vector/deployment.yaml`](../config/vector/deployment.yaml) · PVC: [`config/vector/pvc.yaml`](../config/vector/pvc.yaml)
 
-Cấu hình Vector: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.toml) — xem §10.2.
+Cấu hình Vector: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.toml) — xem §10.4.
 
 `vector/deployment.yaml` mount ConfigMap `vector-config`. Khi sync qua ArgoCD, `config/vector/kustomization.yaml` apply `config/vector/vector-config.yaml` (nội dung bám theo `pipelines/vector/vector.toml`). Nếu apply thủ công không qua Kustomize, tạo ConfigMap trước:
 
@@ -1163,50 +1161,35 @@ Quy ước khi chỉnh JSON:
 
 ## 10. Dataset & Vector
 
-> **RAM note:** Vector chạy full JSONL, nhưng GitOps mặc định giữ `replicas: 0`. `argocd app sync vector` chỉ tạo ConfigMap/PV/PVC/Deployment, chưa khởi động Vector. Sau khi control plane khỏe và preflight OK mới scale Vector lên `1`.
+Mục tiêu của section này: chuẩn bị **full JSONL dataset**, sync manifest Vector một cách an toàn, rồi bật ingest thủ công.
 
-Nếu cụm vừa bị ì hoặc kernel báo `Memory cgroup out of memory` do Vector, hạ Vector về 0 trước rồi mới sửa/sync lại:
+Quy ước ổn định:
+
+- Vector đọc full JSONL từ `data/raw/*.jsonl`.
+- GitOps mặc định giữ Vector ở `replicas: 0`; `argocd app sync vector` không tự chạy ingest.
+- Chỉ scale Vector lên `1` sau khi K3s API, Redpanda topic, PV/PVC và file JSONL đều OK.
+- Nếu node bắt đầu ì, scale Vector về `0` ngay.
+
+### 10.1. Gate an toàn trước khi làm tiếp
+
+Nếu cụm vừa bị ì, hoặc kernel báo `Memory cgroup out of memory` do Vector, dừng Vector trước:
 
 ```bash
 kubectl -n pipeline scale deploy/vector --replicas=0
+kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s
 kubectl -n pipeline get pods -l app=vector
-kubectl -n pipeline get events --sort-by=.lastTimestamp | tail -40
 ```
 
-Nếu K3s API đang chập chờn và chưa scale được, tạm thời đưa file input ra khỏi pattern `/data/*.jsonl` trước để Vector config cũ không đọc tiếp sau khi kubelet restart container:
-
-```bash
-mkdir -p ~/continux/data/raw/paused
-mv ~/continux/data/raw/*.jsonl ~/continux/data/raw/paused/
-```
-
-Sau khi sync được manifest mới với `replicas: 0`, đưa file JSONL về lại:
-
-```bash
-mv ~/continux/data/raw/paused/*.jsonl ~/continux/data/raw/
-```
-
-Nếu `kubectl` hoặc `k3s-check.sh` không kết nối được K3s API, **không chạy `argocd app diff/sync`**. Khôi phục control plane trước:
+Không chạy `argocd app diff/sync` khi K3s API chưa khỏe. Khôi phục control plane trước, chỉ tiếp tục khi các lệnh này chạy được:
 
 ```bash
 ~/continux/scripts/k3s-check.sh
-sudo systemctl status k3s --no-pager
-sudo journalctl -u k3s -n 120 --no-pager
-free -h
-uptime
-sudo ss -lntp | grep 6443
-kubectl config current-context
-```
-
-Với cụm embedded etcd 2 server, cả `continux-imac` và `continux-vps` phải healthy mới có quorum ổn định. Chỉ tiếp tục §10.2 khi các lệnh sau chạy được:
-
-```bash
 kubectl get nodes -o wide
+kubectl get --raw='/readyz?verbose'
 kubectl get pods -A --field-selector=status.phase!=Running
-~/continux/scripts/k3s-check.sh
 ```
 
-### 10.1. Tải NYC TLC + upload Taxi Zone
+### 10.2. Tải dataset + convert full JSONL
 
 Nguồn chính thức: [NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page). TLC publish dữ liệu theo tháng, thường trễ khoảng 2 tháng để chờ vendor gửi đủ dữ liệu. Tại thời điểm kiểm tra **20/05/2026**, file Yellow Taxi mới nhất đang có trên trang TLC là **2026-03**.
 
@@ -1215,8 +1198,6 @@ Khuyến nghị:
 - Dùng **`2024-01`** nếu muốn giữ dataset cũ đã quen thuộc trong docs và tránh thay đổi schema/volume bất ngờ.
 
 > Lưu ý schema: theo TLC, từ dữ liệu **2025 trở đi** Yellow/Green/HVFHV có thêm cột `cbd_congestion_fee`. Nếu pipeline downstream đang giả định schema cũ, dùng `2024-01`; nếu pipeline đọc JSON linh hoạt/ignore field thừa, dùng `2026-03`.
-
-Trước khi tải, kiểm tra file tháng muốn dùng có tồn tại:
 
 > **Thực thi trên:** `continux-imac`
 
@@ -1227,11 +1208,7 @@ ZONE_URL="https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 
 curl -I "$DATA_URL"
 curl -I "$ZONE_URL"
-```
 
-Nếu cả hai trả HTTP `200`, tải dữ liệu:
-
-```bash
 mkdir -p ~/continux/data/raw ~/continux/data/zone
 sudo chown -R "$USER:$USER" ~/continux/data
 chmod -R u+rwX ~/continux/data
@@ -1245,14 +1222,21 @@ cd ~/continux
 python3 -m venv .venv
 . .venv/bin/activate
 pip install --upgrade pip pyarrow
-
 python scripts/tlc-parquet-to-jsonl.py \
     "data/raw/yellow_tripdata_${DATA_MONTH}.parquet" \
     "data/raw/yellow_tripdata_${DATA_MONTH}.jsonl"
 
 ls -lh data/raw/yellow_tripdata_${DATA_MONTH}.parquet \
        data/raw/yellow_tripdata_${DATA_MONTH}.jsonl
+```
 
+Mount thư mục raw vào pod Vector bằng PVC `hostPath: /home/helios/continux/data/raw` (xem `config/vector/pvc.yaml`). Thư mục `data/raw/` đã nằm trong `.gitignore`, còn `data/zone/` có thể lưu file nhỏ như `taxi_zone_lookup.csv`.
+
+### 10.3. Upload Taxi Zone vào MinIO
+
+> **Thực thi trên:** `continux-imac`
+
+```bash
 cd ~/continux/data/zone
 wget -c "$ZONE_URL"
 
@@ -1269,9 +1253,7 @@ mc ls local/tlc-zone
 # [2026-05-19 17:31:11 UTC]  12KiB STANDARD taxi_zone_lookup.csv
 ```
 
-Mount thư mục raw vào pod Vector bằng PVC `hostPath: /home/helios/continux/data/raw` (xem `config/vector/pvc.yaml`). Thư mục `data/raw/` đã nằm trong `.gitignore`, còn `data/zone/` có thể lưu file nhỏ như `taxi_zone_lookup.csv`.
-
-### 10.2. Vector pipeline config
+### 10.4. Preflight trước khi sync Vector
 
 Cấu hình nguồn → transform → sink: [`pipelines/vector/vector.toml`](../pipelines/vector/vector.toml)
 
@@ -1282,7 +1264,7 @@ Luồng hiện tại:
 3. Transform `parse_and_simulate_event_time` parse từng dòng JSON, thêm `event_id` và `event_time`.
 4. Sink Kafka publish JSON vào Redpanda topic `nyc-taxi-events`, dùng disk buffer 512 MiB tại `/var/lib/vector` và `when_full = "block"` để không phình RAM nếu Redpanda chậm.
 
-Trước khi sync Vector, kiểm tra 4 điều kiện. Các lệnh dưới phải có output rõ ràng; riêng `rpk topic describe` phải in được thông tin topic `nyc-taxi-events`.
+Các lệnh dưới phải có output rõ ràng; riêng `rpk topic describe` phải in được thông tin topic `nyc-taxi-events`.
 
 > **Thực thi trên:** `continux-imac`
 
@@ -1299,13 +1281,21 @@ kubectl get pv vector-data-pv -o jsonpath='{.spec.hostPath.path}{"\n"}' || true
 # Kết quả đúng nếu PV đã tồn tại: /home/helios/continux/data/raw
 ```
 
-Kiểm tra resource guardrail trước khi sync:
+Nếu `rpk topic describe nyc-taxi-events` báo không tìm thấy topic, quay lại §8.3 để sync/tạo topic trước. Vector sẽ publish lỗi nếu topic chưa tồn tại.
+
+Kiểm tra manifest hiện tại trong repo:
 
 ```bash
 kubectl kustomize config/vector | grep -E 'memory:|sizeLimit:|/data/\*.jsonl|when_full|buffer' -n
 ```
 
-Nếu `rpk topic describe nyc-taxi-events` báo không tìm thấy topic, quay lại §8.3 để sync/tạo topic trước. Vector sẽ publish lỗi nếu topic chưa tồn tại.
+Kỳ vọng:
+
+- `include = ["/data/*.jsonl"]`
+- `memory: 1Gi`
+- `sizeLimit: 1Gi`
+- `when_full = "block"`
+- `config/vector/deployment.yaml` có `replicas: 0`
 
 Nếu PV `vector-data-pv` đã được tạo từ cấu hình cũ và còn trỏ sang path khác, xoá riêng workload/PVC/PV của Vector rồi để ArgoCD tạo lại:
 
@@ -1314,35 +1304,37 @@ kubectl -n pipeline delete deploy/vector pvc/vector-data --ignore-not-found
 kubectl delete pv/vector-data-pv --ignore-not-found
 ```
 
-Nếu Vector đã từng bị OOM/CrashLoop vì đọc file quá lớn, dừng nó trước khi sync lại:
+### 10.5. Sync manifest Vector ở trạng thái dừng
 
-```bash
-kubectl -n pipeline scale deploy/vector --replicas=0
-kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s
-kubectl -n pipeline get pods -l app=vector
-```
-
-Sau đó commit/push cấu hình mới rồi sync lại.
-
-Sau khi Redpanda topic đã tạo ở §8.3, JSONL đã có trong `~/continux/data/raw`, và PVC path đúng, sync manifest Vector trước. Bước này không chạy Vector vì `config/vector/deployment.yaml` đặt `replicas: 0`:
+Sync manifest Vector:
 
 > **Thực thi trên:** `continux-imac`
 
 ```bash
-argocd app diff vector
-argocd app sync vector
-argocd app wait vector --health --sync
+argocd app get vector --hard-refresh --grpc-web
+argocd app diff vector --grpc-web
+argocd app sync vector --grpc-web
+argocd app wait vector --health --sync --grpc-web
 ```
 
 Sau khi sync, xác nhận Deployment vẫn đang dừng:
 
 ```bash
 kubectl -n pipeline get deploy/vector -o jsonpath='{.spec.replicas}{" desired, "}{.status.readyReplicas}{" ready\n"}'
+# 0 desired,  ready
 kubectl -n pipeline get pv vector-data-pv
+# NAME             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                  STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+# vector-data-pv   10Gi       RWO            Retain           Bound    pipeline/vector-data   local-path     <unset>                          19s
 kubectl -n pipeline get pvc vector-data
+# NAME          STATUS   VOLUME           CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+# vector-data   Bound    vector-data-pv   10Gi       RWO            local-path     <unset>                 21s
 ```
 
-Chỉ khi K3s API khỏe và các resource đã tạo xong, mới bật Vector:
+Kỳ vọng: `0 desired`.
+
+### 10.6. Bật/tắt Vector ingest thủ công
+
+Chỉ scale Vector lên `1` khi K3s API khỏe, PV/PVC đã bound, Redpanda topic sẵn sàng và file JSONL đã nằm trong `data/raw/`.
 
 ```bash
 kubectl -n pipeline scale deploy/vector --replicas=1
@@ -1352,11 +1344,11 @@ kubectl -n pipeline get pod -l app=vector -o wide
 kubectl -n pipeline describe pod -l app=vector | grep -E 'OOMKilled|Reason|Limits|Requests' -A3
 ```
 
-Nếu node bắt đầu ì sau khi scale lên `1`, tắt Vector ngay:
+Kỳ vọng sau khi bật ingest:
 
-```bash
-kubectl -n pipeline scale deploy/vector --replicas=0
-```
+- Pod Vector `1/1 Running`, `RESTARTS=0`.
+- Log có `Vector has started`, `Found new file to watch. file=/data/yellow_tripdata_2026-03.jsonl`, `Healthcheck passed`.
+- `~/continux/scripts/k3s-check.sh` chạy được, namespace `pipeline` có `vector` Running, RAM node không tăng bất thường.
 
 ---
 

@@ -15,3 +15,11 @@ spec:
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: vector
+      namespace: pipeline
+      jsonPointers:
+        - /spec/replicas
