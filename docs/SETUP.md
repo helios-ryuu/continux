@@ -1163,7 +1163,7 @@ Quy ước khi chỉnh JSON:
 
 ## 10. Dataset & Vector
 
-> **RAM note:** Vector chạy full JSONL, nhưng phải dùng cấu hình mới có memory limit `1Gi` và disk buffer `512Mi`. Nếu cụm đang kẹt do Vector CrashLoop/OOM từ cấu hình cũ, scale Vector về 0 trước rồi sync cấu hình mới.
+> **RAM note:** Vector chạy full JSONL, nhưng GitOps mặc định giữ `replicas: 0`. `argocd app sync vector` chỉ tạo ConfigMap/PV/PVC/Deployment, chưa khởi động Vector. Sau khi control plane khỏe và preflight OK mới scale Vector lên `1`.
 
 Nếu cụm vừa bị ì hoặc kernel báo `Memory cgroup out of memory` do Vector, hạ Vector về 0 trước rồi mới sửa/sync lại:
 
@@ -1171,6 +1171,39 @@ Nếu cụm vừa bị ì hoặc kernel báo `Memory cgroup out of memory` do Ve
 kubectl -n pipeline scale deploy/vector --replicas=0
 kubectl -n pipeline get pods -l app=vector
 kubectl -n pipeline get events --sort-by=.lastTimestamp | tail -40
+```
+
+Nếu K3s API đang chập chờn và chưa scale được, tạm thời đưa file input ra khỏi pattern `/data/*.jsonl` trước để Vector config cũ không đọc tiếp sau khi kubelet restart container:
+
+```bash
+mkdir -p ~/continux/data/raw/paused
+mv ~/continux/data/raw/*.jsonl ~/continux/data/raw/paused/
+```
+
+Sau khi sync được manifest mới với `replicas: 0`, đưa file JSONL về lại:
+
+```bash
+mv ~/continux/data/raw/paused/*.jsonl ~/continux/data/raw/
+```
+
+Nếu `kubectl` hoặc `k3s-check.sh` không kết nối được K3s API, **không chạy `argocd app diff/sync`**. Khôi phục control plane trước:
+
+```bash
+~/continux/scripts/k3s-check.sh
+sudo systemctl status k3s --no-pager
+sudo journalctl -u k3s -n 120 --no-pager
+free -h
+uptime
+sudo ss -lntp | grep 6443
+kubectl config current-context
+```
+
+Với cụm embedded etcd 2 server, cả `continux-imac` và `continux-vps` phải healthy mới có quorum ổn định. Chỉ tiếp tục §10.2 khi các lệnh sau chạy được:
+
+```bash
+kubectl get nodes -o wide
+kubectl get pods -A --field-selector=status.phase!=Running
+~/continux/scripts/k3s-check.sh
 ```
 
 ### 10.1. Tải NYC TLC + upload Taxi Zone
@@ -1285,12 +1318,13 @@ Nếu Vector đã từng bị OOM/CrashLoop vì đọc file quá lớn, dừng n
 
 ```bash
 kubectl -n pipeline scale deploy/vector --replicas=0
+kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s
 kubectl -n pipeline get pods -l app=vector
 ```
 
 Sau đó commit/push cấu hình mới rồi sync lại.
 
-Sau khi Redpanda topic đã tạo ở §8.3, JSONL đã có trong `~/continux/data/raw`, và PVC path đúng, sync Vector:
+Sau khi Redpanda topic đã tạo ở §8.3, JSONL đã có trong `~/continux/data/raw`, và PVC path đúng, sync manifest Vector trước. Bước này không chạy Vector vì `config/vector/deployment.yaml` đặt `replicas: 0`:
 
 > **Thực thi trên:** `continux-imac`
 
@@ -1300,13 +1334,28 @@ argocd app sync vector
 argocd app wait vector --health --sync
 ```
 
-Kiểm tra log sau khi sync:
+Sau khi sync, xác nhận Deployment vẫn đang dừng:
 
 ```bash
+kubectl -n pipeline get deploy/vector -o jsonpath='{.spec.replicas}{" desired, "}{.status.readyReplicas}{" ready\n"}'
+kubectl -n pipeline get pv vector-data-pv
+kubectl -n pipeline get pvc vector-data
+```
+
+Chỉ khi K3s API khỏe và các resource đã tạo xong, mới bật Vector:
+
+```bash
+kubectl -n pipeline scale deploy/vector --replicas=1
 kubectl -n pipeline rollout status deploy/vector --timeout=300s
 kubectl -n pipeline logs deploy/vector --tail=100
 kubectl -n pipeline get pod -l app=vector -o wide
 kubectl -n pipeline describe pod -l app=vector | grep -E 'OOMKilled|Reason|Limits|Requests' -A3
+```
+
+Nếu node bắt đầu ì sau khi scale lên `1`, tắt Vector ngay:
+
+```bash
+kubectl -n pipeline scale deploy/vector --replicas=0
 ```
 
 ---
@@ -1487,7 +1536,8 @@ sudo apt purge tailscale -y
 | Droplet CPU `100%` liên tục | ArgoCD app-controller ôm quá nhiều app | Giảm số App-of-Apps; hoặc resize droplet lên $24/mo (nếu chưa) |
 | Tailscale ngắt kết nối sau vài giờ | NAT của modem kill session UDP | Trên iMac: `sudo tailscale up --reset --accept-routes --ssh` với systemd unit autorestart |
 | `psql: SSL off error` | RisingWave v2.4 bật SSL mặc định | `PGSSLMODE=disable psql ...` hoặc `\set SSLMODE disable` |
-| Vector bị `OOMKilled` ngay khi sync | Memory limit cũ quá thấp so với full JSONL | `kubectl -n pipeline scale deploy/vector --replicas=0`; sync cấu hình mới có limit `1Gi` + disk buffer `512Mi`; sau đó chạy lại Vector |
+| Vector làm cụm đơ ngay khi sync | Deployment Vector tự start trong lúc ArgoCD sync | Đặt `config/vector/deployment.yaml` `replicas: 0`; sync manifest trước, sau đó mới `kubectl -n pipeline scale deploy/vector --replicas=1` khi K3s API khỏe |
+| Vector bị `OOMKilled` sau khi scale lên 1 | Memory limit cũ quá thấp so với full JSONL | `kubectl -n pipeline scale deploy/vector --replicas=0`; sync cấu hình mới có limit `1Gi` + disk buffer `512Mi`; sau đó chạy lại Vector |
 | Redpanda `out of memory` khi stress | Container cap 1.5 GiB không đủ cho burst | Chạy JSONL nhỏ hơn trước, hoặc thêm `reserveMemory: 256Mi` |
 | Iceberg sink ghi nhưng query không thấy dữ liệu | Commit snapshot chưa chạy | Đợi `compactor` (mặc định mỗi 60s) hoặc force `CALL rw_iceberg_commit()` |
 | Grafana báo `ChunkLoadError: Loading chunk ... failed` | Browser hoặc Cloudflare cache còn giữ asset JS cũ sau khi Grafana upgrade/restart | Hard refresh `Ctrl+F5`; mở Incognito; xoá site data cho domain Grafana; nếu vẫn lỗi thì purge cache Cloudflare cho `continux-grafana.<domain>` và `kubectl -n observability rollout restart deploy/grafana` |
