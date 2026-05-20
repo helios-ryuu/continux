@@ -17,16 +17,15 @@ spec:
           image: timberio/vector:0.45.0-alpine
           args: ["--config", "/etc/vector/vector.toml"]
           resources:
-            requests: { cpu: 100m, memory: 128Mi }
-            limits:   { cpu: 500m, memory: 256Mi }
-          env:
-            - name: VECTOR_THROUGHPUT_EVENTS_PER_SEC
-              value: "5000"
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
           volumeMounts:
             - name: config
               mountPath: /etc/vector
             - name: data
               mountPath: /data
+            - name: vector-state
+              mountPath: /var/lib/vector
       volumes:
         - name: config
           configMap:
@@ -34,3 +33,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: vector-data
+        - name: vector-state
+          emptyDir:
+            sizeLimit: 1Gi

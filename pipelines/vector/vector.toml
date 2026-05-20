@@ -1,3 +1,5 @@
+data_dir = "/var/lib/vector"
+
 [sources.tlc_jsonl]
 type = "file"
 include = ["/data/*.jsonl"]
@@ -20,3 +22,8 @@ bootstrap_servers = "redpanda.redpanda.svc.cluster.local:9093"
 topic = "nyc-taxi-events"
 encoding.codec = "json"
 compression = "zstd"
+
+[sinks.redpanda.buffer]
+type = "disk"
+max_size = 536870912
+when_full = "block"

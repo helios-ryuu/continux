@@ -5,6 +5,8 @@ metadata:
   namespace: pipeline
 data:
   vector.toml: |
+    data_dir = "/var/lib/vector"
+
     [sources.tlc_jsonl]
     type = "file"
     include = ["/data/*.jsonl"]
@@ -27,3 +29,8 @@ data:
     topic = "nyc-taxi-events"
     encoding.codec = "json"
     compression = "zstd"
+
+    [sinks.redpanda.buffer]
+    type = "disk"
+    max_size = 536870912
+    when_full = "block"

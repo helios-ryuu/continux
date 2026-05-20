@@ -19,6 +19,9 @@ spec:
       containers:
         - name: psql
           image: postgres:16-alpine
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
           env:
             - name: PGHOST
               value: risingwave.risingwave.svc.cluster.local

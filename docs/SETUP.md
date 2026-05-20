@@ -1163,6 +1163,16 @@ Quy ước khi chỉnh JSON:
 
 ## 10. Dataset & Vector
 
+> **RAM note:** Vector chạy full JSONL, nhưng phải dùng cấu hình mới có memory limit `1Gi` và disk buffer `512Mi`. Nếu cụm đang kẹt do Vector CrashLoop/OOM từ cấu hình cũ, scale Vector về 0 trước rồi sync cấu hình mới.
+
+Nếu cụm vừa bị ì hoặc kernel báo `Memory cgroup out of memory` do Vector, hạ Vector về 0 trước rồi mới sửa/sync lại:
+
+```bash
+kubectl -n pipeline scale deploy/vector --replicas=0
+kubectl -n pipeline get pods -l app=vector
+kubectl -n pipeline get events --sort-by=.lastTimestamp | tail -40
+```
+
 ### 10.1. Tải NYC TLC + upload Taxi Zone
 
 Nguồn chính thức: [NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page). TLC publish dữ liệu theo tháng, thường trễ khoảng 2 tháng để chờ vendor gửi đủ dữ liệu. Tại thời điểm kiểm tra **20/05/2026**, file Yellow Taxi mới nhất đang có trên trang TLC là **2026-03**.
@@ -1237,7 +1247,7 @@ Luồng hiện tại:
 1. Script [`scripts/tlc-parquet-to-jsonl.py`](../scripts/tlc-parquet-to-jsonl.py) convert Yellow Taxi Parquet thành JSONL.
 2. Vector đọc `/data/*.jsonl` từ PVC `vector-data`.
 3. Transform `parse_and_simulate_event_time` parse từng dòng JSON, thêm `event_id` và `event_time`.
-4. Sink Kafka publish JSON vào Redpanda topic `nyc-taxi-events`.
+4. Sink Kafka publish JSON vào Redpanda topic `nyc-taxi-events`, dùng disk buffer 512 MiB tại `/var/lib/vector` và `when_full = "block"` để không phình RAM nếu Redpanda chậm.
 
 Trước khi sync Vector, kiểm tra 4 điều kiện. Các lệnh dưới phải có output rõ ràng; riêng `rpk topic describe` phải in được thông tin topic `nyc-taxi-events`.
 
@@ -1256,6 +1266,12 @@ kubectl get pv vector-data-pv -o jsonpath='{.spec.hostPath.path}{"\n"}' || true
 # Kết quả đúng nếu PV đã tồn tại: /home/helios/continux/data/raw
 ```
 
+Kiểm tra resource guardrail trước khi sync:
+
+```bash
+kubectl kustomize config/vector | grep -E 'memory:|sizeLimit:|/data/\*.jsonl|when_full|buffer' -n
+```
+
 Nếu `rpk topic describe nyc-taxi-events` báo không tìm thấy topic, quay lại §8.3 để sync/tạo topic trước. Vector sẽ publish lỗi nếu topic chưa tồn tại.
 
 Nếu PV `vector-data-pv` đã được tạo từ cấu hình cũ và còn trỏ sang path khác, xoá riêng workload/PVC/PV của Vector rồi để ArgoCD tạo lại:
@@ -1264,6 +1280,15 @@ Nếu PV `vector-data-pv` đã được tạo từ cấu hình cũ và còn tr�
 kubectl -n pipeline delete deploy/vector pvc/vector-data --ignore-not-found
 kubectl delete pv/vector-data-pv --ignore-not-found
 ```
+
+Nếu Vector đã từng bị OOM/CrashLoop vì đọc file quá lớn, dừng nó trước khi sync lại:
+
+```bash
+kubectl -n pipeline scale deploy/vector --replicas=0
+kubectl -n pipeline get pods -l app=vector
+```
+
+Sau đó commit/push cấu hình mới rồi sync lại.
 
 Sau khi Redpanda topic đã tạo ở §8.3, JSONL đã có trong `~/continux/data/raw`, và PVC path đúng, sync Vector:
 
@@ -1280,6 +1305,8 @@ Kiểm tra log sau khi sync:
 ```bash
 kubectl -n pipeline rollout status deploy/vector --timeout=300s
 kubectl -n pipeline logs deploy/vector --tail=100
+kubectl -n pipeline get pod -l app=vector -o wide
+kubectl -n pipeline describe pod -l app=vector | grep -E 'OOMKilled|Reason|Limits|Requests' -A3
 ```
 
 ---
@@ -1287,6 +1314,8 @@ kubectl -n pipeline logs deploy/vector --tail=100
 ## 11. Apply SQL Blue và Iceberg Sink
 
 > ⚠️ **Trước khi apply SQL:** `sql/02-tables/tlc-taxi-zone.sql` và `sql/04-sinks/iceberg-zone-stats.sql` chứa placeholder `<replace: key-risingwave secret từ MinIO console §8.2>`. Phải thay bằng secret key thực của service account `key-risingwave` (lấy từ MinIO console ở §8.2) rồi mới chạy các file này.
+
+> **RAM guardrail:** `gitops/pipeline/sql-apply-job.yaml` đã giới hạn `128Mi`. Nếu RisingWave compute OOM khi xử lý full dataset, dừng Vector trước, đợi cụm ổn định rồi mới chạy lại.
 
 ### 11.1. Source + Table
 
@@ -1317,6 +1346,15 @@ git push
 ```bash
 argocd app sync pipeline
 argocd app wait pipeline --health --sync
+```
+
+Nếu `pipeline` chưa healthy, xem Job và event trước khi chạy lại:
+
+```bash
+kubectl -n pipeline get jobs,pods
+kubectl -n pipeline logs job/mv-apply-job --tail=100
+kubectl -n risingwave get pods -o wide
+kubectl -n risingwave get events --sort-by=.lastTimestamp | tail -40
 ```
 
 Verify:
@@ -1353,11 +1391,14 @@ Chi tiết cơ chế Job xem [ARCHITECTURE.md §3 — Quy ước GitOps](./ARCHI
 
 > **Thực thi trên:** `continux-imac`
 
-```bash
-# Stress test ở các mức tải
-bash experiments/runners/run_stress.sh --rate=medium --duration=15m
+Sau khi §11 verify được dữ liệu và Grafana có metric, chạy kịch bản thực nghiệm. Nếu cụm vừa OOM, dừng Vector trước rồi chỉ chạy lại khi `kubectl get pods -A` đã ổn định.
 
-# Swap lặp 5 lần
+```bash
+test -x experiments/runners/run_stress.sh
+test -x experiments/runners/run_swap.sh
+test -f experiments/runners/verify_integrity.py
+
+bash experiments/runners/run_stress.sh --rate=medium --duration=15m
 bash experiments/runners/run_swap.sh --repeat=5
 
 # Data integrity
@@ -1446,6 +1487,7 @@ sudo apt purge tailscale -y
 | Droplet CPU `100%` liên tục | ArgoCD app-controller ôm quá nhiều app | Giảm số App-of-Apps; hoặc resize droplet lên $24/mo (nếu chưa) |
 | Tailscale ngắt kết nối sau vài giờ | NAT của modem kill session UDP | Trên iMac: `sudo tailscale up --reset --accept-routes --ssh` với systemd unit autorestart |
 | `psql: SSL off error` | RisingWave v2.4 bật SSL mặc định | `PGSSLMODE=disable psql ...` hoặc `\set SSLMODE disable` |
+| Vector bị `OOMKilled` ngay khi sync | Memory limit cũ quá thấp so với full JSONL | `kubectl -n pipeline scale deploy/vector --replicas=0`; sync cấu hình mới có limit `1Gi` + disk buffer `512Mi`; sau đó chạy lại Vector |
 | Redpanda `out of memory` khi stress | Container cap 1.5 GiB không đủ cho burst | Chạy JSONL nhỏ hơn trước, hoặc thêm `reserveMemory: 256Mi` |
 | Iceberg sink ghi nhưng query không thấy dữ liệu | Commit snapshot chưa chạy | Đợi `compactor` (mặc định mỗi 60s) hoặc force `CALL rw_iceberg_commit()` |
 | Grafana báo `ChunkLoadError: Loading chunk ... failed` | Browser hoặc Cloudflare cache còn giữ asset JS cũ sau khi Grafana upgrade/restart | Hard refresh `Ctrl+F5`; mở Incognito; xoá site data cho domain Grafana; nếu vẫn lỗi thì purge cache Cloudflare cho `continux-grafana.<domain>` và `kubectl -n observability rollout restart deploy/grafana` |
