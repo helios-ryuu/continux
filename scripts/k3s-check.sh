@@ -340,8 +340,8 @@ section_overview() {
         NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"}
         NR>1{
             line=$0
-            if (line ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/) sub(/CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/, "'"${RED}"'"&"'"${NC}"'", line)
-            else if (line ~ /Pending|ContainerCreating/) sub(/Pending|ContainerCreating/, "'"${YELLOW}"'"&"'"${NC}"'", line)
+            if (line ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/) sub(/CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/, "'"${RED}"'&'"${NC}"'", line)
+            else if (line ~ /Pending|ContainerCreating/) sub(/Pending|ContainerCreating/, "'"${YELLOW}"'&'"${NC}"'", line)
             else if (line ~ /Terminating/) sub("Terminating", "'"${ORANGE}"'Terminating'"${NC}"'", line)
             else if (line ~ /Running/) sub("Running", "'"${GREEN}"'Running'"${NC}"'", line)
             print "     " line

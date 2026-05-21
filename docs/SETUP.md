@@ -84,6 +84,11 @@ sudo swapoff -a
 sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
 echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-k3s.conf
 sudo sysctl --system
+
+# WSL root mount mặc định có thể là private, làm pod dùng hostPath
+# mountPropagation=HostToContainer bị CreateContainerError.
+# Chạy bước này để node-exporter và các DaemonSet tương tự mount / được.
+sudo bash scripts/wsl-enable-shared-root.sh
 ```
 
 ### 2.2. `continux-vps`
