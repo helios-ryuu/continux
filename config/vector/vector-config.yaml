@@ -29,6 +29,12 @@ data:
     topic = "nyc-taxi-events"
     encoding.codec = "json"
     compression = "zstd"
+    rate_limit_num = 2
+    rate_limit_duration_secs = 1
+
+    [sinks.redpanda.batch]
+    max_events = 250
+    timeout_secs = 1
 
     [sinks.redpanda.buffer]
     type = "disk"

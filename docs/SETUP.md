@@ -606,8 +606,8 @@ ls -lh "data/raw/yellow_tripdata_${DATA_MONTH}.jsonl"
 kubectl -n redpanda exec redpanda-0 -c redpanda -- \
   rpk topic describe nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
 
-# Kiểm tra image/tag, path input, buffer và memory guardrail trong manifest render.
-kubectl kustomize config/vector | grep -E '0.55.0|/data/\*.jsonl|when_full|sizeLimit|memory:' -n
+# Kiểm tra image/tag, path input, Kafka backpressure, buffer và memory guardrail trong manifest render.
+kubectl kustomize config/vector | grep -E '0.55.0|/data/\*.jsonl|rate_limit_num|rate_limit_duration_secs|max_events|when_full|sizeLimit|memory:' -n
 ```
 
 Sync manifest ở trạng thái dừng:
@@ -626,6 +626,9 @@ Bật ingest thủ công:
 kubectl -n pipeline scale deploy/vector --replicas=1
 kubectl -n pipeline rollout status deploy/vector --timeout=300s
 kubectl -n pipeline logs deploy/vector --tail=100
+
+# Nếu Grafana/Redpanda/RisingWave bắt đầu nghẽn trong lúc ingest, tắt ngay rồi giảm rate_limit_num hoặc max_events.
+kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
 ```
 
 Tắt ingest khi cần:
