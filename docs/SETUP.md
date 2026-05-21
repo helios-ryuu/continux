@@ -178,6 +178,7 @@ sudo apt install -y ufw
 
 # Giữ SSH trước khi enable UFW, đặc biệt trên VPS.
 sudo ufw allow OpenSSH comment 'ssh'
+sudo ufw enable
 
 # Chỉ mở control-plane qua Tailscale, tránh expose public 6443/etcd trên VPS.
 TAILSCALE_CIDR=100.64.0.0/10
