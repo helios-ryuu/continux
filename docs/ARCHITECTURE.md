@@ -1,5 +1,7 @@
 # ARCHITECTURE
 
+> Phiên bản dự án: `v0.2.1`. Kiến trúc dưới đây phản ánh cụm thật sau khi hoàn tất `docs/SETUP.md` §1-9.
+
 ## 1. Tổng quan
 
 Continux là kiến trúc Data Lakehouse thời gian thực chạy trên cụm K3s 3 server. Mục tiêu là ingest dữ liệu NYC TLC, xử lý streaming SQL bằng RisingWave, ghi kết quả xuống Apache Iceberg trên MinIO, và quan sát pipeline bằng VictoriaMetrics/Grafana.
@@ -54,13 +56,13 @@ tolerations:
   - { key: dedicated, operator: Equal, value: quorum, effect: NoSchedule }
 ```
 
-Ứng dụng không schedule lên `helios-pc`; node này giữ quorum cho embedded etcd.
+Ứng dụng không schedule lên `helios-pc`; node này giữ quorum cho embedded etcd. Ngoại lệ có chủ đích là `prometheus-node-exporter` chạy dạng DaemonSet trên cả 3 node để quan sát tài nguyên node; trên WSL cần `scripts/wsl-enable-shared-root.sh` để hostPath mount `/` hoạt động.
 
 ## 3. Data Flow
 
 1. `scripts/partojsonl.py` convert Yellow Taxi Parquet sang JSONL trong `data/raw/`.
 2. Vector đọc `/data/*.jsonl`, thêm `event_id` và `event_time`.
-3. Vector publish JSON vào Redpanda topic `nyc-taxi-events`.
+3. Vector publish JSON vào Redpanda topic `nyc-taxi-events` qua Kafka sink có disk buffer và rate limit để tránh flood cụm nhỏ.
 4. RisingWave đọc topic, join với TLC Taxi Zone CSV trong MinIO.
 5. Materialized View `mv_zone_stats` tổng hợp thống kê theo zone/borough.
 6. Iceberg sink ghi kết quả xuống bucket `iceberg-data`.
@@ -92,6 +94,7 @@ tolerations:
 | FR-05 | Observability | Grafana đọc datasource VictoriaMetrics |
 | NFR-01 | HA control plane | 3 server Ready, quorum `2/3` |
 | NFR-02 | Resource safety | Vector mặc định `replicas: 0`, scale thủ công |
+| NFR-04 | Demo replay | `docs/SETUP.md` §11 có quy trình clear Redpanda/RisingWave/Iceberg để chạy ingest lại |
 | NFR-03 | Reproducible setup | `docs/SETUP.md` đi từ máy sạch tới verify end-to-end |
 
 ## 6. Vận hành

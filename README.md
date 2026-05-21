@@ -7,12 +7,12 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.0-0A7CC7?style=flat-square" alt="Version v0.2.0">
+  <img src="https://img.shields.io/badge/version-v0.2.1-0A7CC7?style=flat-square" alt="Version v0.2.1">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/K3s-v1.35.4-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
+  <img src="https://img.shields.io/badge/K3s-v1.35.5-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
   <img src="https://img.shields.io/badge/Helm-v4.1.4-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
   <img src="https://img.shields.io/badge/ArgoCD-v3.4.2-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="Argo CD">
   <img src="https://img.shields.io/badge/Tailscale-v1.98.2-242424?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale">
@@ -61,7 +61,7 @@ Tài liệu liên quan:
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - Kiến trúc, topology, placement và yêu cầu hệ thống.
 - [docs/SETUP.md](./docs/SETUP.md) - Trình tự setup từ máy sạch tới pipeline chạy được.
 - [docs/SCRIPTS.md](./docs/SCRIPTS.md) - Tài liệu script vận hành.
-- [docs/TIMELINE.md](./docs/TIMELINE.md) - Mốc triển khai v0.2.0.
+- [docs/TIMELINE.md](./docs/TIMELINE.md) - Mốc triển khai v0.2.1.
 - [docs/REPORT.md](./docs/REPORT.md) - Báo cáo đồ án.
 
 ---
@@ -77,7 +77,7 @@ Tài liệu liên quan:
 
 ## HẠ TẦNG MÁY CHỦ
 
-Cụm tham chiếu v0.2.0 gồm **3 K3s server** nối với nhau bằng **Tailscale mesh VPN**.
+Cụm tham chiếu v0.2.1 gồm **3 K3s server** nối với nhau bằng **Tailscale mesh VPN**.
 
 | Node Kubernetes | Máy | Hệ điều hành | Vai trò |
 |-----------------|-----|--------------|---------|
@@ -100,7 +100,7 @@ Lưu ý: WSL trên `Helios-PC` được Tailscale đặt tên `helios-pc-wsl` đ
 
 ## KHỞI CHẠY DỰ ÁN
 
-**Phiên bản hiện tại:** `v0.2.0` - refactor topology 3 máy, tinh gọn tài liệu vận hành, cập nhật scripts và pin image/tag chính.
+**Phiên bản hiện tại:** `v0.2.1` - hoàn tất setup §1-9 trên cụm thật, bổ sung output đã che secret vào tài liệu, bật ingest Vector có kiểm soát và cập nhật trạng thái triển khai.
 
 Quy trình tổng quát:
 

@@ -9,6 +9,7 @@ Tất cả script nằm trong `scripts/`. Setup mặc định chỉ cần các s
 | `k3s-install-server-init.sh` | `imac` | Khởi tạo K3s server #1 với embedded etcd |
 | `k3s-token.sh` | `imac` | In K3s server join token |
 | `k3s-install-server.sh` | `continux-vps`, `helios-pc` | Join server #2/#3 vào cluster |
+| `wsl-enable-shared-root.sh` | `helios-pc` WSL | Bật shared root mount propagation để node-exporter/hostPath chạy được |
 | `k3s-check.sh` | `imac` | Kiểm tra overview, nodes/pods, workloads, storage, local resources, images, Helm |
 | `k3s-purge.sh` | K3s server có kubeconfig | Reset cluster hoặc xóa K3s khỏi node |
 | `tool-version.sh` | Ubuntu node | Kiểm tra CLI so với latest stable |
@@ -50,6 +51,20 @@ Profile:
 |---------|-------|-------|
 | `edge` | `workload=light role=control-plane` | `dedicated=edge:NoSchedule` |
 | `quorum` | `workload=quorum role=quorum` | `dedicated=quorum:NoSchedule` |
+
+## `wsl-enable-shared-root.sh`
+
+Chạy trên WSL `helios-pc` sau khi node đã join K3s:
+
+```bash
+sudo bash scripts/wsl-enable-shared-root.sh
+```
+
+Script chạy `mount --make-rshared /`, tạo `wsl-shared-root.service`, thêm ordering để `k3s.service` chạy sau service này, rồi restart K3s. Output đã xác nhận trong v0.2.1:
+
+```text
+/ shared
+```
 
 ## `k3s-check.sh`
 

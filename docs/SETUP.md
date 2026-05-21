@@ -1,5 +1,7 @@
 # SETUP
 
+> Phiên bản dự án: `v0.2.1`.
+
 ## 0. Topology
 
 Mục này chốt tên node, IP Tailscale và vai trò trước khi chạy bất kỳ lệnh nào. Các tên trong bảng phải được dùng nhất quán trong `kubectl`, script cài K3s và lệnh kiểm tra mạng; nếu đổi tên thiết bị trên Tailscale thì cập nhật ở đây trước.
@@ -42,7 +44,7 @@ Pin ứng dụng dùng cho lần triển khai này:
 
 | Thành phần | Phiên bản |
 |------------|-----------|
-| K3s | stable channel, `v1.35.4+k3s1` |
+| K3s | stable channel, `v1.35.5+k3s1` |
 | Helm | `v4.1.4` |
 | Argo CD | app `v3.4.2`, chart `argo-cd` `9.5.14` |
 | Tailscale | `v1.98.2` |
@@ -60,6 +62,15 @@ Kiểm tra CLI sau khi cài:
 ```bash
 # Chạy sau §5 để xác nhận CLI local khớp bảng version.
 bash scripts/tool-version.sh
+# Output đã xác nhận 2026-05-21:
+# tailscale 1.98.2 ✓ cập nhật
+# k3s v1.35.5+k3s1 ✓ cập nhật
+# kubectl v1.35.5+k3s1 ✓ cập nhật
+# helm v4.1.4 ↑ có bản stable mới hơn v4.2.0
+# argocd CLI v3.4.2 ✓ cập nhật
+# rpk v26.1.8 ✓ cập nhật
+# mc RELEASE.2025-08-13T08-35-41Z ✓ cập nhật
+# psql 18.3 (APT)
 ```
 
 ## 2. Chuẩn bị OS
@@ -84,11 +95,7 @@ sudo swapoff -a
 sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
 echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-k3s.conf
 sudo sysctl --system
-
-# WSL root mount mặc định có thể là private, làm pod dùng hostPath
-# mountPropagation=HostToContainer bị CreateContainerError.
-# Chạy bước này để node-exporter và các DaemonSet tương tự mount / được.
-sudo bash scripts/wsl-enable-shared-root.sh
+# Output mong đợi: net.ipv4.ip_forward = 1
 ```
 
 ### 2.2. `continux-vps`
@@ -121,6 +128,8 @@ sudo swapoff -a
 sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
 echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-k3s.conf
 sudo sysctl --system
+# Output đã xác nhận trên continux-vps:
+# net.ipv4.ip_forward = 1
 ```
 
 ### 2.3. `helios-pc`
@@ -170,6 +179,10 @@ sudo swapoff -a
 sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
 echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-k3s.conf
 sudo sysctl --system
+# Output đã xác nhận trên Helios-PC/WSL:
+# net.ipv4.ip_forward = 1
+
+# WSL root mount mặc định có thể là private; chạy script fix ở §4.2 sau khi K3s đã cài.
 ```
 
 ### 2.4. UFW firewall
@@ -198,6 +211,15 @@ sudo ufw allow from 10.43.0.0/16 to any comment 'k3s services'
 
 sudo ufw reload
 sudo ufw status verbose
+# Output đã xác nhận trên continux-vps và helios-pc:
+# Status: active
+# 22/tcp (OpenSSH) ALLOW IN Anywhere # ssh
+# 6443/tcp ALLOW IN 100.64.0.0/10 # k3s apiserver via tailscale
+# 2379:2380/tcp ALLOW IN 100.64.0.0/10 # k3s embedded etcd
+# 10250/tcp ALLOW IN 100.64.0.0/10 # kubelet api via tailscale
+# 8472/udp ALLOW IN 100.64.0.0/10 # flannel vxlan via tailscale
+# Anywhere ALLOW IN 10.42.0.0/16 # k3s pods
+# Anywhere ALLOW IN 10.43.0.0/16 # k3s services
 
 # Chỉ enable sau khi đã chắc SSH/Tailscale vẫn vào được.
 # sudo ufw enable
@@ -262,6 +284,13 @@ Trên `continux-vps`:
 ```bash
 # Server #2: control/observability plane, có taint dedicated=edge.
 sudo bash scripts/k3s-install-server.sh <IMAC_TS_IP> <K3S_TOKEN> continux-vps edge
+# Output đã xác nhận 2026-05-21:
+# Tailscale IP local: 100.113.151.56
+# Node name: continux-vps
+# Profile: edge
+# Label: workload=light, role=control-plane
+# Taint: dedicated=edge:NoSchedule
+# continux-vps Ready, version v1.35.5+k3s1, INTERNAL-IP 100.113.151.56
 ```
 
 Trên `helios-pc`:
@@ -269,6 +298,20 @@ Trên `helios-pc`:
 ```bash
 # Server #3: quorum-only, Kubernetes node name là helios-pc.
 sudo bash scripts/k3s-install-server.sh <IMAC_TS_IP> <K3S_TOKEN> helios-pc quorum
+# Output đã xác nhận 2026-05-21:
+# Tailscale IP local: 100.78.46.87
+# Node name: helios-pc
+# Profile: quorum
+# Label: workload=quorum, role=quorum
+# Taint: dedicated=quorum:NoSchedule
+# helios-pc Ready, version v1.35.5+k3s1, INTERNAL-IP 100.78.46.87
+
+# Sau khi join K3s trên WSL, bật shared root để node-exporter/hostPath mount chạy được.
+sudo bash scripts/wsl-enable-shared-root.sh
+# Output đã xác nhận trên Helios-PC/WSL:
+# Root mount hiện tại đã là shared/rshared.
+# k3s đã restart sau khi root mount được chuyển sang rshared.
+# / shared
 ```
 
 Trên `imac`, verify:
@@ -277,11 +320,19 @@ Trên `imac`, verify:
 # Node list phải có đủ 3 server và IP nội bộ là dải 100.x.x.x.
 kubectl get nodes -o wide
 kubectl get nodes -l role=quorum -o wide
+# Output đã xác nhận:
+# continux-vps Ready control-plane,etcd v1.35.5+k3s1 100.113.151.56
+# helios-pc Ready control-plane,etcd v1.35.5+k3s1 100.78.46.87
+# imac Ready control-plane,etcd v1.35.5+k3s1 100.120.64.5
 
 # readyz cần có etcd/readyz ok; nc kiểm tra peer port etcd qua Tailscale.
 kubectl get --raw='/readyz?verbose' | grep -E 'readyz|etcd|ok'
 nc -vz continux-vps 2380
 nc -vz helios-pc-wsl 2380
+# Output đã xác nhận:
+# [+]etcd ok
+# [+]etcd-readiness ok
+# readyz check passed
 ```
 
 ## 5. CLI quản trị
@@ -317,8 +368,20 @@ sudo apt install -y redpanda
 wget -O /tmp/mc https://dl.min.io/client/mc/release/linux-amd64/mc
 chmod +x /tmp/mc
 sudo mv /tmp/mc /usr/local/bin/mc
+# Output đã xác nhận:
+# /tmp/mc saved [30535864/30535864]
 
 bash scripts/tool-version.sh
+# Output đã xác nhận:
+# OS Ubuntu 26.04 LTS, kernel 7.0.0-15-generic
+# tailscale 1.98.2 ✓
+# k3s v1.35.5+k3s1 ✓
+# kubectl v1.35.5+k3s1 ✓
+# helm v4.1.4 ↑ latest stable v4.2.0
+# argocd CLI v3.4.2 ✓
+# rpk v26.1.8 ✓
+# mc RELEASE.2025-08-13T08-35-41Z ✓
+# psql 18.3
 ```
 
 ## 6. Argo CD và GitOps
@@ -336,6 +399,9 @@ cd ~/continux
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
+# Output đã xác nhận:
+# namespace/argocd created
+# "argo" has been added to your repositories
 
 # Dùng values trong repo để giữ resource/placement thống nhất với topology.
 helm upgrade --install argocd argo/argo-cd \
@@ -343,6 +409,11 @@ helm upgrade --install argocd argo/argo-cd \
   --version 9.5.14 \
   -f config/argocd/helm-values.yaml
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+# Output đã xác nhận:
+# Release "argocd" does not exist. Installing it now.
+# STATUS: deployed
+# REVISION: 1
+# deployment "argocd-server" successfully rolled out
 ```
 
 ### 6.2. Cloudflare Tunnel
@@ -362,6 +433,10 @@ kubectl -n argocd create secret generic cloudflare-tunnel-token \
 # Manifest cloudflared đọc secret trên và route traffic vào service nội bộ.
 kubectl apply -f config/argocd/cloudflared.yaml
 kubectl -n argocd rollout status deploy/cloudflared --timeout=300s
+# Output đã xác nhận:
+# secret/cloudflare-tunnel-token created
+# deployment.apps/cloudflared created
+# deployment "cloudflared" successfully rolled out
 ```
 
 Publish route:
@@ -374,6 +449,8 @@ Lấy mật khẩu admin ban đầu:
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath='{.data.password}' | base64 -d && echo
+# Output đã xác nhận:
+# <argocd-initial-admin-password>
 ```
 
 ### 6.3. Đăng ký repo
@@ -383,17 +460,28 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 ```bash
 # Đăng nhập qua domain tunnel; --grpc-web cần thiết khi đi qua HTTP proxy/tunnel.
 argocd login continux-argo.<domain> --username admin --password <new-password> --grpc-web
+# Output đã xác nhận:
+# 'admin:login' logged in successfully
+# Context 'continux-argo.<domain>' updated
 
 # PAT GitHub chỉ cần quyền đọc repo nếu repo public; repo private cần scope repo phù hợp.
 argocd repo add https://github.com/helios-ryuu/continux.git \
   --username <github-user> \
   --password <github-token> \
   --grpc-web
+# Output đã xác nhận:
+# Repository 'https://github.com/helios-ryuu/continux.git' added
 
 # Root app quản lý các app con trong gitops/apps/.
 kubectl apply -f gitops/apps/root-app.yaml
 argocd app sync root-app --grpc-web
 argocd app list --grpc-web
+# Output đã xác nhận:
+# application.argoproj.io/root-app created
+# root-app Synced, Healthy
+# cloudflared, redpanda-topics, victoria-scrapes, pipeline, vector applications created
+# redpanda-topics Synced Healthy
+# cloudflared/vector/victoria-scrapes OutOfSync ban đầu là bình thường trước khi sync từng app con
 ```
 
 ## 7. Storage và streaming core
@@ -408,11 +496,16 @@ Secrets chứa credential runtime cho MinIO và RisingWave. Không commit secret
 # Namespace và secret đều apply kiểu idempotent để chạy lại không lỗi.
 kubectl create namespace minio --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace risingwave --dry-run=client -o yaml | kubectl apply -f -
+# Output đã xác nhận:
+# namespace/minio created
+# namespace/risingwave created
 
 kubectl -n minio create secret generic minio-credentials \
   --from-literal=rootUser=adminuser \
   --from-literal=rootPassword=<minio-root-password> \
   --dry-run=client -o yaml | kubectl apply -f -
+# Output đã xác nhận:
+# secret/minio-credentials created
 ```
 
 ### 7.2. MinIO
@@ -422,6 +515,8 @@ MinIO lưu checkpoint RisingWave, file Iceberg và lookup CSV. Sau khi rollout x
 ```bash
 helm repo add minio https://charts.min.io/
 helm repo update
+# Output đã xác nhận:
+# "minio" has been added to your repositories
 
 # Resolve chart version tại lúc setup rồi pin vào lệnh install.
 MINIO_CHART_VERSION=$(helm search repo minio/minio -o json | jq -r '.[0].version')
@@ -430,6 +525,11 @@ helm upgrade --install minio minio/minio \
   --version "${MINIO_CHART_VERSION}" \
   -f config/minio/helm-values.yaml
 kubectl -n minio rollout status deploy/minio --timeout=300s
+# Output đã xác nhận:
+# Release "minio" does not exist. Installing it now.
+# STATUS: deployed
+# REVISION: 1
+# deployment "minio" successfully rolled out
 ```
 
 Mở console, tạo hoặc xác nhận buckets `iceberg-data`, `rw-checkpoint`, `tlc-zone`, rồi tạo access key `key-risingwave`.
@@ -448,6 +548,8 @@ kubectl -n risingwave create secret generic risingwave-s3-credentials \
   --from-literal=AWS_ACCESS_KEY_ID=key-risingwave \
   --from-literal=AWS_SECRET_ACCESS_KEY=<key-risingwave-secret> \
   --dry-run=client -o yaml | kubectl apply -f -
+# Output đã xác nhận:
+# secret/risingwave-s3-credentials created
 ```
 
 ### 7.3. Redpanda
@@ -457,6 +559,8 @@ Redpanda nhận event JSON từ Vector qua topic `nyc-taxi-events`. App `redpand
 ```bash
 helm repo add redpanda https://charts.redpanda.com
 helm repo update
+# Output đã xác nhận:
+# "redpanda" has been added to your repositories
 
 # Resolve chart version tại lúc setup rồi pin vào lệnh install.
 REDPANDA_CHART_VERSION=$(helm search repo redpanda/redpanda -o json | jq -r '.[0].version')
@@ -465,12 +569,24 @@ helm upgrade --install redpanda redpanda/redpanda \
   --version "${REDPANDA_CHART_VERSION}" \
   -f config/redpanda/helm-values.yaml
 kubectl -n redpanda rollout status statefulset/redpanda --timeout=600s
+# Output đã xác nhận:
+# Release "redpanda" does not exist. Installing it now.
+# STATUS: deployed
+# statefulset rolling update complete 1 pods at revision redpanda-...
 
 # Tạo/verify topic bằng GitOps app riêng.
 argocd app sync redpanda-topics --grpc-web
 argocd app wait redpanda-topics --health --sync --grpc-web
 kubectl -n redpanda exec redpanda-0 -c redpanda -- \
   rpk topic describe nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
+# Output đã xác nhận:
+# redpanda-topic-bootstrap Succeeded
+# redpanda-topics Synced, Healthy
+# NAME nyc-taxi-events
+# PARTITIONS 3
+# REPLICAS 1
+# cleanup.policy delete
+# retention.ms 86400000
 ```
 
 ### 7.4. RisingWave
@@ -480,6 +596,8 @@ RisingWave đọc Redpanda, xử lý SQL streaming và ghi Iceberg sink xuống 
 ```bash
 helm repo add risingwavelabs https://risingwavelabs.github.io/helm-charts/
 helm repo update
+# Output đã xác nhận:
+# "risingwavelabs" has been added to your repositories
 
 # Resolve chart version tại lúc setup rồi pin vào lệnh install.
 RISINGWAVE_CHART_VERSION=$(helm search repo risingwavelabs/risingwave -o json | jq -r '.[0].version')
@@ -489,6 +607,14 @@ helm upgrade --install risingwave risingwavelabs/risingwave \
   -f config/risingwave/helm-values.yaml
 kubectl -n risingwave get pods,svc -o wide
 kubectl -n risingwave rollout status statefulset/risingwave-compute --timeout=300s
+# Output đã xác nhận:
+# Release "risingwave" does not exist. Installing it now.
+# STATUS: deployed
+# risingwave-compactor 1/1 Running
+# risingwave-compute-0 1/1 Running
+# risingwave-frontend 1/1 Running
+# risingwave-meta-0 1/1 Running
+# statefulset/risingwave-compute rollout complete
 ```
 
 Kết nối SQL:
@@ -501,6 +627,13 @@ kubectl -n risingwave port-forward svc/risingwave 4567:4567
 ```bash
 # Terminal 2: kiểm tra frontend SQL.
 psql -h localhost -p 4567 -d dev -U root -c 'SHOW CLUSTER;'
+# Output đã xác nhận:
+# Id | Addr                                                                 | Type                     | State   | Parallelism | Is Streaming | Is Serving | Is Unschedulable
+# 0  | risingwave-meta-0.risingwave-meta-headless.risingwave.svc:5690       | WORKER_TYPE_META         | RUNNING |             |              |            |
+# 1  | risingwave-compute-0.risingwave-compute-headless.risingwave.svc:5688 | WORKER_TYPE_COMPUTE_NODE | RUNNING | 2           | t            | t          | f
+# 2  | 10.42.0.13:6660                                                      | WORKER_TYPE_COMPACTOR    | RUNNING | 3           | f            | f          | f
+# 3  | 10.42.0.16:4567                                                      | WORKER_TYPE_FRONTEND     | RUNNING |             | f            | f          | f
+# (4 rows)
 ```
 
 ## 8. Observability
@@ -514,6 +647,8 @@ VictoriaMetrics stack cần CRD trước khi chart tạo custom resources. App `
 ```bash
 helm repo add vm https://victoriametrics.github.io/helm-charts/
 helm repo update
+# Output đã xác nhận:
+# "vm" has been added to your repositories
 
 # CRD phải apply trước chart để operator nhận được custom resources.
 VICTORIA_CHART_VERSION=$(helm search repo vm/victoria-metrics-k8s-stack -o json | jq -r '.[0].version')
@@ -523,10 +658,20 @@ helm upgrade --install victoria-metrics vm/victoria-metrics-k8s-stack \
   --namespace observability --create-namespace \
   --version "${VICTORIA_CHART_VERSION}" \
   -f config/victoria-metrics/helm-values.yaml
+# Output đã xác nhận:
+# vmagents.operator.victoriametrics.com condition met
+# Release "victoria-metrics" does not exist. Installing it now.
+# STATUS: deployed
+# REVISION: 1
 
 # Sync scrape config do repo quản lý sau khi operator đã sẵn sàng.
 argocd app sync victoria-scrapes --grpc-web
 argocd app wait victoria-scrapes --health --sync --grpc-web
+# Output đã xác nhận:
+# VMServiceScrape/risingwave created
+# VMServiceScrape/redpanda created
+# VMServiceScrape/etcd created
+# victoria-scrapes Synced, Healthy
 ```
 
 ### 8.2. Grafana
@@ -536,6 +681,8 @@ Grafana dùng datasource VictoriaMetrics và dashboard JSON trong `dashboards/`.
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
+# Output đã xác nhận:
+# "grafana" has been added to your repositories
 
 # Resolve chart version tại lúc setup rồi pin vào lệnh install.
 GRAFANA_CHART_VERSION=$(helm search repo grafana/grafana -o json | jq -r '.[0].version')
@@ -546,13 +693,19 @@ helm upgrade --install grafana grafana/grafana \
 kubectl -n observability rollout status deploy/grafana --timeout=300s
 kubectl -n observability get secret grafana \
   -o jsonpath='{.data.admin-password}' | base64 -d && echo
+# Output đã xác nhận:
+# Release "grafana" does not exist. Installing it now.
+# STATUS: deployed
+# REVISION: 1
+# deployment "grafana" successfully rolled out
+# <grafana-admin-password>
 ```
 
 Mở `https://continux-grafana.<domain>`, đăng nhập `admin`, đổi password, import dashboard trong `dashboards/*.json` với datasource `VictoriaMetrics`.
 
 ## 9. Dataset và Vector
 
-Mục này chuẩn bị dữ liệu đầu vào và bật ingest có kiểm soát. Vector mặc định `replicas: 0`, nên pipeline chỉ phát event khi bạn scale thủ công sau khi preflight xanh.
+Mục này là nơi bắt đầu chạm vào dữ liệu thật: tải Parquet/CSV, convert JSONL, upload lookup CSV và chuẩn bị Vector. Cụm chưa phát event cho tới khi bạn chạy phần **Bật ingest thủ công**. Vector mặc định `replicas: 0`, nên pipeline chỉ phát event khi bạn scale thủ công sau khi preflight xanh.
 
 Tạo dataset trên `imac`:
 
@@ -568,18 +721,26 @@ mkdir -p data/raw data/zone
 
 # File parquet lớn nằm trong data/raw và không commit.
 wget -c -O "data/raw/yellow_tripdata_${DATA_MONTH}.parquet" "$DATA_URL"
+# Output đã xác nhận với DATA_MONTH=2026-03:
+# data/raw/yellow_tripdata_2026-03.parquet saved [67891249/67891249] (~64.75 MiB)
 
 # Lookup CSV nhỏ được upload vào bucket tlc-zone để RisingWave join.
 wget -c -O data/zone/taxi_zone_lookup.csv "$ZONE_URL"
+# Output đã xác nhận:
+# data/zone/taxi_zone_lookup.csv saved [12331/12331] (~12 KiB)
 
 python3 -m venv .venv
 . .venv/bin/activate
 pip install --upgrade pip pyarrow
+# Output đã xác nhận:
+# Successfully installed pip-26.1.1 pyarrow-24.0.0
 
 # Vector đọc JSONL, nên convert Parquet trước khi sync Deployment.
 python scripts/partojsonl.py \
   "data/raw/yellow_tripdata_${DATA_MONTH}.parquet" \
   "data/raw/yellow_tripdata_${DATA_MONTH}.jsonl"
+# Output đã xác nhận:
+# Wrote 3952451 rows to data/raw/yellow_tripdata_2026-03.jsonl
 ```
 
 Upload zone lookup:
@@ -594,6 +755,10 @@ kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000
 mc alias set local http://127.0.0.1:9000 adminuser <minio-root-password>
 mc cp data/zone/taxi_zone_lookup.csv local/tlc-zone/taxi_zone_lookup.csv
 mc ls local/tlc-zone
+# Output đã xác nhận:
+# Added `local` successfully.
+# taxi_zone_lookup.csv uploaded, 12.04 KiB
+# local/tlc-zone/taxi_zone_lookup.csv exists
 ```
 
 Preflight Vector:
@@ -601,13 +766,29 @@ Preflight Vector:
 ```bash
 # Kiểm tra file, topic và manifest trước khi bật ingest.
 ls -lh "data/raw/yellow_tripdata_${DATA_MONTH}.jsonl"
+# Output đã xác nhận:
+# -rw-rw-r-- ... 450M ... data/raw/yellow_tripdata_2026-03.jsonl
 
 # Topic phải tồn tại trước, nếu không Vector publish sẽ lỗi.
 kubectl -n redpanda exec redpanda-0 -c redpanda -- \
   rpk topic describe nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
+# Output đã xác nhận:
+# NAME nyc-taxi-events
+# PARTITIONS 3
+# REPLICAS 1
+# retention.ms 86400000
 
 # Kiểm tra image/tag, path input, Kafka backpressure, buffer và memory guardrail trong manifest render.
 kubectl kustomize config/vector | grep -E '0.55.0|/data/\*.jsonl|rate_limit_num|rate_limit_duration_secs|max_events|when_full|sizeLimit|memory:' -n
+# Output mong đợi sau khi cập nhật v0.2.1:
+# include = ["/data/*.jsonl"]
+# rate_limit_num = 2
+# rate_limit_duration_secs = 1
+# max_events = 250
+# when_full = "block"
+# image: timberio/vector:0.55.0-alpine
+# memory: 1Gi / 256Mi
+# sizeLimit: 1Gi
 ```
 
 Sync manifest ở trạng thái dừng:
@@ -617,6 +798,14 @@ Sync manifest ở trạng thái dừng:
 argocd app sync vector --grpc-web
 argocd app wait vector --health --sync --grpc-web
 kubectl -n pipeline get deploy/vector -o jsonpath='{.spec.replicas}{" desired\n"}'
+# Output đã xác nhận:
+# namespace/pipeline created
+# configmap/vector-config created
+# persistentvolume/vector-data-pv created
+# persistentvolumeclaim/vector-data created
+# deployment.apps/vector created
+# vector Synced, Healthy
+# 0 desired
 ```
 
 Bật ingest thủ công:
@@ -626,9 +815,17 @@ Bật ingest thủ công:
 kubectl -n pipeline scale deploy/vector --replicas=1
 kubectl -n pipeline rollout status deploy/vector --timeout=300s
 kubectl -n pipeline logs deploy/vector --tail=100
+# Output đã xác nhận:
+# deployment.apps/vector scaled
+# deployment "vector" successfully rolled out
+# Vector has started. version="0.55.0"
+# Found new file to watch. file=/data/yellow_tripdata_2026-03.jsonl
+# Healthcheck passed.
 
 # Nếu Grafana/Redpanda/RisingWave bắt đầu nghẽn trong lúc ingest, tắt ngay rồi giảm rate_limit_num hoặc max_events.
 kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
+# Output đã xác nhận sau khi thêm --request-timeout:
+# deployment.apps/vector scaled
 ```
 
 Tắt ingest khi cần:
@@ -637,9 +834,27 @@ Tắt ingest khi cần:
 kubectl -n pipeline scale deploy/vector --replicas=0
 ```
 
+Kiểm tra tổng hợp sau khi hoàn tất §1-9:
+
+```bash
+./scripts/k3s-check.sh
+# Output đã xác nhận 2026-05-21:
+# Nodes Ready 100% 3/3
+# Pods Healthy 96% 27/28
+# PVC Bound 100% 5/5
+# Workloads Ready 100% 22/22
+# Node exporter DaemonSet 3/3 ready, gồm cả helios-pc sau wsl-enable-shared-root.sh
+# Vector 1/1 Running trên imac
+# Grafana 1/1 Running sau khi tăng resource, restart mới = 0
+# HOT LIST chỉ còn redpanda-configuration-cdk5k Failed và redpanda-console restart 1
+# Nhận định: redpanda-configuration-cdk5k là pod job/configuration cũ, không chặn workload vì redpanda-configuration-vl774 đã Succeeded và Workloads Ready 100%.
+```
+
 ## 10. SQL và verify
 
-Mục này apply SQL source/table/materialized view/sink qua GitOps, rồi verify bằng query RisingWave và object output trên MinIO. Trước khi commit, thay placeholder secret trong SQL bằng secret thật của access key `key-risingwave`.
+Mục này là nơi bắt đầu phần streaming/tính toán/truy vấn đầy đủ: RisingWave tạo Kafka source, materialized view, Iceberg sink, rồi bạn verify bằng SQL query và object output trên MinIO. Nếu Vector đã bật ở §9, RisingWave sẽ đọc lại topic từ đầu do `scan.startup.mode = 'earliest'`; nếu Vector chưa bật, hãy apply SQL xong rồi scale Vector lên `1`.
+
+Trước khi commit, thay placeholder secret trong SQL bằng secret thật của access key `key-risingwave`.
 
 Trước khi sync SQL, thay secret thật của `key-risingwave` trong:
 
@@ -678,7 +893,57 @@ mc ls --recursive local/iceberg-data/nyc/zone_stats/ | head
 bash scripts/k3s-check.sh
 ```
 
-## 11. Reset
+## 11. Clear demo ingest để chạy lại
+
+Mục này dùng khi muốn quay lại mốc cuối §9/đầu §10 để demo ingest thêm một lần từ trạng thái sạch, nhưng vẫn giữ cluster, Helm releases, bucket và dataset local. Thứ tự quan trọng là dừng Vector trước, rồi xóa state downstream, sau đó tạo lại topic/SQL và bật ingest lại.
+
+Dừng Vector để không còn event mới vào Redpanda trong lúc clear:
+
+```bash
+kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
+kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s || true
+```
+
+Xóa state xử lý trong RisingWave. Giữ port-forward RisingWave ở §7.4 đang chạy, hoặc mở lại `kubectl -n risingwave port-forward svc/risingwave 4567:4567` trong terminal riêng.
+
+```bash
+psql -h localhost -p 4567 -d dev -U root <<'SQL'
+DROP SINK IF EXISTS sink_zone_stats;
+DROP MATERIALIZED VIEW IF EXISTS mv_zone_stats;
+DROP MATERIALIZED VIEW IF EXISTS mv_zone_stats_blue;
+DROP SOURCE IF EXISTS nyc_taxi_src;
+DROP TABLE IF EXISTS tlc_zone;
+SQL
+```
+
+Xóa topic Redpanda để bỏ toàn bộ event cũ, rồi để GitOps tạo lại topic `nyc-taxi-events`:
+
+```bash
+kubectl -n redpanda exec redpanda-0 -c redpanda -- \
+  rpk topic delete nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
+
+argocd app sync redpanda-topics --grpc-web
+argocd app wait redpanda-topics --health --sync --grpc-web
+```
+
+Nếu muốn output Iceberg cũng sạch, xóa prefix sink trong MinIO. Giữ MinIO API port-forward ở §9 đang chạy, hoặc mở lại `kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000` trong terminal riêng.
+
+```bash
+mc rm --recursive --force local/iceberg-data/nyc/zone_stats/
+```
+
+Quay lại mốc khởi chạy: apply lại SQL, rồi bật Vector ingest:
+
+```bash
+argocd app sync pipeline --grpc-web
+argocd app wait pipeline --health --sync --grpc-web
+
+kubectl -n pipeline scale deploy/vector --replicas=1
+kubectl -n pipeline rollout status deploy/vector --timeout=300s
+kubectl -n pipeline logs deploy/vector --tail=100
+```
+
+## 12. Reset
 
 Mục này chỉ dùng khi cần làm sạch môi trường. `k3s-purge.sh` giữ K3s và node membership; `--nuke` xóa K3s khỏi node hiện tại nên phải dùng có chủ đích.
 
@@ -698,15 +963,15 @@ sudo bash scripts/k3s-purge.sh --nuke
 
 Chạy `--nuke` lần lượt trên `imac`, `continux-vps`, `helios-pc` khi cần phá cụm hoàn toàn.
 
-## 12. Checklist
+## 13. Checklist
 
 Checklist này là trạng thái tối thiểu để xem setup hoàn tất. Nếu một dòng chưa xanh, quay lại section tương ứng thay vì tiếp tục benchmark hoặc viết báo cáo kết quả.
 
-- [ ] `kubectl get nodes` có `imac`, `continux-vps`, `helios-pc` đều `Ready`.
-- [ ] `helios-pc` có taint `dedicated=quorum:NoSchedule`.
-- [ ] `argocd app list` có `root-app`, `cloudflared`, `redpanda-topics`, `victoria-scrapes`, `vector`, `pipeline`.
-- [ ] MinIO có buckets `iceberg-data`, `rw-checkpoint`, `tlc-zone`.
-- [ ] Redpanda topic `nyc-taxi-events` tồn tại.
-- [ ] Vector chỉ chạy khi scale thủ công.
+- [x] `kubectl get nodes` có `imac`, `continux-vps`, `helios-pc` đều `Ready`.
+- [x] `helios-pc` có taint `dedicated=quorum:NoSchedule`.
+- [x] `argocd app list` có `root-app`, `cloudflared`, `redpanda-topics`, `victoria-scrapes`, `vector`, `pipeline`.
+- [x] MinIO có runtime path/bucket cần cho `rw-checkpoint`, `tlc-zone`; `iceberg-data` dùng ở §10.
+- [x] Redpanda topic `nyc-taxi-events` tồn tại.
+- [x] Vector chỉ chạy khi scale thủ công; v0.2.1 đã thêm rate limit cho demo ingest.
 - [ ] RisingWave query `mv_zone_stats` trả dữ liệu.
-- [ ] Grafana import được dashboard và đọc datasource VictoriaMetrics.
+- [ ] Grafana import được dashboard và đọc datasource VictoriaMetrics bằng panel thực nghiệm.
