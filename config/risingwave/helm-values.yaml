@@ -6,7 +6,7 @@ metaStore:
     enabled: true
 
 stateStore:
-  dataDirectory: hummock001
+  dataDirectory: hummock002
   s3:
     enabled: true
     endpoint: http://minio.minio.svc.cluster.local:9000
@@ -26,7 +26,6 @@ computeComponent:
   extraEnvVars:
     - name: DISABLE_DEFAULT_CREDENTIAL
       value: "false"
-  extraEnvVarsSecret: risingwave-s3-credentials
   resources:
     requests: { cpu: 500m, memory: 1.5Gi }
     limits:   { cpu: 2,    memory: 2.5Gi }
@@ -37,7 +36,6 @@ metaComponent:
   extraEnvVars:
     - name: DISABLE_DEFAULT_CREDENTIAL
       value: "false"
-  extraEnvVarsSecret: risingwave-s3-credentials
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }

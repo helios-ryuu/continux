@@ -596,7 +596,7 @@ kubectl -n redpanda exec redpanda-0 -c redpanda -- \
 
 ### 7.4. RisingWave
 
-RisingWave đọc Redpanda, xử lý SQL streaming và ghi Iceberg sink xuống MinIO. Với topology này, các component chạy trên `role=data-plane`. File `config/risingwave/helm-values.yaml` trỏ tới Secret `risingwave-s3-credentials` và set `DISABLE_DEFAULT_CREDENTIAL=false` cho meta/compute pods, để SQL dùng `enable_config_load = 'true'` mà không cần ghi access key/secret key vào Git.
+RisingWave đọc Redpanda, xử lý SQL streaming và ghi Iceberg sink xuống MinIO. Với topology này, các component chạy trên `role=data-plane`. File `config/risingwave/helm-values.yaml` trỏ tới Secret `risingwave-s3-credentials` cho state store và set `DISABLE_DEFAULT_CREDENTIAL=false` cho meta/compute pods, để SQL dùng `enable_config_load = 'true'` mà không cần ghi access key/secret key vào Git.
 
 ```bash
 helm repo add risingwavelabs https://risingwavelabs.github.io/helm-charts/
@@ -621,6 +621,8 @@ kubectl -n risingwave rollout status statefulset/risingwave-compute --timeout=30
 # risingwave-meta-0 1/1 Running
 # statefulset/risingwave-compute rollout complete
 ```
+
+Nếu meta pod crash với lỗi `Data directory is already used by another cluster`, nghĩa là prefix state store trong MinIO đã gắn với cluster ID cũ nhưng metastore SQLite local đã bị tạo lại sau restart. Với môi trường demo chưa cần giữ checkpoint cũ, đổi `stateStore.dataDirectory` trong `config/risingwave/helm-values.yaml` sang prefix mới, ví dụ `hummock002`, rồi chạy lại Helm upgrade. Không xóa prefix cũ nếu chưa chắc chắn.
 
 Kết nối SQL:
 
@@ -861,7 +863,7 @@ Mục này là nơi bắt đầu phần streaming/tính toán/truy vấn đầy 
 
 Không thay secret thật vào SQL. SQL chỉ bật `enable_config_load = 'true'`; RisingWave tự đọc `AWS_ACCESS_KEY_ID` và `AWS_SECRET_ACCESS_KEY` từ Kubernetes Secret `risingwave/risingwave-s3-credentials` đã được inject vào meta/compute pods ở §7.4.
 
-Nếu cụm đã cài RisingWave trước khi `config/risingwave/helm-values.yaml` có `extraEnvVarsSecret`, chạy lại Helm upgrade để rollout env mới vào pods:
+Nếu cụm đã cài RisingWave trước khi `config/risingwave/helm-values.yaml` có `DISABLE_DEFAULT_CREDENTIAL=false` hoặc đổi `stateStore.dataDirectory`, chạy lại Helm upgrade để rollout cấu hình mới vào pods:
 
 ```bash
 RISINGWAVE_CHART_VERSION=$(helm search repo risingwavelabs/risingwave -o json | jq -r '.[0].version')
