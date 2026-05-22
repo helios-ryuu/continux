@@ -223,7 +223,7 @@ Các dashboard đã có panel cho `continux_*`, nhưng metric này không tự s
 
 ### 5.1. Contract tối thiểu của exporter
 
-Exporter đã được triển khai trong repo ở `config/metrics-exporter/`. App này chạy container `postgres:16-alpine`, dùng `psql` đọc RisingWave catalog/MV, sinh Prometheus text tại `/metrics` và được VictoriaMetrics scrape qua `VMServiceScrape`.
+Exporter đã được triển khai trong repo ở `config/metrics-exporter/`. App này chạy container `postgres:16-alpine`, dùng `psql` đọc RisingWave catalog/MV, serve Prometheus text tại `/metrics` bằng BusyBox `nc`, và được VictoriaMetrics scrape qua `VMServiceScrape`.
 
 Metric được expose:
 

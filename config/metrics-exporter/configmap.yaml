@@ -154,8 +154,20 @@ data:
       mv "${TMP_FILE}" "${METRICS_FILE}"
     }
 
+    serve_metrics() {
+      while true; do
+        {
+          printf 'HTTP/1.1 200 OK\r\n'
+          printf 'Content-Type: text/plain; version=0.0.4\r\n'
+          printf 'Connection: close\r\n'
+          printf '\r\n'
+          cat "${METRICS_FILE}" 2>/dev/null || true
+        } | busybox nc -l -p "${METRICS_PORT}" || sleep 1
+      done
+    }
+
     render_metrics
-    busybox httpd -f -p "0.0.0.0:${METRICS_PORT}" -h "${WEB_DIR}" &
+    serve_metrics &
     HTTPD_PID="$!"
 
     trap 'kill "${HTTPD_PID}" 2>/dev/null || true; exit 0' INT TERM
