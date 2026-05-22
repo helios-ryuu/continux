@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW mv_zone_stats_blue AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats_blue AS
 SELECT
     z.borough,
     z.zone,
@@ -10,5 +10,5 @@ JOIN tlc_zone     z ON t.pu_location_id = z.location_id
 GROUP BY z.borough, z.zone;
 
 -- Public alias — tạo một lần, không drop khi swap
-CREATE MATERIALIZED VIEW mv_zone_stats AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats AS
 SELECT * FROM mv_zone_stats_blue;

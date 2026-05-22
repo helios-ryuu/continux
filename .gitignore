@@ -1,5 +1,7 @@
 .claude
 .env*
+.csv
+.parquet
 .venv/
 
 # Dataset lớn — tải về local, không commit

@@ -1,4 +1,4 @@
-CREATE SINK sink_zone_stats FROM mv_zone_stats
+CREATE SINK IF NOT EXISTS sink_zone_stats FROM mv_zone_stats
 WITH (
     connector            = 'iceberg',
     type                 = 'upsert',

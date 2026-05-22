@@ -1,4 +1,4 @@
-CREATE SOURCE nyc_taxi_src (
+CREATE SOURCE IF NOT EXISTS nyc_taxi_src (
     event_id        VARCHAR,
     event_time      TIMESTAMPTZ,
     pickup_time     TIMESTAMPTZ,
