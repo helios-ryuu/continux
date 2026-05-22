@@ -1,73 +1,87 @@
-# ARCHITECTURE
+# ARCHITECTURE v1.0.0
 
-> Phiên bản dự án: `v0.2.3`. Kiến trúc dưới đây phản ánh cụm thật sau khi hoàn tất `docs/SETUP.md` §1-10 và `docs/FINALIZE.md` §1-4.
+Tài liệu này mô tả kiến trúc Continux ở mốc hoàn tất `v1.0.0`: cụm K3s 3 server, pipeline Data Lakehouse thời gian thực, GitOps, quan sát và kịch bản Blue/Green cutover.
 
-## 1. Tổng quan
+## 1. Tổng Quan
 
-Continux là kiến trúc Data Lakehouse thời gian thực chạy trên cụm K3s 3 server. Mục tiêu là ingest dữ liệu NYC TLC, xử lý streaming SQL bằng RisingWave, ghi kết quả xuống Apache Iceberg trên MinIO, và quan sát pipeline bằng VictoriaMetrics/Grafana.
+Continux xây dựng một Data Lakehouse thời gian thực cho dữ liệu giao thông. Hệ thống ingest NYC TLC Yellow Taxi, xử lý streaming SQL bằng RisingWave, ghi kết quả xuống Apache Iceberg trên MinIO và quan sát bằng VictoriaMetrics/Grafana.
 
 Stack chính:
 
-- **K3s + Tailscale**: cụm Kubernetes HA qua mesh VPN.
-- **Argo CD + Helm**: GitOps và triển khai chart.
-- **Vector + Redpanda**: giả lập stream JSONL và broker Kafka-compatible.
-- **RisingWave + Apache Iceberg + MinIO**: compute streaming và lưu trữ lakehouse.
-- **VictoriaMetrics + Grafana + metrics-exporter + Cloudflare Tunnel**: metrics, dashboard và metric thực nghiệm `continux_*`.
+- **K3s + Tailscale:** cụm Kubernetes HA qua mesh VPN.
+- **Argo CD + Helm:** GitOps và quản lý release.
+- **Vector + Redpanda:** giả lập stream JSONL và broker Kafka-compatible.
+- **RisingWave + Apache Iceberg + MinIO:** xử lý luồng, state store và lakehouse sink.
+- **VictoriaMetrics + Grafana + metrics-exporter:** quan sát hạ tầng và metric thực nghiệm `continux_*`.
+- **Cloudflare Tunnel:** expose UI Argo CD/Grafana qua domain có kiểm soát.
 
 ## 2. Topology
 
 | Node | Tài nguyên | Vai trò |
 |------|------------|---------|
 | `imac` | iMac19,2, Intel i5-8500, 6 cores, 8 GB RAM, 200 GB SSD, Ubuntu 26.04 | K3s server #1, data plane |
-| `continux-vps` | user `helios`, 2 vCPU, 4 GB RAM, 80 GB SSD, 4 TB transfer, Ubuntu 24.04 | K3s server #2, control/observability |
-| `helios-pc` | Windows host `Helios-PC`, WSL Ubuntu 26.04, Intel i5-12500H, 16 GB RAM | K3s server #3, quorum-only |
+| `continux-vps` | 2 vCPU, 4 GB RAM, 80 GB SSD, Ubuntu 24.04 | K3s server #2, control/observability |
+| `helios-pc` | WSL Ubuntu 26.04 trên Windows host `Helios-PC`, Intel i5-12500H, 16 GB RAM | K3s server #3, quorum-only |
 
-Tailscale inventory chuẩn:
+Tailscale inventory:
 
-| Tailscale IP | Tailscale device | Tailnet user | OS | Ghi chú |
-|--------------|------------------|--------------|----|---------|
-| `100.120.64.5` | `imac` | `ngotiensy2005@` | Linux | K3s server #1 |
-| `100.113.151.56` | `continux-vps` | `ngotiensy2005@` | Linux | K3s server #2 |
-| `100.78.46.87` | `helios-pc-wsl` | `ngotiensy2005@` | Linux | K3s server #3; shell hostname `Helios-PC`, Kubernetes node `helios-pc` |
-| `100.125.106.89` | `helios-pc` | `ngotiensy2005@` | Windows | Windows host, ngoài cụm K3s |
+| Tailscale IP | Device | OS | Ghi chú |
+|--------------|--------|----|---------|
+| `100.120.64.5` | `imac` | Linux | K3s server #1 |
+| `100.113.151.56` | `continux-vps` | Linux | K3s server #2 |
+| `100.78.46.87` | `helios-pc-wsl` | Linux | K3s server #3; Kubernetes node `helios-pc` |
+| `100.125.106.89` | `helios-pc` | Windows | Windows host, ngoài cụm K3s |
 
-Ba máy thuộc cụm là `imac`, `continux-vps`, và WSL `helios-pc-wsl`. Khi thao tác Kubernetes dùng node name `helios-pc`; khi kiểm tra kết nối Tailscale tới WSL nên dùng `helios-pc-wsl` hoặc `100.78.46.87`.
-
-```
-Vector -> Redpanda -> RisingWave -> Iceberg objects on MinIO
-                       |
-                       +-> Grafana/VictoriaMetrics observability
-```
-
-Placement:
+Placement chuẩn:
 
 ```yaml
 # Stateful/data workload
-nodeSelector: { role: data-plane }
+nodeSelector:
+  role: data-plane
 
 # Control/observability workload
-nodeSelector: { role: control-plane }
+nodeSelector:
+  role: control-plane
 tolerations:
-  - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
+  - key: dedicated
+    operator: Equal
+    value: edge
+    effect: NoSchedule
 
 # Quorum node
-nodeSelector: { role: quorum }
+nodeSelector:
+  role: quorum
 tolerations:
-  - { key: dedicated, operator: Equal, value: quorum, effect: NoSchedule }
+  - key: dedicated
+    operator: Equal
+    value: quorum
+    effect: NoSchedule
 ```
 
-Ứng dụng không schedule lên `helios-pc`; node này giữ quorum cho embedded etcd. Ngoại lệ có chủ đích là `prometheus-node-exporter` chạy dạng DaemonSet trên cả 3 node để quan sát tài nguyên node; trên WSL cần `scripts/wsl-enable-shared-root.sh` để hostPath mount `/` hoạt động.
+Ứng dụng không schedule lên `helios-pc` theo mặc định; node này giữ quorum cho embedded etcd. Ngoại lệ có chủ đích là node-exporter dạng DaemonSet để quan sát tài nguyên node.
 
-## 3. Data Flow
+## 3. Luồng Dữ Liệu
 
-1. `scripts/partojsonl.py` convert Yellow Taxi Parquet sang JSONL trong `data/raw/`.
-2. Vector đọc `/data/*.jsonl`, thêm `event_id` và `event_time`.
-3. Vector publish JSON vào Redpanda topic `nyc-taxi-events` qua Kafka sink có disk buffer và rate limit để tránh flood cụm nhỏ.
-4. RisingWave đọc topic, join với TLC Taxi Zone CSV trong MinIO.
-5. Materialized View `mv_zone_stats` tổng hợp thống kê theo zone/borough.
-6. Iceberg sink ghi kết quả xuống bucket `iceberg-data`.
-7. VictoriaMetrics scrape metrics; Grafana import dashboard từ `dashboards/*.json`.
-8. `metrics-exporter` đọc RisingWave catalog/MV và expose metric `continux_*` cho dashboard thực nghiệm.
+```text
+NYC TLC Parquet
+  -> scripts/partojsonl.py
+  -> Vector file source
+  -> Redpanda topic nyc-taxi-events
+  -> RisingWave source/table/MV
+  -> Iceberg sink on MinIO
+  -> VictoriaMetrics/Grafana
+```
+
+Các bước chính:
+
+1. `scripts/partojsonl.py` convert Yellow Taxi Parquet sang JSONL.
+2. Vector đọc `/data/*.jsonl`, phát JSON vào Redpanda với disk buffer và rate limit.
+3. Redpanda lưu topic `nyc-taxi-events` có 3 partitions.
+4. RisingWave đọc topic, join với TLC Taxi Zone CSV trên MinIO.
+5. `mv_zone_stats` tổng hợp `trip_count`, `total_fare`, `avg_distance` theo `borough/zone`.
+6. `sink_zone_stats` ghi kết quả xuống Iceberg prefix `iceberg-data/nyc/zone_stats/`.
+7. `metrics-exporter` đọc RisingWave catalog/MV và expose `continux_*`.
+8. VictoriaMetrics scrape metrics; Grafana hiển thị dashboard resource, streaming, cutover và integrity.
 
 ## 4. GitOps Layout
 
@@ -78,31 +92,59 @@ tolerations:
 | `config/redpanda/` | Redpanda Helm values |
 | `config/risingwave/` | RisingWave Helm values |
 | `config/vector/` | Vector ConfigMap, PVC, Deployment |
-| `config/metrics-exporter/` | Exporter metric thực nghiệm `continux_*` và VMServiceScrape |
+| `config/metrics-exporter/` | Exporter metric thực nghiệm và VMServiceScrape |
 | `config/victoria-metrics/` | VictoriaMetrics values và scrape config |
 | `gitops/apps/` | App-of-Apps cho Argo CD |
 | `gitops/pipeline/` | SQL apply Job |
 | `pipelines/redpanda/` | Topic bootstrap Job |
-| `sql/` | Source, table, MV, sink SQL |
+| `sql/` | Source, table, materialized views và sink SQL |
+| `dashboards/` | Dashboard JSON cho Grafana |
 
-## 5. Yêu cầu chính
+## 5. Blue/Green Cutover
 
-| ID | Yêu cầu | Tiêu chí |
-|----|---------|----------|
-| FR-01 | Ingest NYC TLC Trip Record Data | Vector publish được JSON vào `nyc-taxi-events` |
-| FR-02 | Streaming SQL | RisingWave query được source/table/MV |
+Cutover được thực hiện ở lớp RisingWave materialized view:
+
+1. Public view `mv_zone_stats` đang phục vụ logic hiện tại.
+2. Green view `mv_zone_stats_green` được tạo với schema tương thích và logic mới.
+3. Query loop chạy liên tục để đo lỗi truy vấn trong lúc swap.
+4. Khi green ổn định, chạy:
+
+```sql
+ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green;
+```
+
+Kết quả đo ở `v1.0.0`:
+
+| Chỉ số | Giá trị |
+|--------|---------|
+| Public trước swap | `69 zones / 986 trips` |
+| Green trước swap | `69 zones / 978 trips` |
+| Cutover duration | `0.145226s` |
+| Query errors | `0` |
+| Public sau swap | `69 zones / 978 trips` |
+| View giữ tên green sau swap | `69 zones / 986 trips` |
+
+Lệch checksum sau swap là expected nếu dashboard so logic mới với logic cũ.
+
+## 6. Yêu Cầu Và Tiêu Chí
+
+| ID | Yêu cầu | Tiêu chí đạt |
+|----|---------|--------------|
+| FR-01 | Ingest NYC TLC Trip Record Data | Vector phát được JSON vào `nyc-taxi-events` |
+| FR-02 | Streaming SQL | RisingWave query được source, table, MV |
 | FR-03 | Lakehouse sink | MinIO bucket `iceberg-data` có Iceberg metadata/data |
-| FR-04 | GitOps deployment | Argo CD quản lý app manifests |
-| FR-05 | Observability | Grafana đọc datasource VictoriaMetrics |
-| NFR-01 | HA control plane | 3 server Ready, quorum `2/3` |
-| NFR-02 | Resource safety | Vector mặc định `replicas: 0`, scale thủ công |
-| NFR-04 | Demo replay | `docs/SETUP.md` §11 có quy trình clear Redpanda/RisingWave/Iceberg để chạy ingest lại |
-| NFR-03 | Reproducible setup | `docs/SETUP.md` đi từ máy sạch tới verify end-to-end |
+| FR-04 | GitOps deployment | Argo CD quản lý các app từ repo |
+| FR-05 | Observability | Grafana đọc VictoriaMetrics và metric `continux_*` |
+| NFR-01 | HA control plane | 3 K3s server Ready, quorum `2/3` |
+| NFR-02 | Resource safety | Vector mặc định `replicas=0`, chỉ scale thủ công |
+| NFR-03 | Reproducible setup | `SETUP.md` đi từ máy sạch đến verify end-to-end |
+| NFR-04 | Demo replay | `FINALIZE.md` có replay sạch, output SQL/Iceberg/dashboard |
 
-## 6. Vận hành
+## 7. Vận Hành
 
-- `imac` giữ clone repo `~/continux` và là node quản trị chính.
-- `k3s-purge.sh` mặc định reset cluster về trạng thái vừa cài K3s.
-- `k3s-purge.sh --nuke` xóa K3s khỏi node hiện tại.
-- Secrets không commit vào Git; tạo qua `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -`.
+- `imac` là node quản trị chính, giữ clone repo `~/continux`.
+- Vector luôn giữ `replicas=0` khi không demo ingest.
+- Secrets tạo runtime bằng Kubernetes Secret, không lưu trong Git.
 - Dataset lớn nằm trong `data/raw/` và không commit.
+- Evidence, screenshot và log lớn nộp riêng, không commit vào repo.
+- Công cụ reset/phá hủy nằm trong `scripts/k3s-purge.sh` và chỉ dùng theo [SCRIPTS.md](./SCRIPTS.md).

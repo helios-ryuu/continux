@@ -1,53 +1,46 @@
-# TIMELINE
+# TIMELINE v1.0.0
 
-> Cập nhật ngày 22/05/2026 cho `v0.2.3`: đã hoàn tất `docs/SETUP.md` §1-10 và `docs/FINALIZE.md` §1-4 trên cụm thật. Cụm K3s 3 server Ready, Argo CD app hiện có đã `Synced/Healthy`, SQL object RisingWave đã được re-apply sau clear demo, `tlc_zone` có 265 dòng, `mv_zone_stats` đang sạch trước replay, MinIO có lookup CSV và Iceberg metadata. Repo đã bổ sung manifest `metrics-exporter` cho metric `continux_*`; bước kế tiếp là deploy/verify exporter rồi replay ingest sạch.
+Timeline này ghi lại mốc hoàn tất triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối. Trạng thái `v1.0.0` đã hoàn tất: cluster K3s 3 server Ready, pipeline end-to-end chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công và evidence đã được thu theo `RUN_ID=20260522-151720`.
 
-## Mục Tiêu
+## 1. Mục Tiêu
 
-Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC end-to-end, thu bằng chứng thực nghiệm và hoàn thiện báo cáo trước deadline.
+Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC end-to-end, thu bằng chứng thực nghiệm và đóng gói báo cáo trước hạn nộp.
 
-Deadline vận hành nội bộ: **30/05/2026 23:59**. Ngày **31/05/2026** chỉ dùng để rà soát, chụp lại bằng chứng thiếu và đóng gói nộp.
+## 2. Mốc Hoàn Tất
 
-## Hiện Trạng Sau Setup §1-10
+| Ngày | Hạng mục | Kết quả |
+|------|----------|---------|
+| 20/05/2026 | Chuẩn bị repo, docs, scripts, config | Repo có cấu trúc GitOps, script K3s, dashboard và SQL |
+| 21/05/2026 | Chuẩn bị OS, Tailscale, K3s | `imac`, `continux-vps`, `helios-pc` join cụm K3s HA, `3/3 Ready` |
+| 21/05/2026 | Deploy stack nền | Argo CD, MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana triển khai thành công |
+| 22/05/2026 | Dataset và pipeline SQL | JSONL `3,952,451` dòng, `tlc_zone=265`, `mv_zone_stats` có dữ liệu, Iceberg sinh object |
+| 22/05/2026 | Metrics exporter | `continux_exporter_up=1`, VictoriaMetrics scrape được metric `continux_*` |
+| 22/05/2026 | Replay ingest | `RUN_ID=20260522-151720`, replay cuối `69 zones / 986 trips` |
+| 22/05/2026 | Blue/Green cutover | Public MV đổi sang logic green `69 zones / 978 trips`, duration `0.145226s`, query errors `0` |
+| 22/05/2026 | Chuẩn hóa tài liệu | Version `1.0.0`, docs/runbook/report đồng bộ với evidence cuối |
 
-| Hạng mục | Trạng thái | Bằng chứng hiện có | Việc còn lại |
-|----------|------------|--------------------|--------------|
-| Repo, docs, scripts, config | Hoàn tất v0.2.3 | README/SETUP/FINALIZE/TIMELINE/REPORT/DASHBOARDS đồng bộ trạng thái triển khai §4 finalize | Commit/tag mốc v0.2.3 nếu cần |
-| Máy `imac` | Hoàn tất | Ubuntu 26.04, K3s `v1.35.5+k3s1`, node `Ready`, data plane | Theo dõi CPU/RAM khi benchmark |
-| Máy `continux-vps` | Hoàn tất | UFW active, Tailscale `100.113.151.56`, node `Ready`, taint `dedicated=edge` | Theo dõi Grafana/VictoriaMetrics |
-| Máy `helios-pc` | Hoàn tất | WSL Ubuntu 26.04, Tailscale `100.78.46.87`, node `Ready`, `wsl-shared-root` trả `/ shared` | Giữ Windows/WSL awake khi benchmark |
-| K3s cluster | Hoàn tất | `3/3 Ready`, readyz/etcd OK | Không còn blocker |
-| GitOps/Argo CD | Hoàn tất | Argo CD deployed, repo added, `root-app` Synced/Healthy | Sync các app con khi có thay đổi |
-| Data plane | Hoàn tất | MinIO deployed, Redpanda topic `nyc-taxi-events`, RisingWave pods `Running`, `SHOW CLUSTER` có 4 workers RUNNING | Theo dõi resource khi benchmark |
-| Observability | Một phần | VictoriaMetrics stack deployed, scrape configs Synced, Grafana rollout OK; dashboard JSON đã chuẩn hóa; manifest `metrics-exporter` đã có trong repo | Deploy/verify exporter và chụp dashboard thực nghiệm |
-| Pipeline dữ liệu | Hoàn tất §10; finalize §4 xong | JSONL 450M, 3,952,451 rows; sau clear demo đã re-apply SQL, `tlc_zone=265`, `mv_zone_stats=0` trước replay, Iceberg metadata tồn tại | Bật Vector replay và đo throughput/lag/resource |
-| Báo cáo/kết quả | Đang thu thập | Evidence §1-4 finalize đã có: cluster, Argo sync, RisingWave catalog, `tlc_zone`, MinIO/Iceberg metadata | Deploy exporter, replay, cutover và screenshot dashboard |
+## 3. Trạng Thái Hệ Thống Ở Mốc Chốt
 
-## Lịch Chạy Nước Rút
+| Hạng mục | Trạng thái |
+|----------|------------|
+| K3s | `3/3` nodes Ready |
+| PVC | `5/5` Bound |
+| Workloads | `23/23` Available sau replay |
+| Argo CD | App chính `Synced/Healthy` |
+| Vector | Dừng ở `replicas=0` sau replay |
+| RisingWave | meta, compute, compactor, frontend `Running` |
+| MinIO/Iceberg | Có data Parquet, equality-delete và position-delete Parquet |
+| Grafana | Dashboard streaming/resource/cutover/integrity có dữ liệu |
+| Cutover | duration `0.145226s`, query errors `0` |
 
-| Ngày | Ưu tiên | Việc phải xong | Trạng thái |
-|------|---------|----------------|------------|
-| 20/05 | Chuẩn bị tài nguyên | Chốt repo, kiểm tra docs/scripts/config | Xong |
-| 21/05 | OS, mạng, K3s, stack nền | Hoàn tất hostname/user/SSH/Tailscale; dựng K3s HA; deploy Argo CD, MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana; chuẩn bị dataset và Vector | Xong |
-| 22/05 | Tài liệu v0.2.3 và finalize §1-4 | Cập nhật docs; sync Argo drift; re-apply SQL; verify RisingWave/MinIO/Iceberg metadata; thêm manifest `metrics-exporter` | Xong |
-| 23/05 | Dashboard và replay | Deploy/verify exporter `continux_*`, chụp bằng chứng; replay lại từ trạng thái sạch | Đang làm |
-| 24/05 | Thực nghiệm ingest | Chạy lại demo ingest sạch bằng §11; ghi throughput/lag/resource | Kế tiếp |
-| 25/05 | Tối ưu tài nguyên | Điều chỉnh Vector rate, Grafana resource, retention/scrape nếu cần | Kế tiếp |
-| 26/05 | Báo cáo kết quả | Cập nhật REPORT bằng số liệu thực nghiệm | Kế tiếp |
-| 27/05 | Rà soát end-to-end | Chạy checklist, clear/replay ingest, kiểm tra docs | Kế tiếp |
-| 28/05 | Dự phòng kỹ thuật | Sửa lỗi phát sinh, bổ sung hình/log | Kế tiếp |
-| 29/05 | Báo cáo gần cuối | Hoàn thiện nội dung, đối chiếu yêu cầu môn học | Kế tiếp |
-| 30/05 | Đóng băng | Full checklist xanh, commit/tag cuối | Kế tiếp |
-| 31/05 | Buffer | Chỉ rà soát và bổ sung bằng chứng thiếu | Dự phòng |
+## 4. Gantt Hoàn Tất
 
-## Gantt
-
-Ký hiệu: `█` đã làm/chính, `▓` đang làm/phụ thuộc gần, `◆` mốc chốt.
+Ký hiệu: `█` hoàn tất, `◆` mốc chốt.
 
 ```text
-Ngày                         20 21 22 23 24 25 26 27 28 29 30 31
-------------------------------------------------------------------
-Repo, docs, scripts          █  █  ▓
+Ngày                         20 21 22
+--------------------------------------
+Repo, docs, scripts          █  █  █
 Chuẩn bị 3 máy + Tailscale   █  █
 K3s HA 3 server                 █
 Labels, taints, quorum          █
@@ -56,25 +49,28 @@ Repo GitOps + App-of-Apps       █
 MinIO + Redpanda + RisingWave   █
 VictoriaMetrics + Grafana       █
 Dataset + JSONL + Taxi Zone     █
-Vector ingest có kiểm soát      █
+Vector ingest có kiểm soát         █
 SQL + MV + Iceberg sink            █
-Thực nghiệm + dashboard              ▓  █  █
-Báo cáo + chứng cứ                       ▓  █  █
-Full checklist + đóng băng                              █
-Buffer nộp bài                                               ◆
+Metrics exporter                   █
+Replay ingest sạch                 █
+Blue/Green cutover                 █
+Báo cáo và chuẩn hóa v1.0.0        ◆
 ```
 
-## Critical Path
+## 5. Critical Path Đã Đóng
 
-1. 3 máy phải vào được Tailscale và ping qua lại. **Xong.**
-2. K3s phải đủ 3 server Ready để có quorum. **Xong.**
-3. Argo CD phải sync được repo. **Xong.**
-4. MinIO, Redpanda, RisingWave phải Ready trước khi bật Vector. **Xong.**
-5. Vector chỉ scale lên sau khi topic, PVC và JSONL đã sẵn sàng. **Xong.**
-6. SQL chỉ apply sau khi secrets MinIO/RisingWave đúng. **Xong.**
-7. Báo cáo chỉ chốt sau khi có query output, object Iceberg và dashboard. **Finalize §4 xong; còn deploy exporter, replay và dashboard thực nghiệm.**
+1. 3 máy vào cùng tailnet Tailscale và ping được nhau.
+2. K3s có đủ 3 server Ready, embedded etcd có quorum `2/3`.
+3. Argo CD đọc được repo và tạo App-of-Apps.
+4. MinIO, Redpanda, RisingWave Ready trước khi bật Vector.
+5. Vector chỉ scale lên sau khi topic, PVC, JSONL và SQL sẵn sàng.
+6. SQL source/table/MV/sink apply thành công qua Argo CD hook.
+7. Metrics exporter expose `continux_*` và VictoriaMetrics scrape được.
+8. Replay ingest sinh MV và Iceberg object.
+9. Green MV được tạo, query loop không lỗi, swap public MV thành công.
+10. Báo cáo và tài liệu dùng cùng một bộ số liệu evidence.
 
-## Phân Công
+## 6. Phân Công
 
 | Nhóm việc | Sỹ | Nam | GVHD |
 |-----------|:--:|:--:|:----:|
@@ -85,65 +81,42 @@ Buffer nộp bài                                               ◆
 | SQL, Iceberg sink, verify dữ liệu | A/R | R | C |
 | Grafana, thực nghiệm, báo cáo | R | A/R | C |
 
-## Checklist Theo Mốc
+## 7. Checklist Cuối
 
-### Trước khi chạy lệnh setup
-
-- [x] `imac`, `continux-vps`, `helios-pc` có hostname đúng.
-- [x] User `helios` có sudo và SSH hoạt động.
-- [x] Tailscale hoạt động trên cả 3 máy.
-- [x] Repo có clone ở `~/continux` trên `imac`, `continux-vps`, `helios-pc`.
-- [x] `docs/SETUP.md` được chạy theo thứ tự tới §9.
-
-### Sau khi dựng K3s
-
+- [x] `imac`, `continux-vps`, `helios-pc` có hostname/node name đúng.
+- [x] Tailscale hoạt động trên cả 3 node Linux.
 - [x] `kubectl get nodes -o wide` có đủ 3 node Ready.
-- [x] `imac` có `role=data-plane`.
-- [x] `continux-vps` có `role=control-plane` và taint `dedicated=edge:NoSchedule`.
-- [x] `helios-pc` có `role=quorum` và taint `dedicated=quorum:NoSchedule`.
-- [x] `bash scripts/k3s-check.sh overview` không có hot list nghiêm trọng; pod `redpanda-configuration-cdk5k` là job/configuration cũ và không chặn workload.
+- [x] `continux-vps` có `role=control-plane`, taint `dedicated=edge:NoSchedule`.
+- [x] `helios-pc` có `role=quorum`, taint `dedicated=quorum:NoSchedule`.
+- [x] Argo CD quản lý root app và app con.
+- [x] MinIO bucket `rw-checkpoint`, `iceberg-data`, `tlc-zone` tồn tại.
+- [x] Redpanda topic `nyc-taxi-events` tồn tại.
+- [x] RisingWave `SHOW CLUSTER` trả 4 worker `RUNNING`.
+- [x] Vector đọc JSONL và có thể scale thủ công.
+- [x] `tlc_zone` có `265` dòng.
+- [x] Replay sạch đạt `69 zones / 986 trips`.
+- [x] Iceberg sinh object mới trong MinIO.
+- [x] Metrics exporter `continux_*` hoạt động.
+- [x] Blue/Green cutover đạt duration `0.145226s`, query errors `0`.
+- [x] Dashboard cho 4 nhóm chỉ số có bằng chứng.
+- [x] Tài liệu chính đồng bộ version `1.0.0`.
 
-### Trước khi bật Vector
+## 8. Rủi Ro Đã Xử Lý
 
-- [x] MinIO buckets/runtime secret đã được chuẩn bị.
-- [x] Redpanda topic `nyc-taxi-events` tồn tại với 3 partitions, retention 24h.
-- [x] RisingWave pods và service Ready.
-- [x] `psql -h localhost -p 4567 -d dev -U root -c 'SHOW CLUSTER;'` trả 4 workers RUNNING.
-- [x] PVC Vector `Bound` và trỏ đúng `imac`.
-- [x] JSONL đã tồn tại trong `data/raw/`, kích thước khoảng 450M.
-- [x] Deployment Vector ban đầu `replicas: 0`.
-- [x] Vector đã scale thủ công lên `1` và healthcheck passed.
+| Rủi ro | Cách xử lý trong v1.0.0 |
+|--------|-------------------------|
+| iMac 8 GB RAM quá tải khi ingest | Vector dùng rate limit và mặc định `replicas=0`; scale thủ công, dừng ngay khi đủ mẫu |
+| WSL sleep làm mất quorum | `helios-pc` chỉ giữ quorum; giữ Windows/WSL awake trong thực nghiệm |
+| Secret runtime lộ trong Git | Tạo bằng Kubernetes Secret, không commit secret |
+| RisingWave meta-command psql không tương thích | Verify bằng `rw_catalog` thay vì `\dt public.*` |
+| Argo hook Job biến mất sau khi thành công | Dùng Argo app status và RisingWave catalog làm bằng chứng |
+| Dashboard checksum mismatch sau cutover | Giải thích là expected khi so logic mới với logic cũ |
 
-### Trước khi chốt báo cáo
+## 9. Definition Of Done
 
-- [x] `SELECT COUNT(*) FROM mv_zone_stats` trả số dương (`260`).
-- [x] MinIO có Iceberg metadata/data object; §11 đã xác nhận dọn prefix bằng delete marker để chuẩn bị replay.
-- [x] Grafana deployment Ready và datasource VictoriaMetrics đã cấu hình.
-- [x] Dashboard JSON đã import vào Grafana.
-- [x] Manifest exporter `continux_*` đã có trong repo (`config/metrics-exporter/`).
-- [ ] Dashboard streaming/cutover/integrity có dữ liệu thật, không chỉ là placeholder hoặc `vector(0)`.
-- [x] Có log chứng minh cluster, pipeline, query và object output.
-- [ ] Có ảnh/log chứng minh dashboard cho 4 nhóm chỉ số trong `PROPOSE.md`.
-- [x] README, SETUP, FINALIZE, REPORT nhất quán với topology 3 máy và version `v0.2.3`.
-
-## Rủi Ro
-
-| Rủi ro | Mức | Dấu hiệu | Giảm thiểu |
-|--------|-----|----------|------------|
-| iMac 8 GB RAM quá tải khi ingest | Cao | Grafana chập chờn, Redpanda/RisingWave CPU tăng | Vector đã thêm Kafka sink rate limit; dùng §11 để clear/replay và giảm `rate_limit_num` nếu cần |
-| WSL sleep làm mất quorum | Trung bình | `helios-pc` NotReady, etcd mất quorum | Giữ Windows awake khi setup/benchmark |
-| VPS thiếu RAM | Trung bình | Grafana/VictoriaMetrics restart | Grafana đã tăng resource ở v0.2.3; tiếp tục theo dõi dashboard |
-| Secret sai | Trung bình | RisingWave không đọc/ghi S3 | Tạo lại Secret bằng `kubectl create secret ... --dry-run=client -o yaml \| kubectl apply -f -`; không commit secret |
-| Dataset schema thay đổi | Trung bình | Converter hoặc SQL source lỗi field | Dùng `partojsonl.py` chỉ lấy field cần thiết; đã convert thành công 3,952,451 rows cho `2026-03` |
-| Không đủ thời gian thực nghiệm | Cao | Pipeline chạy được nhưng thiếu số liệu | Ưu tiên 1 kịch bản ingest ổn định, screenshot dashboard và output SQL/MinIO |
-
-## Definition Of Done
-
-- Repo sạch về topology hiện tại, không còn node/script cũ trong docs/config/script.
-- 3 máy chạy K3s server Ready qua Tailscale.
-- Argo CD quản lý được các app chính.
-- MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana Ready.
-- Dataset được convert, Vector publish event vào Redpanda.
-- RisingWave query được MV và Iceberg sink ghi object ra MinIO.
-- Dashboard thực nghiệm có dữ liệu thật cho resource, throughput/lag, cutover và integrity.
-- Báo cáo có đủ lệnh, output, ảnh/dashboard hoặc log chứng minh.
+- Repo không còn helper legacy ngoài topology chính.
+- `VERSION` là `1.0.0`.
+- `SETUP.md` dựng được hệ thống từ máy sạch đến end-to-end.
+- `FINALIZE.md` tái hiện được replay, cutover và evidence cuối.
+- `REPORT.md` là bản báo cáo học thuật hoàn chỉnh.
+- Không commit dataset, evidence, screenshot lớn hoặc secret.

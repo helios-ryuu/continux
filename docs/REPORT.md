@@ -1,112 +1,482 @@
-# REPORT
+# BÁO CÁO ĐỒ ÁN v1.0.0
 
-> Phiên bản tài liệu: `v0.2.3`. Trạng thái hiện tại: setup §1-10 đã chạy trên cụm thật; `docs/FINALIZE.md` đã thực hiện tới hết §4. Sau clear demo, SQL object đã được re-apply, `tlc_zone` có 265 dòng, `mv_zone_stats` đang sạch trước replay và MinIO/Iceberg metadata đã được verify. Repo đã có manifest `metrics-exporter` cho metric `continux_*`.
+## 1. Trang Thông Tin Đề Tài
 
-## 1. Tóm tắt
+| Mục | Nội dung |
+|-----|----------|
+| Trường | Trường Đại học Công nghệ Thông tin, Đại học Quốc gia TP.HCM |
+| Môn học | Cơ sở dữ liệu phân tán và Dữ liệu lớn |
+| Mã lớp | IS211.Q22 và IS405.Q23 |
+| Tên đề tài tiếng Việt | Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes |
+| Tên đề tài tiếng Anh | Building a Real-Time Data Lakehouse Architecture for Intelligent Transportation Systems on a Kubernetes Cluster |
+| Phiên bản báo cáo | `1.0.0` |
+| Giảng viên hướng dẫn | ThS. Nguyễn Hồ Duy Trí |
 
-Đồ án xây dựng kiến trúc Data Lakehouse thời gian thực cho dữ liệu giao thông trên cụm K3s 3 server. Pipeline nhận dữ liệu NYC TLC Yellow Taxi ở dạng JSONL, publish vào Redpanda, xử lý streaming SQL bằng RisingWave, ghi kết quả xuống Apache Iceberg trên MinIO, và giám sát bằng VictoriaMetrics/Grafana.
+| MSSV | Họ và tên | Vai trò chính |
+|------|-----------|---------------|
+| 23521367 | Ngô Tiến Sỹ | Hạ tầng K3s, GitOps, Data Lakehouse, thực nghiệm |
+| 23520982 | Nguyễn Văn Nam | Dataset, SQL pipeline, dashboard, báo cáo |
 
-## 2. Hạ tầng thực nghiệm
+## 2. Tóm Tắt
 
-| Node | Mô tả | Vai trò |
-|------|------|---------|
-| `imac` | Ubuntu 26.04, iMac19,2, Intel i5-8500, 6 cores, 8 GB RAM, 200 GB SSD | data plane |
-| `continux-vps` | Ubuntu 24.04, user `helios`, 2 vCPU, 4 GB RAM, 80 GB SSD, 4 TB transfer | control/observability |
-| `helios-pc` | Windows host `Helios-PC`, WSL Ubuntu 26.04, Intel i5-12500H, 16 GB RAM | quorum-only |
+Đồ án xây dựng và kiểm chứng một kiến trúc Data Lakehouse thời gian thực trên cụm Kubernetes nhẹ K3s. Hệ thống dùng dữ liệu NYC TLC Yellow Taxi, chuyển đổi Parquet sang JSONL, phát luồng sự kiện bằng Vector, truyền qua Redpanda, xử lý streaming SQL bằng RisingWave, ghi kết quả xuống Apache Iceberg trên MinIO và quan sát bằng VictoriaMetrics/Grafana.
 
-Cụm dùng Tailscale mesh VPN, K3s embedded etcd, quorum `2/3`.
+Kết quả thực nghiệm `v1.0.0` cho thấy cụm K3s 3 server hoạt động ổn định, pipeline end-to-end sinh được materialized view và Iceberg object, replay ingest cuối đạt `69 zones / 986 trips`, và kịch bản Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...` hoàn tất với thời gian `0.145226s`, query errors `0`. Dashboard và evidence được lưu theo run `evidence/finalize/20260522-151720/`.
 
-## 3. Stack phần mềm
+## 3. Mở Đầu
 
-| Nhóm | Công nghệ |
-|------|-----------|
-| Orchestration | K3s `v1.35.5+k3s1`, Helm `v4.1.4`, Argo CD `v3.4.2` |
-| Streaming ingest | Vector `0.55.0`, Redpanda `v26.1.8` |
-| Processing/storage | RisingWave `v2.8.3`, Apache Iceberg v2, MinIO self-hosted |
-| Observability | VictoriaMetrics `v1.143.0`, Grafana `v13.0.1+security-01`, cloudflared `2026.5.0` |
+### 3.1. Bối Cảnh
 
-## 4. Kiến trúc dữ liệu
+Các hệ thống giao thông thông minh cần xử lý dữ liệu phát sinh liên tục: chuyến xe, vị trí, thời gian, chi phí, khu vực đón/trả khách và các tín hiệu vận hành khác. Kiến trúc batch truyền thống có thể phục vụ phân tích sau sự kiện, nhưng không đủ linh hoạt khi cần quan sát và cập nhật logic phân tích gần thời gian thực.
 
-1. `partojsonl.py` lấy các cột cần thiết từ Yellow Taxi Parquet.
-2. Vector đọc JSONL từ PVC hostPath trên `imac`.
-3. Redpanda nhận topic `nyc-taxi-events`.
-4. RisingWave tạo source/table/MV và join với Taxi Zone lookup trên MinIO.
-5. Iceberg sink ghi kết quả xuống `iceberg-data`.
-6. Grafana hiển thị resource metrics; dashboard streaming/cutover/integrity đã có panel proxy và panel thực nghiệm. `metrics-exporter` trong `config/metrics-exporter/` sinh metric `continux_*` từ RisingWave catalog/MV để dùng làm bằng chứng cuối.
+Data Lakehouse là hướng tiếp cận phù hợp vì kết hợp chi phí lưu trữ thấp của Data Lake với khả năng truy vấn có cấu trúc của Data Warehouse. Khi kết hợp với streaming SQL, hệ thống có thể vừa lưu trữ lịch sử vừa duy trì các chỉ số phân tích cập nhật liên tục.
 
-## 5. Kết quả cần chứng minh
+### 3.2. Vấn Đề
 
-| Hạng mục | Cách đo |
+Vấn đề chính của đề tài là: làm thế nào để triển khai một pipeline streaming lakehouse trên cụm Kubernetes tài nguyên giới hạn, có khả năng quan sát đầy đủ và có thể cập nhật logic phân tích mà không gây lỗi truy vấn trong lúc chuyển giao?
+
+### 3.3. Mục Tiêu
+
+Đề tài đặt ra các mục tiêu:
+
+- Dựng cụm K3s HA 3 server qua Tailscale.
+- Triển khai pipeline `Vector -> Redpanda -> RisingWave -> Iceberg/MinIO`.
+- Quản lý manifest bằng GitOps qua Argo CD.
+- Quan sát hệ thống bằng VictoriaMetrics và Grafana.
+- Chạy replay ingest có kiểm soát trên dataset NYC TLC.
+- Thực nghiệm Blue/Green cutover ở lớp RisingWave materialized view.
+- Ghi lại evidence có thể kiểm chứng bằng lệnh, output và dashboard.
+
+## 4. Cơ Sở Lý Thuyết Và Bài Báo Nền Tảng Ursa
+
+### 4.1. Data Lakehouse
+
+Data Lakehouse là mô hình kết hợp Data Lake và Data Warehouse. Dữ liệu được lưu trên object storage, nhưng được tổ chức bằng table format như Apache Iceberg để hỗ trợ metadata, snapshot, schema evolution và truy vấn phân tích có cấu trúc.
+
+Trong đề tài này, MinIO đóng vai trò S3-compatible object storage, còn Iceberg là lớp table format lưu kết quả sink của RisingWave.
+
+### 4.2. Streaming SQL Và Materialized View
+
+Streaming SQL cho phép xử lý dữ liệu đến liên tục bằng cú pháp SQL. Materialized view trong RisingWave duy trì kết quả truy vấn cập nhật liên tục khi source thay đổi. Điều này phù hợp với bài toán thống kê theo khu vực taxi vì kết quả `trip_count`, `total_fare`, `avg_distance` luôn cần được cập nhật khi có event mới.
+
+### 4.3. GitOps
+
+GitOps dùng Git làm nguồn chân lý cho trạng thái hệ thống. Argo CD so sánh trạng thái mong muốn trong repo với trạng thái thật trên Kubernetes, sau đó sync manifest khi cần. Mô hình này giúp triển khai có kiểm soát, dễ audit và tái lập.
+
+### 4.4. Bài Báo Ursa
+
+Bài báo *Ursa: A Lakehouse-Native Data Streaming Engine for Kafka* đề xuất hướng streaming engine gắn trực tiếp với lakehouse, giúp giảm chi phí vận hành khi đưa dữ liệu từ Kafka-compatible log vào lakehouse. Ursa nhấn mạnh sự hội tụ giữa streaming log và table format, đặc biệt ở khía cạnh ingestion hiệu quả, giảm độ trễ và tận dụng lưu trữ lakehouse.
+
+Continux kế thừa tinh thần lakehouse-native streaming của Ursa nhưng tập trung vào lớp vận hành phía trên: triển khai trên Kubernetes nhỏ, dùng GitOps, quan sát bằng dashboard và cập nhật logic phân tích bằng Blue/Green materialized view.
+
+## 5. Phương Pháp Và Kiến Trúc Đề Xuất
+
+### 5.1. Kiến Trúc Tổng Thể
+
+```text
+NYC TLC Parquet
+  -> scripts/partojsonl.py
+  -> Vector
+  -> Redpanda topic nyc-taxi-events
+  -> RisingWave source/table/materialized views
+  -> Iceberg sink on MinIO
+  -> VictoriaMetrics/Grafana
+```
+
+### 5.2. Các Thành Phần Chính
+
+| Thành phần | Vai trò |
+|------------|---------|
+| K3s | Kubernetes nhẹ, chạy HA 3 server |
+| Tailscale | Mạng riêng giữa các node |
+| Argo CD | GitOps App-of-Apps |
+| Helm | Cài chart hạ tầng |
+| MinIO | Object storage cho checkpoint, lookup CSV và Iceberg |
+| Redpanda | Broker Kafka-compatible |
+| Vector | Đọc JSONL và phát event |
+| RisingWave | Streaming SQL, materialized views, Iceberg sink |
+| VictoriaMetrics | Time-series database cho metrics |
+| Grafana | Dashboard quan sát |
+| metrics-exporter | Export metric thực nghiệm `continux_*` |
+
+### 5.3. Thiết Kế Blue/Green
+
+Phiên bản public ban đầu là `mv_zone_stats`. Logic mới được tạo ở `mv_zone_stats_green` với cùng schema nhưng thêm điều kiện lọc chất lượng dữ liệu:
+
+```sql
+WHERE t.fare_amount >= 0
+  AND t.trip_distance >= 0
+```
+
+Khi green view đã ổn định, hệ thống chạy:
+
+```sql
+ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green;
+```
+
+Thao tác swap đổi tên hai materialized view, giúp public name `mv_zone_stats` phục vụ logic mới mà không cần đổi query phía người dùng.
+
+## 6. Môi Trường Triển Khai
+
+### 6.1. Topology Cụm
+
+| Node | Cấu hình | Vai trò |
+|------|----------|---------|
+| `imac` | Ubuntu 26.04, iMac19,2, Intel i5-8500, 6 cores, 8 GB RAM, 200 GB SSD | K3s server #1, data plane |
+| `continux-vps` | Ubuntu 24.04, 2 vCPU, 4 GB RAM, 80 GB SSD | K3s server #2, control/observability |
+| `helios-pc` | WSL Ubuntu 26.04 trên Windows host `Helios-PC`, 16 GB RAM | K3s server #3, quorum-only |
+
+Tailscale IP:
+
+| Node/device | IP |
+|-------------|----|
+| `imac` | `100.120.64.5` |
+| `continux-vps` | `100.113.151.56` |
+| `helios-pc-wsl` | `100.78.46.87` |
+| Windows host `helios-pc` | `100.125.106.89` |
+
+### 6.2. Phiên Bản Phần Mềm
+
+| Thành phần | Phiên bản |
+|------------|-----------|
+| K3s | `v1.35.5+k3s1` |
+| Helm | `v4.1.4` |
+| Argo CD | `v3.4.2` |
+| Tailscale | `v1.98.2` |
+| Redpanda | `v26.1.8` |
+| RisingWave | `v2.8.3` |
+| Vector | `0.55.0-alpine` |
+| VictoriaMetrics | `v1.143.0` |
+| Grafana | `v13.0.1+security-01` |
+| cloudflared | `2026.5.0` |
+
+## 7. Quy Trình Triển Khai
+
+Quy trình triển khai chi tiết nằm trong [SETUP.md](./SETUP.md). Tóm tắt các bước chính:
+
+1. Chuẩn bị OS, hostname, user, SSH, swap, IP forwarding và UFW.
+2. Cài Tailscale trên 3 máy, kiểm tra kết nối mesh.
+3. Init K3s server #1 trên `imac`, join `continux-vps` và `helios-pc`.
+4. Gán label/taint để phân tách data plane, control plane và quorum node.
+5. Cài CLI quản trị: Helm, Argo CD CLI, rpk, mc, psql.
+6. Cài Argo CD, Cloudflare Tunnel, đăng ký repo và sync root app.
+7. Deploy MinIO, Redpanda, RisingWave.
+8. Deploy VictoriaMetrics, Grafana và dashboard.
+9. Tải dataset, convert JSONL, upload Taxi Zone lookup.
+10. Sync Vector ở `replicas=0`, apply SQL, bật ingest thủ công và verify end-to-end.
+
+## 8. Thiết Kế Pipeline Dữ Liệu
+
+### 8.1. Dataset
+
+Dataset dùng trong thực nghiệm:
+
+| Hạng mục | Giá trị |
 |----------|---------|
-| Cluster HA | `kubectl get nodes`, `readyz`, node quorum Ready |
-| Ingest ổn định | Vector Running, Redpanda topic có event |
-| Streaming SQL | `SELECT COUNT(*) FROM mv_zone_stats` trả số dương |
-| Lakehouse output | `mc ls --recursive local/iceberg-data/nyc/zone_stats/` có metadata/data |
-| Observability | Grafana dashboard đọc datasource VictoriaMetrics; các panel thực nghiệm có dữ liệu thật |
+| Dataset | NYC TLC Yellow Taxi |
+| Tháng | `2026-03` |
+| File nguồn | `yellow_tripdata_2026-03.parquet` |
+| JSONL sau convert | `3,952,451` dòng, khoảng `450M` |
+| Lookup table | `taxi_zone_lookup.csv`, `265` dòng |
 
-## 6. Kết quả nền đã ghi nhận trước finalize
+### 8.2. Vector
 
-| Hạng mục | Kết quả |
-|----------|---------|
-| Cluster HA | `3/3` node Ready: `imac`, `continux-vps`, `helios-pc`; K3s `v1.35.5+k3s1`; readyz/etcd OK |
-| Placement | `imac` chạy data plane, `continux-vps` chạy control/observability, `helios-pc` giữ quorum và node-exporter |
-| GitOps | Argo CD deployed; repo GitHub đã đăng ký; `root-app` Synced/Healthy |
-| Data core | MinIO, Redpanda, RisingWave deployed; Redpanda topic `nyc-taxi-events` có 3 partitions và retention 24h; `SHOW CLUSTER` ghi nhận 4 workers RUNNING |
-| Observability | VictoriaMetrics stack deployed; VMServiceScrape cho `risingwave`, `redpanda`, `etcd`; Grafana rollout OK; dashboard JSON đã chuẩn hóa; `resource-util` có tín hiệu rõ |
-| Dataset | `yellow_tripdata_2026-03.parquet` tải thành công; converter ghi `3,952,451` rows vào JSONL khoảng `450M` |
-| Ingest | Vector `0.55.0` scale thủ công lên `1`, đọc `/data/yellow_tripdata_2026-03.jsonl`, healthcheck passed |
-| Lookup | `tlc_zone` đọc lookup CSV từ MinIO sau khi normalize header; `SELECT COUNT(*) FROM tlc_zone` trả `265` dòng |
-| Streaming SQL | `mv_zone_stats` trả `260` dòng; top borough: Manhattan `3,451,183`, Queens `361,180`, Brooklyn `161,465`, Bronx `40,287`, Unknown `4,726` |
-| Lakehouse output | Iceberg sink tạo metadata và Parquet files trong `iceberg-data/nyc/zone_stats/`, gồm data, equality-delete và position-delete files |
-| Replay reset | §11 đã dừng Vector, drop sink/MV/source/table RisingWave, xóa và tạo lại topic `nyc-taxi-events`, dọn prefix Iceberg `nyc/zone_stats/` bằng MinIO delete marker |
-| Resource | Sau khi tăng Grafana resource, k3s-check ghi Workloads Ready `22/22`, node-exporter DaemonSet `3/3`, Grafana restart mới `0` |
+Vector đọc file JSONL từ `/data/*.jsonl` và publish vào Redpanda. Deployment mặc định `replicas=0` để tránh phát event khi cluster chưa sẵn sàng. Khi replay, runbook scale thủ công lên `1`, theo dõi log, rồi scale về `0`.
 
-## 6.1. Kết quả finalize v0.2.3 tới §4
+### 8.3. Redpanda
 
-| Hạng mục | Kết quả |
-|----------|---------|
-| Evidence baseline | Đã tạo `evidence/finalize/<RUN_ID>/` và lưu cluster check, Argo CD app list, nodes, pods, PVC |
-| GitOps drift | `cloudflared` và `vector` đã sync lại; app hiện có `Synced/Healthy`; Vector giữ `replicas=0` trước replay |
-| RisingWave cluster | `SHOW CLUSTER` có meta, compute, compactor, frontend đều `RUNNING` |
-| Pipeline SQL | Sau khi re-apply bằng Argo CD hook, catalog có đủ `tlc_zone`, `nyc_taxi_src`, `mv_zone_stats_blue`, `mv_zone_stats`, `sink_zone_stats` |
-| Lookup | `SELECT COUNT(*) FROM tlc_zone` trả `265` |
-| MV trước replay | `mv_zone_stats` trả `0` dòng và `0` trips, đúng trạng thái sau clear topic và trước khi bật Vector replay |
-| MinIO/Iceberg | `tlc-zone/taxi_zone_lookup.csv` tồn tại; `iceberg-data/nyc/zone_stats/` có `metadata/v1.metadata.json` và `metadata/version-hint.text` |
-| Metrics exporter | Manifest `config/metrics-exporter/` và Argo CD app `metrics-exporter` đã được thêm vào repo; bước runtime kế tiếp là deploy/verify §5.1 |
+Redpanda topic:
 
-## 7. Nhận xét vận hành
+```text
+nyc-taxi-events
+partitions: 3
+replicas: 1
+retention.ms: 86400000
+```
 
-- Các bước §1-10 đã thực hiện đúng thứ tự và hiệu quả cho mục tiêu bootstrap: workload chính Ready, PVC Bound, Vector chỉ bật sau preflight, SQL/MV/Iceberg được apply sau khi RisingWave healthy.
-- `helm v4.1.4` vẫn dùng được cho setup đã ghi nhận; `tool-version.sh` báo có stable mới hơn `v4.2.0`, nên việc nâng Helm có thể để maintenance sau khi chốt demo.
-- `redpanda-configuration-cdk5k` còn trong hot list ở trạng thái `Failed`, nhưng đây là pod job/configuration cũ; pod `redpanda-configuration-vl774` đã `Succeeded` và workload Redpanda Ready, nên chưa phải blocker.
-- Output `psql SHOW CLUSTER` đã được capture: meta, compute, compactor và frontend đều `RUNNING`; compute có parallelism `2`, compactor có parallelism `3`.
-- Khi bật Vector, CPU của `pipeline`, `redpanda`, `risingwave`, `observability` tăng là đúng kỳ vọng. v0.2.3 giữ rate limit ở Vector Kafka sink để demo ổn định hơn.
-- RisingWave `v2.8.3` dùng Iceberg `catalog.type = 'storage'`; cấu hình `hosted` không còn phù hợp với sink hiện tại.
-- Khi chạy clear demo §11, cần dừng Vector trước để không ghi event mới trong lúc xóa topic/RisingWave state. MinIO trả `Created delete marker`, nghĩa là prefix đã sạch với listing thông thường nhưng version cũ vẫn có thể còn trong object store.
-- Các dashboard `streaming-perf`, `cutover` và `data-integrity` đã có panel proxy từ Kubernetes/Redpanda/RisingWave và panel thực nghiệm `continux_*`. v0.2.3 đã bổ sung `metrics-exporter`; cần deploy và verify scrape trước khi dùng các panel này làm bằng chứng chính. Chi tiết ở `docs/DASHBOARDS.md`.
+### 8.4. RisingWave
 
-## 8. Chưa Hoàn Thành Theo Đề Cương
+RisingWave tạo:
 
-Hoàn tất setup §1-10 mới chứng minh pipeline lakehouse chạy end-to-end. Theo `docs/PROPOSE.md`, dự án vẫn cần thêm thực nghiệm để được xem là hoàn chỉnh:
+- table `tlc_zone` đọc lookup CSV từ MinIO;
+- source `nyc_taxi_src` đọc Redpanda topic;
+- materialized view `mv_zone_stats_blue`;
+- materialized view public `mv_zone_stats`;
+- sink `sink_zone_stats` ghi Iceberg.
 
-- Chạy và đo blue/green cutover cho materialized view.
-- Deploy/verify `metrics-exporter`, rồi ghi metric hoặc log định lượng cho downtime, query errors, consumer lag, throughput và latency.
-- Ghi metric integrity như Blue/Green row count, checksum mismatch, rejected records và Iceberg freshness.
-- Chụp dashboard hoặc lưu log chứng minh các nhóm chỉ số trên.
+Verify object bằng `rw_catalog` thay vì meta-command có pattern của `psql`.
 
-## 9. Giới hạn
+### 8.5. Iceberg Trên MinIO
 
-- Tài nguyên data plane giới hạn bởi RAM 8 GB của `imac`.
-- Vector được scale thủ công để tránh ingest khi cluster chưa sẵn sàng.
-- `helios-pc` giữ quorum, không chạy workload ứng dụng mặc định.
-- Secrets được tạo runtime bằng Kubernetes Secret, không lưu trong Git.
-- `metrics-exporter` đã có manifest trong repo nhưng cần deploy/verify trên cụm trước khi chụp dashboard cuối.
+RisingWave ghi Iceberg vào prefix:
 
-## 10. Tài liệu liên quan
+```text
+iceberg-data/nyc/zone_stats/
+```
 
-- [PROPOSE.md](./PROPOSE.md)
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
-- [SETUP.md](./SETUP.md)
-- [SCRIPTS.md](./SCRIPTS.md)
-- [TIMELINE.md](./TIMELINE.md)
-- [DASHBOARDS.md](./DASHBOARDS.md)
+Sau replay, MinIO có data Parquet, equality-delete Parquet và position-delete Parquet, chứng minh sink đã ghi output lakehouse.
+
+## 9. Thiết Kế Quan Sát Và Thực Nghiệm
+
+### 9.1. Dashboard
+
+Hệ thống có 4 nhóm dashboard:
+
+| Dashboard | Nhóm chỉ số |
+|-----------|-------------|
+| `streaming-perf` | Streaming performance |
+| `resource-util` | Resource utilization |
+| `cutover` | Cutover and GitOps deployment |
+| `data-integrity` | Data integrity |
+
+### 9.2. Metrics Exporter
+
+`metrics-exporter` expose các metric chính:
+
+| Metric | Ý nghĩa |
+|--------|---------|
+| `continux_exporter_up` | Exporter healthy |
+| `continux_mv_rows{view="..."}` | Số dòng theo MV |
+| `continux_mv_trips{view="..."}` | Tổng trip count theo MV |
+| `continux_events_processed_total` | Proxy event đã xử lý |
+| `continux_green_ready` | Green MV sẵn sàng |
+| `continux_cutover_duration_seconds` | Thời gian swap |
+| `continux_last_swap_timestamp_seconds` | Timestamp swap |
+| `continux_query_errors_total` | Lỗi query trong cutover |
+| `continux_checksum_mismatch_total` | Cờ mismatch khi so cùng logic |
+| `continux_records_rejected_total` | Bản ghi bị loại |
+
+### 9.3. Evidence
+
+Evidence chính nằm tại:
+
+```text
+evidence/finalize/20260522-151720/
+```
+
+Các file tiêu biểu:
+
+| File | Nội dung |
+|------|----------|
+| `00-k3s-check.txt` | Baseline cluster |
+| `01-argocd-after-sync.txt` | Argo CD app sau sync |
+| `02-risingwave-show-cluster.txt` | RisingWave workers |
+| `02-tlc-zone-count.txt` | Lookup table count |
+| `03-vm-query-exporter-up.json` | Exporter scrape |
+| `05-replay-start-epoch.txt` | Epoch bắt đầu replay |
+| `05-mv-final-count.txt` | MV count cuối replay |
+| `05-minio-iceberg-after-replay.txt` | Iceberg objects |
+| `06-green-catchup-samples.txt` | Green MV catch-up |
+| `06-query-loop-during-cutover.txt` | Query loop khi swap |
+| `06-public-after-swap.txt` | Public MV sau swap |
+| `06-green-name-after-swap.txt` | View giữ tên green sau swap |
+| `06-exporter-cutover-metrics.txt` | Cutover metrics trực tiếp |
+| `06-vm-query-cutover-duration.json` | VictoriaMetrics duration |
+| `06-vm-query-query-errors.json` | VictoriaMetrics query errors |
+
+Screenshot dashboard được nộp riêng, tham chiếu bằng tên file:
+
+```text
+grafana-01-streaming-perf.png
+grafana-02-resource-util.png
+grafana-03-cutover.png
+grafana-04-data-integrity.png
+```
+
+## 10. Kết Quả Thực Nghiệm
+
+### 10.1. Cluster Và GitOps
+
+| Chỉ số | Kết quả |
+|--------|---------|
+| Nodes Ready | `3/3` |
+| PVC Bound | `5/5` |
+| Workloads Ready sau replay | `23/23` |
+| Argo CD | Các app chính `Synced/Healthy` |
+| Vector sau replay | `replicas=0` |
+
+Một pod `redpanda-configuration-*` cũ ở trạng thái `Failed` được ghi nhận là dấu vết lịch sử, không chặn workload vì Redpanda StatefulSet và console đều Ready.
+
+### 10.2. RisingWave Và Lookup
+
+| Chỉ số | Kết quả |
+|--------|---------|
+| `SHOW CLUSTER` | meta, compute, compactor, frontend `RUNNING` |
+| `tlc_zone` | `265` dòng |
+| Catalog SQL object | đủ table, source, MVs, sink |
+
+### 10.3. Replay Ingest
+
+| Chỉ số | Giá trị |
+|--------|---------|
+| Replay start epoch | `1779465600` |
+| Trước khi dừng Vector | `66 zones / 912 trips` |
+| Metric exporter trước khi dừng | `continux_mv_rows=66`, `continux_mv_trips=910`, `continux_events_processed_total=906` |
+| Sau khi dừng Vector | `69 zones / 986 trips` |
+| Iceberg output | data Parquet, equality-delete và position-delete Parquet |
+
+### 10.4. Blue/Green Cutover
+
+| Chỉ số | Giá trị |
+|--------|---------|
+| Public trước swap | `69 zones / 986 trips` |
+| Blue trước swap | `69 zones / 986 trips` |
+| Green trước swap | `69 zones / 978 trips` |
+| Cutover command | `ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green` |
+| Cutover duration | `0.145226s` |
+| Swap timestamp | `1779466691` |
+| Public sau swap | `69 zones / 978 trips` |
+| View giữ tên green sau swap | `69 zones / 986 trips` |
+| Query errors | `0` |
+| RisingWave restarts trong swap | `0` |
+| VictoriaMetrics duration timestamp | `1779467656` |
+
+Query loop chạy 0.5 giây/lần trong lúc cutover và không ghi nhận dòng lỗi. Đây là bằng chứng chính cho mục tiêu không gián đoạn truy vấn ở lớp SQL.
+
+### 10.5. Dashboard
+
+Dashboard resource cho thấy workload vẫn sẵn sàng và PVC còn dư địa. Dashboard cutover hiển thị green readiness, duration, query errors và restart. Dashboard data-integrity sau cutover có thể hiển thị checksum mismatch `1` vì public view đã chuyển sang logic green `69/978`, còn view giữ tên `mv_zone_stats_green` đang chứa logic cũ `69/986`. Đây là lệch có chủ đích do thay đổi logic, không phải mất dữ liệu.
+
+## 11. Đánh Giá Theo 4 Nhóm Chỉ Số
+
+### 11.1. Cutover & GitOps Deployment
+
+Mục tiêu cutover đạt. Green MV được tạo song song, query loop không lỗi, swap hoàn tất trong `0.145226s`, RisingWave không restart và metric được VictoriaMetrics scrape. GitOps đảm bảo manifest triển khai app chính thống nhất với repo.
+
+### 11.2. Data Integrity & Exactly-Once Semantics
+
+Replay cuối trả `69 zones / 986 trips` và Iceberg sinh object mới. Sau cutover, public MV đổi sang logic lọc dữ liệu âm nên còn `69 zones / 978 trips`. Sự chênh lệch `8 trips` là kết quả logic mới, không phải thất thoát bất thường. `continux_query_errors_total = 0` và `continux_records_rejected_total{reason="parse"} = 0`.
+
+### 11.3. Streaming Performance
+
+Vector replay từ file JSONL thật, Redpanda topic tồn tại, RisingWave MV tăng trong lúc replay và MinIO có object Iceberg mới. Do giới hạn catalog Kafka metrics của RisingWave trong cấu hình này, một số metric Kafka như `continux_events_ingested_total` và `continux_kafka_lag` không phản ánh đầy đủ; báo cáo dùng thêm `continux_events_processed_total`, MV count, Redpanda topic output và dashboard proxy.
+
+### 11.4. Resource Utilization & Stability
+
+Cụm chạy trên phần cứng nhỏ nhưng ổn định: `3/3` nodes Ready, `5/5` PVC Bound, `23/23` workloads Available sau replay. RAM `imac` khoảng `49%`, disk `/` khoảng `11%` ở mốc sau replay. Vector được giữ `replicas=0` sau khi đo để bảo toàn tài nguyên.
+
+## 12. Hạn Chế Và Hướng Phát Triển
+
+### 12.1. Hạn Chế
+
+- Data plane chính chỉ có 8 GB RAM, nên throughput được kiểm soát bằng rate limit thay vì đẩy tải tối đa.
+- `helios-pc` là WSL, phù hợp quorum demo nhưng không lý tưởng cho production.
+- Một số metric Kafka catalog trong RisingWave chưa cung cấp số liệu đủ dùng ở cấu hình này.
+- Iceberg freshness từ exporter còn cần hoàn thiện nếu muốn đọc sâu metadata snapshot.
+- Cutover mới chứng minh ở lớp materialized view, chưa mở rộng sang nhiều sink phụ thuộc phức tạp.
+
+### 12.2. Hướng Phát Triển
+
+- Tách worker data plane riêng có RAM lớn hơn để đo throughput cao hơn.
+- Bổ sung synthetic bad records để kiểm thử rejected records.
+- Tạo sink green riêng rồi swap downstream consumer theo phiên bản.
+- Tự động hóa cutover bằng Argo CD hook hoặc workflow có guardrail.
+- Bổ sung lifecycle policy cho MinIO bucket versioned để thu hồi dung lượng sau nhiều lần replay.
+- Mở rộng benchmark latency đầu cuối thay vì chỉ dùng proxy metrics.
+
+## 13. Kết Luận
+
+Continux `v1.0.0` đã hoàn thành mục tiêu xây dựng Data Lakehouse thời gian thực trên Kubernetes. Hệ thống chứng minh được pipeline end-to-end từ dataset NYC TLC đến Iceberg, có GitOps, có dashboard quan sát và có kịch bản Blue/Green cutover không gây lỗi truy vấn. Kết quả `0.145226s` cutover duration và query errors `0` cho thấy hướng cập nhật logic phân tích bằng materialized view song song là khả thi trong môi trường K3s tài nguyên giới hạn.
+
+## 14. Tài Liệu Tham Khảo
+
+1. Matteo Merli, Sijie Guo, Penghui Li, Hang Chen, Neng Lu. *Ursa: A Lakehouse-Native Data Streaming Engine for Kafka*. Proceedings of the VLDB Endowment, Volume 18, 2025. <https://www.vldb.org/pvldb/vol18/p5184-guo.pdf>
+2. NYC Taxi & Limousine Commission Trip Record Data. <https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page>
+3. Redpanda Documentation. <https://docs.redpanda.com/>
+4. RisingWave Documentation. <https://docs.risingwave.com/>
+5. Apache Iceberg Documentation. <https://iceberg.apache.org/docs/latest/>
+6. Argo CD Documentation. <https://argo-cd.readthedocs.io/>
+7. K3s Documentation. <https://docs.k3s.io/>
+8. VictoriaMetrics Documentation. <https://docs.victoriametrics.com/>
+9. Grafana Documentation. <https://grafana.com/docs/>
+10. Vector Documentation. <https://vector.dev/docs/>
+
+## 15. Phụ Lục Evidence Và Lệnh Kiểm Chứng
+
+### 15.1. Baseline Cluster
+
+```bash
+cd ~/continux
+
+RUN_ID=20260522-151720
+EVIDENCE_DIR="evidence/finalize/${RUN_ID}"
+
+bash scripts/k3s-check.sh
+argocd app list --grpc-web
+kubectl get nodes -o wide
+kubectl get pods -A -o wide
+kubectl get pvc -A
+```
+
+Evidence:
+
+```text
+evidence/finalize/20260522-151720/00-k3s-check.txt
+evidence/finalize/20260522-151720/00-argocd-app-list.txt
+evidence/finalize/20260522-151720/00-nodes.txt
+evidence/finalize/20260522-151720/00-pods.txt
+evidence/finalize/20260522-151720/00-pvc.txt
+```
+
+### 15.2. Verify RisingWave
+
+```bash
+psql -h localhost -p 4567 -d dev -U root -c 'SHOW CLUSTER;'
+
+psql -h localhost -p 4567 -d dev -U root -c \
+  "SELECT COUNT(*) AS tlc_zone_rows FROM tlc_zone;"
+```
+
+Evidence:
+
+```text
+evidence/finalize/20260522-151720/02-risingwave-show-cluster.txt
+evidence/finalize/20260522-151720/02-tlc-zone-count.txt
+```
+
+### 15.3. Replay
+
+```bash
+kubectl -n pipeline scale deploy/vector --replicas=1
+kubectl -n pipeline rollout status deploy/vector --timeout=300s
+
+psql -h localhost -p 4567 -d dev -U root -c \
+  "SELECT COUNT(*) AS zones, COALESCE(SUM(trip_count), 0) AS trips FROM mv_zone_stats;"
+
+kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
+```
+
+Evidence:
+
+```text
+evidence/finalize/20260522-151720/05-replay-start-epoch.txt
+evidence/finalize/20260522-151720/05-vector-startup-logs.txt
+evidence/finalize/20260522-151720/05-mv-final-count.txt
+evidence/finalize/20260522-151720/05-minio-iceberg-after-replay.txt
+```
+
+### 15.4. Cutover
+
+```bash
+psql -h localhost -p 4567 -d dev -U root -c \
+  "ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green;"
+
+curl -G 'http://127.0.0.1:8428/api/v1/query' \
+  --data-urlencode 'query=continux_cutover_duration_seconds'
+
+curl -G 'http://127.0.0.1:8428/api/v1/query' \
+  --data-urlencode 'query=continux_query_errors_total'
+```
+
+Evidence:
+
+```text
+evidence/finalize/20260522-151720/06-create-green-mv.txt
+evidence/finalize/20260522-151720/06-green-catchup-samples.txt
+evidence/finalize/20260522-151720/06-query-loop-during-cutover.txt
+evidence/finalize/20260522-151720/06-cutover-duration.txt
+evidence/finalize/20260522-151720/06-public-after-swap.txt
+evidence/finalize/20260522-151720/06-green-name-after-swap.txt
+evidence/finalize/20260522-151720/06-vm-query-cutover-duration.json
+evidence/finalize/20260522-151720/06-vm-query-query-errors.json
+```
