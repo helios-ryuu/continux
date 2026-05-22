@@ -74,6 +74,8 @@ Hệ thống được đánh giá qua 4 nhóm chỉ số cốt lõi:
 | **Hiệu năng xử lý luồng** *(Streaming Performance)* | Thông lượng (events/giây); độ trễ đầu cuối; và đặc biệt là **Consumer Lag** — đo mức chênh lệch giữa dữ liệu mới vào Redpanda và khả năng xử lý của RisingWave. |
 | **Tiêu thụ tài nguyên** *(Resource Utilization & Stability)* | Giám sát mức độ tiêu thụ CPU, Memory (RAM) trên toàn cụm. |
 
+> Ghi chú triển khai v0.2.2: hoàn tất setup §1-10 mới chứng minh pipeline lakehouse chạy end-to-end. Để xem là hoàn thành đề tài theo đề cương, vẫn cần thực nghiệm và dashboard cho bốn nhóm chỉ số trên, đặc biệt là cutover Blue/Green, integrity và consumer lag/throughput.
+
 ---
 
 ## 7. Thành phẩm của đề tài
@@ -81,7 +83,7 @@ Hệ thống được đánh giá qua 4 nhóm chỉ số cốt lõi:
 Sau khi hoàn thành, sản phẩm bàn giao bao gồm:
 
 1. Một **cụm K3s phân tán** đang vận hành trơn tru đường ống dữ liệu với kiến trúc:
-   `Vector → Redpanda → RisingWave (JOIN với TLC Taxi Zone từ MinIO) → Apache Iceberg` *(sử dụng Built-in Hosted Catalog của RisingWave để tối ưu tài nguyên)*.
+   `Vector → Redpanda → RisingWave (JOIN với TLC Taxi Zone từ MinIO) → Apache Iceberg` *(sử dụng Iceberg storage catalog trên MinIO để phù hợp RisingWave `v2.8.3`)*.
 2. Một **pipeline GitOps tự động hóa** bằng ArgoCD. Khi thuật toán SQL thay đổi trên Git, ArgoCD sẽ tự động đồng bộ và kích hoạt tiến trình hoán đổi Materialized View ngầm (Background Swap) trên RisingWave, đảm bảo phiên bản mới khởi động hoàn tất trước khi thay thế bản cũ, không gián đoạn hay mất mát sự kiện.
 3. Một **hệ thống giám sát thời gian thực toàn diện** (VictoriaMetrics, Grafana) trực quan hóa các biểu đồ định lượng rõ ràng, chứng minh đường ống duy trì độ trễ ổn định, kiểm soát tốt Consumer Lag và không có thời gian chết khi cập nhật thuật toán.
 

@@ -25,13 +25,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Row count of the public materialized view alias",
+      "description": "Số dòng hiện tại của materialized view public do exporter SQL ghi nhận.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -41,13 +40,15 @@
                 "value": 0
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
+        "h": 5,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -71,13 +72,13 @@
         {
           "editorMode": "code",
           "expr": "max(continux_mv_rows{view=\"mv_zone_stats\"}) or vector(0)",
-          "instant": true,
           "legendFormat": "rows",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Public row count",
+      "title": "Public MV rows",
       "type": "stat"
     },
     {
@@ -85,85 +86,13 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Current row count for blue and green views",
+      "description": "Số lần phát hiện lệch checksum; kỳ vọng bằng 0.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 8,
-        "y": 0
-      },
-      "id": 2,
-      "options": {
-        "displayMode": "gradient",
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "max(continux_mv_rows{view=~\"mv_zone_stats_blue|mv_zone_stats_green\"}) by (view) or vector(0)",
-          "instant": true,
-          "legendFormat": "{{view}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Blue vs Green row count",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_VICTORIAMETRICS}"
-      },
-      "description": "Checksum mismatch count from verify job",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "text": "OK"
-                }
-              },
-              "type": "value"
-            }
-          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -176,151 +105,19 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
+        "h": 5,
+        "w": 6,
+        "x": 6,
         "y": 0
       },
-      "id": 3,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "max(continux_checksum_mismatch_total) or vector(0)",
-          "instant": true,
-          "legendFormat": "mismatch",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Checksum mismatch",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_VICTORIAMETRICS}"
-      },
-      "description": "Rejected record rate grouped by reason",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "showPoints": "never"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 0.01
-              }
-            ]
-          },
-          "unit": "eps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "id": 4,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "sum(rate(continux_records_rejected_total[5m])) by (reason) or vector(0)",
-          "legendFormat": "{{reason}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Rejected records",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_VICTORIAMETRICS}"
-      },
-      "description": "Seconds since last Iceberg commit",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "#EAB839",
-                "value": 120
-              },
-              {
-                "color": "red",
-                "value": 300
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 6
-      },
-      "id": 5,
+      "id": 2,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -339,15 +136,448 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "time() - max(continux_iceberg_last_commit_timestamp_seconds)",
-          "instant": true,
-          "legendFormat": "freshness",
+          "expr": "max(continux_checksum_mismatch_total) or vector(0)",
+          "legendFormat": "mismatch",
           "range": false,
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Checksum mismatch",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Tuổi commit Iceberg gần nhất; tăng lâu nghĩa là sink không ghi mới hoặc exporter chưa chạy.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 120
+              },
+              {
+                "color": "red",
+                "value": 300
+              }
+            ]
+          },
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "(time() - max(continux_iceberg_last_commit_timestamp_seconds)) or vector(0)",
+          "legendFormat": "age",
+          "range": false,
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Iceberg freshness",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Proxy dung lượng object store đang tăng khi Iceberg ghi file.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max(100 * kubelet_volume_stats_used_bytes{namespace=\"minio\"} / kubelet_volume_stats_capacity_bytes{namespace=\"minio\"}) or vector(0)",
+          "legendFormat": "used",
+          "range": false,
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "MinIO PVC used",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max(continux_mv_rows{view=~\"mv_zone_stats|mv_zone_stats_blue|mv_zone_stats_green\"}) by (view) or vector(0)",
+          "legendFormat": "{{view}}",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "Iceberg sink freshness",
-      "type": "stat"
+      "title": "Blue/green/public row count",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Bản ghi bị loại theo lý do; kỳ vọng bằng 0 trong demo sạch.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          },
+          "unit": "rps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(continux_records_rejected_total[$__rate_interval])) by (reason) or vector(0)",
+          "legendFormat": "{{reason}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Rejected records/s",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Proxy dòng vào source/sink trong RisingWave nếu metric tương ứng tồn tại.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "rps",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(stream_sink_input_row_count{namespace=\"risingwave\"}[$__rate_interval])) or sum(rate(risingwave_stream_sink_input_row_count{namespace=\"risingwave\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "sink rows/s",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(stream_source_output_rows_counts{namespace=\"risingwave\"}[$__rate_interval])) or sum(rate(risingwave_stream_source_output_rows_counts{namespace=\"risingwave\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "source rows/s",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "RisingWave sink rows/s",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Dung lượng PVC MinIO theo thời gian; tăng sau khi Iceberg ghi parquet/metadata.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kubelet_volume_stats_used_bytes{namespace=\"minio\"}",
+          "legendFormat": "{{persistentvolumeclaim}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "MinIO storage growth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Bảng target scrape để đối chiếu nhanh khi panel integrity bằng 0 vì thiếu metric hoặc service down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Value"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "up{namespace=~\"redpanda|risingwave|observability\"}",
+          "legendFormat": "",
+          "range": false,
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "Data path target health",
+      "type": "table"
     }
   ],
   "preload": false,
@@ -367,6 +597,29 @@
         "name": "DS_VICTORIAMETRICS",
         "query": "prometheus",
         "type": "datasource"
+      },
+      {
+        "current": {
+          "text": "nyc-taxi-events",
+          "value": "nyc-taxi-events"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_VICTORIAMETRICS}"
+        },
+        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Topic",
+        "multi": false,
+        "name": "topic",
+        "query": {
+          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
       }
     ]
   },
@@ -378,5 +631,5 @@
   "timezone": "browser",
   "title": "data-integrity",
   "uid": "data-integrity",
-  "version": 1
+  "version": 2
 }

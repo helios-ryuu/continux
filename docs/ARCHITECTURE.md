@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-> Phiên bản dự án: `v0.2.1`. Kiến trúc dưới đây phản ánh cụm thật sau khi hoàn tất `docs/SETUP.md` §1-9.
+> Phiên bản dự án: `v0.2.2`. Kiến trúc dưới đây phản ánh cụm thật sau khi hoàn tất `docs/SETUP.md` §1-10.
 
 ## 1. Tổng quan
 

@@ -2,7 +2,7 @@
 # =================================================================
 # k3s-install.sh - Join a generic K3s agent.
 # Run on: optional worker node only.
-# Purpose: keep a minimal agent join helper outside the default v0.2.1 setup path.
+# Purpose: keep a minimal agent join helper outside the default v0.2.2 setup path.
 # Usage: sudo bash k3s-install.sh <tailscale-ip-imac> <token> [node-name]
 #             node-name mặc định lấy từ $(hostname) nếu không truyền
 # Gỡ worker : từ imac chạy k3s-check.sh rồi drain + delete node
@@ -23,7 +23,7 @@ usage() {
 Usage:
   sudo bash scripts/k3s-install.sh <imac-ts-ip> <k3s-token> [node-name]
 
-Join an optional generic K3s agent. This helper is outside the default v0.2.1 setup path.
+Join an optional generic K3s agent. This helper is outside the default v0.2.2 setup path.
 EOF
 }
 

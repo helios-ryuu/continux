@@ -25,23 +25,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "CPU cores used by each application namespace",
+      "description": "Số replica workload sẵn sàng trên tổng replica mong muốn.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            }
-          },
-          "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -52,58 +41,65 @@
               }
             ]
           },
-          "unit": "cores"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 5,
+        "w": 8,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "textMode": "value_and_name",
+        "wideLayout": true
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"redpanda|risingwave|minio|pipeline|observability\", container!=\"\", image!=\"\"}[5m])) by (namespace)",
-          "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(kube_deployment_status_replicas_available{namespace=~\"pipeline|redpanda|risingwave|minio|observability\"}) + sum(kube_statefulset_status_replicas_ready{namespace=~\"redpanda|risingwave|observability\"})",
+          "legendFormat": "Ready",
+          "range": false,
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(kube_deployment_spec_replicas{namespace=~\"pipeline|redpanda|risingwave|minio|observability\"}) + sum(kube_statefulset_replicas{namespace=~\"redpanda|risingwave|observability\"})",
+          "legendFormat": "Desired",
+          "range": false,
+          "refId": "B",
+          "instant": true
         }
       ],
-      "title": "CPU by namespace",
-      "type": "timeseries"
+      "title": "Workload availability",
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Working set memory used by each application namespace",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "lineWidth": 1,
-            "showPoints": "never"
-          },
-          "decimals": 1,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -114,14 +110,15 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "cores",
+          "decimals": 2
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
+        "h": 7,
+        "w": 8,
+        "x": 8,
         "y": 0
       },
       "id": 2,
@@ -139,7 +136,63 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(container_memory_working_set_bytes{namespace=~\"redpanda|risingwave|minio|pipeline|observability\", container!=\"\", image!=\"\"}) by (namespace)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"redpanda|risingwave|minio|pipeline|observability\",container!=\"\",image!=\"\"}[$__rate_interval])) by (namespace)",
+          "legendFormat": "{{namespace}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU by namespace",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(container_memory_working_set_bytes{namespace=~\"redpanda|risingwave|minio|pipeline|observability\",container!=\"\",image!=\"\"}) by (namespace)",
           "legendFormat": "{{namespace}}",
           "range": true,
           "refId": "A"
@@ -153,15 +206,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Pods that restarted during the last 15 minutes",
+      "description": "",
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "cellOptions": {
-              "type": "color-background"
-            }
+          "color": {
+            "mode": "palette-classic"
           },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -169,17 +219,123 @@
               {
                 "color": "green",
                 "value": 0
-              },
-              {
-                "color": "#EAB839",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 3
               }
             ]
-          }
+          },
+          "unit": "cores",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(10, sum(rate(container_cpu_usage_seconds_total{namespace=~\"redpanda|risingwave|minio|pipeline|observability\",container!=\"\",image!=\"\"}[$__rate_interval])) by (namespace, pod))",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top pod CPU",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(10, sum(container_memory_working_set_bytes{namespace=~\"redpanda|risingwave|minio|pipeline|observability\",container!=\"\",image!=\"\"}) by (namespace, pod))",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top pod memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Container restart trong khoảng thời gian đang chọn.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -187,9 +343,9 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 15
       },
-      "id": 3,
+      "id": 6,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -206,14 +362,15 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"redpanda|risingwave|minio|pipeline|observability\"}[15m])) by (namespace, pod)",
-          "format": "table",
-          "instant": true,
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"redpanda|risingwave|minio|pipeline|observability\"}[$__range])) by (namespace, pod, container)",
+          "legendFormat": "",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "format": "table"
         }
       ],
-      "title": "Pod restarts in last 15m",
+      "title": "Pod restarts in selected range",
       "type": "table"
     },
     {
@@ -221,15 +378,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "PVC capacity used percentage",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 1,
-          "max": 100,
-          "min": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -239,7 +393,7 @@
                 "value": 0
               },
               {
-                "color": "#EAB839",
+                "color": "yellow",
                 "value": 70
               },
               {
@@ -248,7 +402,8 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "decimals": 1
         },
         "overrides": []
       },
@@ -256,9 +411,9 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 15
       },
-      "id": 4,
+      "id": 7,
       "options": {
         "displayMode": "gradient",
         "maxVizHeight": 300,
@@ -274,16 +429,17 @@
           "values": false
         },
         "showUnfilled": true,
+        "sizing": "auto",
         "valueMode": "color"
       },
       "targets": [
         {
           "editorMode": "code",
           "expr": "100 * kubelet_volume_stats_used_bytes{namespace=~\"redpanda|risingwave|minio|observability\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"redpanda|risingwave|minio|observability\"}",
-          "instant": true,
-          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}",
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "PVC used percent",
@@ -294,15 +450,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Free bytes by PVC",
+      "description": "",
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "cellOptions": {
-              "type": "auto"
-            }
+          "color": {
+            "mode": "palette-classic"
           },
-          "decimals": 1,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -313,7 +466,8 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "bytes",
+          "decimals": 1
         },
         "overrides": []
       },
@@ -321,9 +475,9 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 22
       },
-      "id": 5,
+      "id": 8,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -332,7 +486,7 @@
         "showHeader": true,
         "sortBy": [
           {
-            "desc": false,
+            "desc": true,
             "displayName": "Value"
           }
         ]
@@ -341,10 +495,11 @@
         {
           "editorMode": "code",
           "expr": "kubelet_volume_stats_available_bytes{namespace=~\"redpanda|risingwave|minio|observability\"}",
-          "format": "table",
-          "instant": true,
+          "legendFormat": "",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "format": "table"
         }
       ],
       "title": "PVC free bytes",
@@ -379,5 +534,5 @@
   "timezone": "browser",
   "title": "resource-util",
   "uid": "resource-util",
-  "version": 1
+  "version": 2
 }

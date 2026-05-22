@@ -60,7 +60,7 @@ Chạy trên WSL `helios-pc` sau khi node đã join K3s:
 sudo bash scripts/wsl-enable-shared-root.sh
 ```
 
-Script chạy `mount --make-rshared /`, tạo `wsl-shared-root.service`, thêm ordering để `k3s.service` chạy sau service này, rồi restart K3s. Output đã xác nhận trong v0.2.1:
+Script chạy `mount --make-rshared /`, tạo `wsl-shared-root.service`, thêm ordering để `k3s.service` chạy sau service này, rồi restart K3s. Output đã xác nhận trong v0.2.2:
 
 ```text
 / shared

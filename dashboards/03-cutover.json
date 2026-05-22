@@ -25,26 +25,13 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Green materialized view readiness emitted by cutover job",
+      "description": "Proxy sẵn sàng của các pod tham gia cutover; không thay thế metric blue/green thật.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "text": "NOT READY"
-                },
-                "1": {
-                  "text": "READY"
-                }
-              },
-              "type": "value"
-            }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -53,24 +40,30 @@
                 "value": 0
               },
               {
+                "color": "yellow",
+                "value": 95
+              },
+              {
                 "color": "green",
-                "value": 1
+                "value": 100
               }
             ]
-          }
+          },
+          "unit": "percent",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 8,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
+        "colorMode": "value",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -86,14 +79,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(continux_green_ready) or vector(0)",
-          "instant": true,
-          "legendFormat": "Green",
+          "expr": "100 * sum(kube_pod_status_ready{namespace=~\"risingwave|pipeline|redpanda\",condition=\"true\"}) / count(kube_pod_status_ready{namespace=~\"risingwave|pipeline|redpanda\",condition=\"true\"})",
+          "legendFormat": "Ready %",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Green readiness",
+      "title": "Cutover readiness proxy",
       "type": "stat"
     },
     {
@@ -101,37 +94,45 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Duration of the latest MV swap",
+      "description": "Metric thực nghiệm: 1 khi view green đã bắt kịp và đủ điều kiện swap.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 3,
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "NOT READY"
+                },
+                "1": {
+                  "text": "READY"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": 0
               },
               {
-                "color": "#EAB839",
+                "color": "green",
                 "value": 1
-              },
-              {
-                "color": "red",
-                "value": 5
               }
             ]
           },
-          "unit": "s"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 8,
         "x": 8,
         "y": 0
@@ -155,14 +156,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(continux_cutover_duration_seconds) or vector(0)",
-          "instant": true,
-          "legendFormat": "Duration",
+          "expr": "max(continux_green_ready) or vector(0)",
+          "legendFormat": "green",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Cutover duration",
+      "title": "Green readiness",
       "type": "stat"
     },
     {
@@ -170,7 +171,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Time since last successful MV swap",
+      "description": "Thời gian swap alias/public view trong lần cutover gần nhất.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -183,15 +184,24 @@
               {
                 "color": "green",
                 "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
               }
             ]
           },
-          "unit": "s"
+          "unit": "s",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 8,
         "x": 16,
         "y": 0
@@ -199,7 +209,7 @@
       "id": 3,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -215,14 +225,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "time() - max(continux_last_swap_timestamp_seconds)",
-          "instant": true,
-          "legendFormat": "Last swap age",
+          "expr": "max(continux_cutover_duration_seconds) or vector(0)",
+          "legendFormat": "duration",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Last swap",
+      "title": "Latest cutover duration",
       "type": "stat"
     },
     {
@@ -230,19 +240,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Consumer lag while green view catches up",
+      "description": "Khoảng thời gian từ lần swap gần nhất; 0 nghĩa là chưa có metric swap.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "showPoints": "never"
-          },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -250,66 +253,59 @@
               {
                 "color": "green",
                 "value": 0
-              },
-              {
-                "color": "#EAB839",
-                "value": 10
-              },
-              {
-                "color": "red",
-                "value": 60
               }
             ]
-          }
+          },
+          "unit": "s",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 5,
+        "w": 8,
         "x": 0,
-        "y": 6
+        "y": 5
       },
       "id": 4,
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "textMode": "value_and_name",
+        "wideLayout": true
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(redpanda_kafka_consumer_group_lag{namespace=\"redpanda\"}) by (group, topic) or vector(0)",
-          "legendFormat": "{{group}} / {{topic}}",
-          "range": true,
-          "refId": "A"
+          "expr": "(time() - max(continux_last_swap_timestamp_seconds)) or vector(0)",
+          "legendFormat": "age",
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Consumer lag during swap",
-      "type": "timeseries"
+      "title": "Seconds since last swap",
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Query error rate observed by polling script/API during cutover",
+      "description": "Mục tiêu zero-downtime: các endpoint RisingWave vẫn scrape được trong lúc swap.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -318,22 +314,19 @@
               {
                 "color": "green",
                 "value": 0
-              },
-              {
-                "color": "red",
-                "value": 0.01
               }
             ]
           },
-          "unit": "ops"
+          "unit": "percent",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 6
+        "w": 8,
+        "x": 8,
+        "y": 5
       },
       "id": 5,
       "options": {
@@ -350,13 +343,241 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(continux_query_errors_total[1m])) or vector(0)",
+          "expr": "avg_over_time(up{namespace=\"risingwave\"}[$__rate_interval]) * 100",
+          "legendFormat": "{{job}}/{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Serving availability",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Lỗi truy vấn ứng dụng hoặc frontend trong giai đoạn cutover.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "ops",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(continux_query_errors_total[$__rate_interval])) or sum(rate(risingwave_frontend_query_errors_total{namespace=\"risingwave\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "errors/s",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Query errors during cutover",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(redpanda_kafka_consumer_group_lag{namespace=\"redpanda\",topic=~\"$topic\"}) by (group, topic) or vector(0)",
+          "legendFormat": "{{group}}/{{topic}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer lag during swap",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Nếu có restart trong lúc swap thì cần xem lại tính zero-downtime.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Value"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"risingwave\"}[$__range])) by (pod, container)",
+          "legendFormat": "",
+          "range": false,
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "RisingWave restarts in selected range",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "So sánh số dòng giữa public/blue/green từ exporter thực nghiệm.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max(continux_mv_rows{view=~\"mv_zone_stats_blue|mv_zone_stats_green|mv_zone_stats\"}) by (view) or vector(0)",
+          "legendFormat": "{{view}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Blue vs green row count",
       "type": "timeseries"
     }
   ],
@@ -377,6 +598,29 @@
         "name": "DS_VICTORIAMETRICS",
         "query": "prometheus",
         "type": "datasource"
+      },
+      {
+        "current": {
+          "text": "nyc-taxi-events",
+          "value": "nyc-taxi-events"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_VICTORIAMETRICS}"
+        },
+        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Topic",
+        "multi": false,
+        "name": "topic",
+        "query": {
+          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
       }
     ]
   },
@@ -388,5 +632,5 @@
   "timezone": "browser",
   "title": "cutover",
   "uid": "cutover",
-  "version": 1
+  "version": 2
 }

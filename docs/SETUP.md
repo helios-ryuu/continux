@@ -1,6 +1,6 @@
 # SETUP
 
-> Phiên bản dự án: `v0.2.1`.
+> Phiên bản dự án: `v0.2.2`.
 
 ## 0. Topology
 
@@ -736,6 +736,11 @@ wget -c -O data/zone/taxi_zone_lookup.csv "$ZONE_URL"
 # Output đã xác nhận:
 # data/zone/taxi_zone_lookup.csv saved [12331/12331] (~12 KiB)
 
+# RisingWave map CSV theo tên cột khi file có header; đổi header TLC gốc
+# LocationID,Borough,Zone,service_zone sang tên cột trong SQL.
+{ printf 'location_id,borough,zone,service_zone\n'; tail -n +2 data/zone/taxi_zone_lookup.csv; } \
+  > data/zone/taxi_zone_lookup_risingwave.csv
+
 python3 -m venv .venv
 . .venv/bin/activate
 pip install --upgrade pip pyarrow
@@ -760,7 +765,7 @@ kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000
 ```bash
 # Terminal 2: upload qua API local vừa forward.
 mc alias set local http://127.0.0.1:9000 adminuser <minio-root-password>
-mc cp data/zone/taxi_zone_lookup.csv local/tlc-zone/taxi_zone_lookup.csv
+mc cp data/zone/taxi_zone_lookup_risingwave.csv local/tlc-zone/taxi_zone_lookup.csv
 mc ls local/tlc-zone
 # Output đã xác nhận:
 # Added `local` successfully.
@@ -787,7 +792,7 @@ kubectl -n redpanda exec redpanda-0 -c redpanda -- \
 
 # Kiểm tra image/tag, path input, Kafka backpressure, buffer và memory guardrail trong manifest render.
 kubectl kustomize config/vector | grep -E '0.55.0|/data/\*.jsonl|rate_limit_num|rate_limit_duration_secs|max_events|when_full|sizeLimit|memory:' -n
-# Output mong đợi sau khi cập nhật v0.2.1:
+# Output mong đợi sau khi cập nhật v0.2.2:
 # include = ["/data/*.jsonl"]
 # rate_limit_num = 2
 # rate_limit_duration_secs = 1
@@ -886,6 +891,9 @@ git push
 # Sync app pipeline để chạy Job apply SQL.
 argocd app sync pipeline --grpc-web
 argocd app wait pipeline --health --sync --grpc-web
+# Output đã xác nhận 2026-05-22:
+# Sync revision 5162538f7ce34fdebe3bcf4c7f7d58743bebc226
+# Phase Succeeded, mv-apply-job Succeeded, configmap/continux-sql configured
 ```
 
 Verify:
@@ -895,16 +903,58 @@ Giữ port-forward RisingWave ở §7.4 đang chạy, hoặc mở lại `kubectl
 ```bash
 # MV phải có dữ liệu sau khi Vector đã ingest đủ event và RisingWave xử lý xong.
 psql -h localhost -p 4567 -d dev -U root -c \
+  "SELECT COUNT(*) FROM tlc_zone;"
+# Output đã xác nhận 2026-05-22:
+# count
+# -----
+# 265
+
+psql -h localhost -p 4567 -d dev -U root -c \
+  "SELECT * FROM tlc_zone LIMIT 5;"
+# Output đã xác nhận 2026-05-22:
+# location_id | borough       | zone           | service_zone
+# ----------- | ------------- | -------------- | ------------
+# 1           | EWR           | Newark Airport | EWR
+# 4           | Manhattan     | Alphabet City  | Yellow Zone
+# 5           | Staten Island | Arden Heights  | Boro Zone
+# 10          | Queens        | Baisley Park   | Boro Zone
+# 11          | Brooklyn      | Bath Beach     | Boro Zone
+
+psql -h localhost -p 4567 -d dev -U root -c \
   "SELECT COUNT(*) FROM mv_zone_stats;"
+# Output đã xác nhận 2026-05-22:
+# count
+# -----
+# 260
 
 psql -h localhost -p 4567 -d dev -U root -c \
   "SELECT borough, SUM(trip_count) FROM mv_zone_stats GROUP BY borough ORDER BY 2 DESC LIMIT 5;"
+# Output đã xác nhận 2026-05-22:
+# borough   | sum
+# --------- | -------
+# Manhattan | 3451183
+# Queens    | 361180
+# Brooklyn  | 161465
+# Bronx     | 40287
+# Unknown   | 4726
 
 # Iceberg sink phải sinh metadata/data files trong bucket iceberg-data.
 mc ls --recursive local/iceberg-data/nyc/zone_stats/ | head
+# Output đã xác nhận 2026-05-22:
+# data/53-00000-...parquet
+# data/53-00000-eq-del-...parquet
+# data/53-00000-pos-del-...parquet
+# data/54-00000-...parquet
 
 # Health check tổng hợp cluster, workload, storage và image.
 bash scripts/k3s-check.sh
+# Output đã xác nhận 2026-05-22:
+# Nodes Ready 100% 3/3
+# Pods Healthy 96% 27/28
+# PVC Bound 100% 5/5
+# Workloads Ready 100% 22/22
+# RisingWave meta/compute/compactor/frontend 1/1 Running
+# HOT LIST chỉ còn redpanda-configuration-cdk5k Failed và pod restart cũ không chặn workload
 ```
 
 ## 11. Clear demo ingest để chạy lại
@@ -916,6 +966,9 @@ Dừng Vector để không còn event mới vào Redpanda trong lúc clear:
 ```bash
 kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
 kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s || true
+# Output đã xác nhận 2026-05-22:
+# deployment.apps/vector scaled
+# pod/vector-cb5649f44-dn89s condition met
 ```
 
 Xóa state xử lý trong RisingWave. Giữ port-forward RisingWave ở §7.4 đang chạy, hoặc mở lại `kubectl -n risingwave port-forward svc/risingwave 4567:4567` trong terminal riêng.
@@ -928,6 +981,12 @@ DROP MATERIALIZED VIEW IF EXISTS mv_zone_stats_blue;
 DROP SOURCE IF EXISTS nyc_taxi_src;
 DROP TABLE IF EXISTS tlc_zone;
 SQL
+# Output đã xác nhận 2026-05-22:
+# DROP_SINK
+# DROP_MATERIALIZED_VIEW
+# DROP_MATERIALIZED_VIEW
+# DROP_SOURCE
+# DROP_TABLE
 ```
 
 Xóa topic Redpanda để bỏ toàn bộ event cũ, rồi để GitOps tạo lại topic `nyc-taxi-events`:
@@ -935,16 +994,34 @@ Xóa topic Redpanda để bỏ toàn bộ event cũ, rồi để GitOps tạo l�
 ```bash
 kubectl -n redpanda exec redpanda-0 -c redpanda -- \
   rpk topic delete nyc-taxi-events --brokers redpanda.redpanda.svc.cluster.local:9093
+# Output đã xác nhận 2026-05-22:
+# TOPIC            STATUS
+# nyc-taxi-events  OK
 
 argocd app sync redpanda-topics --grpc-web
 argocd app wait redpanda-topics --health --sync --grpc-web
+# Output đã xác nhận 2026-05-22:
+# redpanda-topic-bootstrap Running -> Succeeded
+# Phase Succeeded
+# Sync revision 5162538f7ce34fdebe3bcf4c7f7d58743bebc226
+# redpanda-topics Synced, Healthy
 ```
 
 Nếu muốn output Iceberg cũng sạch, xóa prefix sink trong MinIO. Giữ MinIO API port-forward ở §9 đang chạy, hoặc mở lại `kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000` trong terminal riêng.
 
 ```bash
 mc rm --recursive --force local/iceberg-data/nyc/zone_stats/
+# Output đã xác nhận 2026-05-22:
+# Created delete marker `local/iceberg-data/nyc/zone_stats/data/53-00000-...parquet`.
+# Created delete marker `local/iceberg-data/nyc/zone_stats/data/54-00000-...parquet`.
+# Created delete marker `local/iceberg-data/nyc/zone_stats/metadata/019e4e04-...-m0.avro`.
+# Created delete marker `local/iceberg-data/nyc/zone_stats/metadata/snap-...avro`.
+# Created delete marker `local/iceberg-data/nyc/zone_stats/metadata/v1.metadata.json`.
+# Created delete marker `local/iceberg-data/nyc/zone_stats/metadata/v18.metadata.json`.
+# Created delete marker `local/iceberg-data/nyc/zone_stats/metadata/version-hint.text`.
 ```
+
+Lưu ý: output `Created delete marker` cho thấy bucket MinIO đang giữ versioning/delete marker. Cách xóa trên làm sạch prefix ở góc nhìn listing thông thường để chạy lại demo; các version cũ vẫn có thể còn trong object store và nên được dọn bằng lifecycle hoặc thao tác purge version riêng nếu cần thu hồi dung lượng.
 
 Quay lại mốc khởi chạy: apply lại SQL, rồi bật Vector ingest:
 
@@ -986,6 +1063,7 @@ Checklist này là trạng thái tối thiểu để xem setup hoàn tất. Nế
 - [x] `argocd app list` có `root-app`, `cloudflared`, `redpanda-topics`, `victoria-scrapes`, `vector`, `pipeline`.
 - [x] MinIO có runtime path/bucket cần cho `rw-checkpoint`, `tlc-zone`; `iceberg-data` dùng ở §10.
 - [x] Redpanda topic `nyc-taxi-events` tồn tại.
-- [x] Vector chỉ chạy khi scale thủ công; v0.2.1 đã thêm rate limit cho demo ingest.
-- [ ] RisingWave query `mv_zone_stats` trả dữ liệu.
-- [ ] Grafana import được dashboard và đọc datasource VictoriaMetrics bằng panel thực nghiệm.
+- [x] Vector chỉ chạy khi scale thủ công; v0.2.2 giữ rate limit cho demo ingest.
+- [x] RisingWave query `mv_zone_stats` trả dữ liệu.
+- [x] Iceberg sink ghi metadata/data Parquet vào bucket `iceberg-data`.
+- [x] Grafana import được dashboard và đọc datasource VictoriaMetrics bằng panel thực nghiệm; xem hướng dẫn đọc chỉ số trong `docs/DASHBOARDS.md`.

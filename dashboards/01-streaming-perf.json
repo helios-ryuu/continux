@@ -25,89 +25,37 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Healthy, total, and health ratio of scrape targets",
+      "description": "Tỷ lệ scrape target Redpanda/RisingWave/observability đang trả metric.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": 0
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Health %"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
               },
               {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": 0
-                    },
-                    {
-                      "color": "#EAB839",
-                      "value": 90
-                    },
-                    {
-                      "color": "green",
-                      "value": 100
-                    }
-                  ]
-                }
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 100
               }
             ]
           },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Healthy"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": 0
-                    },
-                    {
-                      "color": "#EAB839",
-                      "value": 1
-                    },
-                    {
-                      "color": "green",
-                      "value": 5
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 8,
         "x": 0,
         "y": 0
@@ -123,7 +71,7 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": true
+          "values": false
         },
         "textMode": "value_and_name",
         "wideLayout": true
@@ -132,29 +80,29 @@
         {
           "editorMode": "code",
           "expr": "sum(up{namespace=~\"redpanda|risingwave|observability\"})",
-          "instant": true,
           "legendFormat": "Healthy",
           "range": false,
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         },
         {
           "editorMode": "code",
           "expr": "count(up{namespace=~\"redpanda|risingwave|observability\"})",
-          "instant": true,
           "legendFormat": "Total",
           "range": false,
-          "refId": "B"
+          "refId": "B",
+          "instant": true
         },
         {
           "editorMode": "code",
           "expr": "100 * sum(up{namespace=~\"redpanda|risingwave|observability\"}) / count(up{namespace=~\"redpanda|risingwave|observability\"})",
-          "instant": true,
           "legendFormat": "Health %",
           "range": false,
-          "refId": "C"
+          "refId": "C",
+          "instant": true
         }
       ],
-      "title": "Healthy scrape targets",
+      "title": "Scrape target health",
       "type": "stat"
     },
     {
@@ -162,13 +110,11 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Only shows scrape targets that are currently down",
+      "description": "Sức khỏe pod trong đường dữ liệu chính.",
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "cellOptions": {
-              "type": "color-background"
-            }
+          "color": {
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -177,145 +123,84 @@
               {
                 "color": "red",
                 "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 100
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 16,
+        "h": 5,
+        "w": 8,
         "x": 8,
         "y": 0
       },
       "id": 2,
       "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
           ],
-          "show": false
+          "fields": "",
+          "values": false
         },
-        "showHeader": true
+        "textMode": "value_and_name",
+        "wideLayout": true
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(up{namespace=~\"redpanda|risingwave|observability\"}) by (namespace, job) == 0",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "__auto",
+          "expr": "sum(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"})",
+          "legendFormat": "Ready",
           "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Unhealthy scrape targets",
-      "transformations": [
-      {
-        "id": "labelsToFields",
-        "options": {}
-      },
-      {
-        "id": "organize",
-        "options": {
-          "excludeByName": {
-            "Time": true
-          },
-          "indexByName": {},
-          "renameByName": {
-            "Value": "Healthy",
-            "job": "Target",
-            "namespace": "Namespace"
-          }
-        }
-      }
-    ],
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_VICTORIAMETRICS}"
-      },
-      "description": "Redpanda ingress throughput. If this is empty, inspect Redpanda metric names in Explore and replace the metric.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "lineWidth": 1,
-            "showPoints": "never"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          },
-          "unit": "Bps"
+          "refId": "A",
+          "instant": true
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "id": 3,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(redpanda_kafka_request_bytes_total{namespace=\"redpanda\"}[1m])) or vector(0)",
-          "legendFormat": "Redpanda",
-          "range": true,
-          "refId": "A"
+          "expr": "count(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"})",
+          "legendFormat": "Total",
+          "range": false,
+          "refId": "B",
+          "instant": true
+        },
+        {
+          "editorMode": "code",
+          "expr": "100 * sum(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"}) / count(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"})",
+          "legendFormat": "Ready %",
+          "range": false,
+          "refId": "C",
+          "instant": true
         }
       ],
-      "title": "Redpanda throughput",
-      "type": "timeseries"
+      "title": "Pipeline pods ready",
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Consumer lag from Redpanda metrics. If empty, replace metric with the lag series found in Explore.",
+      "description": "Lag Kafka theo consumer group nếu Redpanda expose metric này; 0 nghĩa là không lag hoặc chưa có metric.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "showPoints": "never"
-          },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -325,7 +210,7 @@
                 "value": 0
               },
               {
-                "color": "#EAB839",
+                "color": "yellow",
                 "value": 1000
               },
               {
@@ -333,15 +218,78 @@
                 "value": 10000
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(redpanda_kafka_consumer_group_lag{namespace=\"redpanda\",topic=~\"$topic\"}) or vector(0)",
+          "legendFormat": "lag",
+          "range": false,
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Consumer lag",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Proxy thực tế cho luồng Vector ghi vào Redpanda qua network container.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "Bps",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 6
+        "x": 0,
+        "y": 5
       },
       "id": 4,
       "options": {
@@ -358,13 +306,20 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(redpanda_kafka_consumer_group_lag{namespace=\"redpanda\"}) by (group, topic) or vector(0)",
-          "legendFormat": "{{group}} / {{topic}}",
+          "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"pipeline\",pod=~\"vector-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "vector transmit",
           "range": true,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"redpanda\",pod=~\"redpanda-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "redpanda receive",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "Consumer lag",
+      "title": "Vector and Redpanda network bytes/s",
       "type": "timeseries"
     },
     {
@@ -372,19 +327,12 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "RisingWave p95 latency placeholder. Replace metric bucket if your RisingWave exposes a different histogram.",
+      "description": "Throughput Redpanda từ metric Kafka/RPC/storage nếu có trong scrape.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "showPoints": "never"
-          },
-          "decimals": 3,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -392,26 +340,19 @@
               {
                 "color": "green",
                 "value": 0
-              },
-              {
-                "color": "#EAB839",
-                "value": 2
-              },
-              {
-                "color": "red",
-                "value": 5
               }
             ]
           },
-          "unit": "s"
+          "unit": "Bps",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 14
+        "x": 12,
+        "y": 5
       },
       "id": 5,
       "options": {
@@ -428,13 +369,20 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(risingwave_latency_seconds_bucket{namespace=\"risingwave\"}[5m])) by (le)) or vector(0)",
-          "legendFormat": "p95",
+          "expr": "sum(rate(redpanda_kafka_request_bytes_total{namespace=\"redpanda\"}[$__rate_interval])) or sum(rate(redpanda_rpc_received_bytes{namespace=\"redpanda\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "request bytes",
           "range": true,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(redpanda_storage_log_written_bytes_total{namespace=\"redpanda\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "log written bytes",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "RisingWave latency p95",
+      "title": "Redpanda bytes/s",
       "type": "timeseries"
     },
     {
@@ -442,17 +390,11 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Application-level ingest and processed event rates. Populates after continux_* metrics are exposed.",
+      "description": "Offset cuối theo partition; tăng đều khi topic nhận event.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "lineWidth": 1,
-            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -464,15 +406,16 @@
               }
             ]
           },
-          "unit": "eps"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 14
+        "x": 0,
+        "y": 13
       },
       "id": 6,
       "options": {
@@ -489,20 +432,196 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(continux_events_ingested_total[1m])) or vector(0)",
+          "expr": "max(redpanda_kafka_max_offset{namespace=\"redpanda\",topic=~\"$topic\"}) by (topic, partition) or vector(0)",
+          "legendFormat": "{{topic}} p{{partition}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Topic offsets",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Tốc độ xử lý hàng ở RisingWave, dùng nhiều tên metric dự phòng giữa các phiên bản.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "rps",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(stream_source_output_rows_counts{namespace=\"risingwave\"}[$__rate_interval])) or sum(rate(stream_actor_output_row_count{namespace=\"risingwave\"}[$__rate_interval])) or sum(rate(risingwave_stream_source_output_rows_counts{namespace=\"risingwave\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "rows/s",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "RisingWave rows/s",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Latency p95 của barrier/processing nếu RisingWave expose histogram tương ứng.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "s",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(meta_barrier_latency_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or histogram_quantile(0.95, sum(rate(risingwave_meta_barrier_latency_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or histogram_quantile(0.95, sum(rate(risingwave_latency_seconds_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or vector(0)",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "RisingWave barrier latency p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_VICTORIAMETRICS}"
+      },
+      "description": "Metric thực nghiệm do exporter Continux sinh ra; hiện là lớp mở rộng để báo cáo throughput ứng dụng.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "eps",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(continux_events_ingested_total[$__rate_interval])) or vector(0)",
           "legendFormat": "ingested",
           "range": true,
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "sum(rate(continux_events_processed_total[1m])) or vector(0)",
+          "expr": "sum(rate(continux_events_processed_total[$__rate_interval])) or vector(0)",
           "legendFormat": "processed",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Pipeline throughput",
+      "title": "Application events/s",
       "type": "timeseries"
     }
   ],
@@ -523,6 +642,29 @@
         "name": "DS_VICTORIAMETRICS",
         "query": "prometheus",
         "type": "datasource"
+      },
+      {
+        "current": {
+          "text": "nyc-taxi-events",
+          "value": "nyc-taxi-events"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_VICTORIAMETRICS}"
+        },
+        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Topic",
+        "multi": false,
+        "name": "topic",
+        "query": {
+          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
       }
     ]
   },
@@ -534,5 +676,5 @@
   "timezone": "browser",
   "title": "streaming-perf",
   "uid": "streaming-perf",
-  "version": 1
+  "version": 2
 }
