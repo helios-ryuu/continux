@@ -67,6 +67,20 @@ color_for_pct() {
     fi
 }
 
+color_for_health_pct() {
+    local pct="${1%.*}"
+    [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
+    if [ "$pct" -ge 90 ]; then
+        printf "%b" "$GREEN"
+    elif [ "$pct" -ge 75 ]; then
+        printf "%b" "$YELLOW"
+    elif [ "$pct" -ge 60 ]; then
+        printf "%b" "$ORANGE"
+    else
+        printf "%b" "$RED"
+    fi
+}
+
 status_color() {
     case "$1" in
         Ready|Running|Bound|deployed|ok|healthy) printf "%b" "$GREEN" ;;
@@ -80,13 +94,18 @@ status_color() {
 bar_pct() {
     local pct="${1%.*}"
     local width="${2:-24}"
+    local mode="${3:-usage}"
     [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
     [ "$pct" -lt 0 ] && pct=0
     [ "$pct" -gt 100 ] && pct=100
     local fill=$((pct * width / 100))
     local empty=$((width - fill))
     local color
-    color=$(color_for_pct "$pct")
+    if [ "$mode" = "health" ]; then
+        color=$(color_for_health_pct "$pct")
+    else
+        color=$(color_for_pct "$pct")
+    fi
 
     printf "%b[" "$color"
     for ((i = 0; i < fill; i++)); do printf "█"; done
@@ -118,7 +137,28 @@ metric_ratio() {
     local suffix="$4"
     local pct=0
     [ "$total" -gt 0 ] && pct=$((good * 100 / total))
-    printf "  ${CYAN}%-18s${NC} %b  %s/%s %s\n" "$label" "$(bar_pct "$pct" 22)" "$good" "$total" "$suffix"
+    printf "  ${CYAN}%-18s${NC} %b  %s/%s %s\n" "$label" "$(bar_pct "$pct" 22 health)" "$good" "$total" "$suffix"
+}
+
+print_ns_grouped_table() {
+    local data="$1"
+    local header="$2"
+    local group_indent="${3:-     }"
+    local row_indent="${4:-        }"
+    local rows ns_list ns
+
+    rows=$(printf "%b" "$data" | awk 'NF {print}')
+    [ -z "$rows" ] && return
+
+    ns_list=$(printf "%s\n" "$rows" | awk -F'\t' 'NF && $1 != "" {print $1}' | sort -u)
+    while IFS= read -r ns; do
+        [ -z "$ns" ] && continue
+        echo -e "${group_indent}${YELLOW}>> $ns${NC}"
+        (
+            echo -e "${YELLOW}${header}${NC}"
+            printf "%s\n" "$rows" | awk -F'\t' -v ns="$ns" 'BEGIN{OFS="\t"} $1 == ns {$1=""; sub(/^\t/, ""); print}'
+        ) | column -t -s $'\t' | sed "s/^/${row_indent}/"
+    done <<< "$ns_list"
 }
 
 # ======================== TIMING ========================
@@ -329,22 +369,20 @@ section_overview() {
 
     echo -e "\n  ${YELLOW}>> HOT LIST${NC}"
     local hot_list
-    hot_list=$(echo "$ALL_PODS" | awk -F'\t' '($5!="Running" && $5!="Succeeded") || ($6+0>0) {print $2"\t"$3"\t"$1"\t"$4"\t"$5"\t"$6"\t"$7}' | head -12)
+    hot_list=$(echo "$ALL_PODS" | awk -F'\t' '($5!="Running" && $5!="Succeeded") || ($6+0>0) {print $2"\t"$3"\t"$1"\t"$4"\t"$5"\t"$6"\t"$7}' | sort -k1,1 -k2,2 | head -12)
     if [ -z "$hot_list" ]; then
         echo -e "     ${GREEN}Không có pod lỗi hoặc restart.${NC}"
     else
-        (
-            echo -e "NS\tPOD\tNODE\tREADY\tSTATUS\tRESTARTS\tAGE"
-            echo "$hot_list"
-        ) | column -t -s $'\t' | awk '
-        NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"}
-        NR>1{
+        print_ns_grouped_table "$hot_list" "POD\tNODE\tREADY\tSTATUS\tRESTARTS\tAGE" | awk '
+        />> /{print; next}
+        /POD[[:space:]]+NODE/{print; next}
+        {
             line=$0
             if (line ~ /CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/) sub(/CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error/, "'"${RED}"'&'"${NC}"'", line)
             else if (line ~ /Pending|ContainerCreating/) sub(/Pending|ContainerCreating/, "'"${YELLOW}"'&'"${NC}"'", line)
             else if (line ~ /Terminating/) sub("Terminating", "'"${ORANGE}"'Terminating'"${NC}"'", line)
             else if (line ~ /Running/) sub("Running", "'"${GREEN}"'Running'"${NC}"'", line)
-            print "     " line
+            print line
         }'
     fi
 }
@@ -515,12 +553,10 @@ section_node() {
         if [ -z "$NODE_PODS" ]; then
             echo -e "     ${CYAN}(Không có pod)${NC}"
         else
-            (
-            echo -e "NS\tNAME\tREADY\tSTATUS\tRESTARTS\tAGE"
-            echo "$NODE_PODS"
-            ) | column -t -s $'\t' | awk '
-            NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"}
-            NR>1{
+            print_ns_grouped_table "$NODE_PODS" "NAME\tREADY\tSTATUS\tRESTARTS\tAGE" "     " "        " | awk '
+            />> /{print; next}
+            /NAME[[:space:]]+READY/{print; next}
+            {
                 line=$0;
 
                 # 1) Color ready fraction FIRST (before ANSI codes break spacing)
@@ -552,7 +588,7 @@ section_node() {
                 else if (line ~ /Succeeded/) sub("Succeeded", "'"${BLUE}"'Succeeded'"${NC}"'", line);
                 else if (line ~ /Running/) sub("Running", "'"${GREEN}"'Running'"${NC}"'", line);
 
-                print "     " line;
+                print line;
             }'
         fi
     done
@@ -614,10 +650,7 @@ section_pvc() {
         if [ -z "$NODE_PVC" ]; then
             echo -e "     ${CYAN}(Không có PVC)${NC}"
         else
-            (
-            echo -e "NS\tNAME\tSIZE"
-            echo -e "$NODE_PVC"
-            ) | column -t -s $'\t' | awk 'NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"} NR>1{print "     " $0}'
+            print_ns_grouped_table "$NODE_PVC" "NAME\tSIZE" "     " "        "
         fi
     done
 }
@@ -668,10 +701,7 @@ section_res() {
             else if ($2 == "ds") $2 = "'"${ORANGE}"'" $2 "'"${NC}"'";
             print $0
         }')
-        (
-            echo -e "${YELLOW}NS\tKIND\tNAME\tDESIRED\tREADY\tUP-TO-DATE\tAVAILABLE${NC}"
-            echo -e "$workloads_colored"
-        ) | column -t -s $'\t' | sed 's/^/     /'
+        print_ns_grouped_table "$workloads_colored" "KIND\tNAME\tDESIRED\tREADY\tUP-TO-DATE\tAVAILABLE"
         explain "DESIRED là số replica mong muốn; READY/AVAILABLE thấp hơn DESIRED là dấu hiệu rollout chưa xong hoặc pod lỗi."
     fi
 
@@ -711,10 +741,7 @@ section_res() {
             print $0
         }')
 
-        (
-            echo -e "${YELLOW}NS\tHPA NAME\tTARGET\tMIN->MAX\tCURRENT/DESIRED${NC}"
-            echo -e "$hpas_colored"
-        ) | column -t -s $'\t' | sed 's/^/     /'
+        print_ns_grouped_table "$hpas_colored" "HPA NAME\tTARGET\tMIN->MAX\tCURRENT/DESIRED"
     fi
     # ===================================================================
 
@@ -739,10 +766,7 @@ section_res() {
             else if ($3 == "LoadBalancer") $3 = "'"${PURPLE}"'" $3 "'"${NC}"'";
             print $0
         }')
-        (
-            echo -e "${YELLOW}NS\tNAME\tTYPE\tCLUSTER-IP\tPORTS${NC}"
-            echo -e "$svcs_colored"
-        ) | column -t -s $'\t' | sed 's/^/     /'
+        print_ns_grouped_table "$svcs_colored" "NAME\tTYPE\tCLUSTER-IP\tPORTS"
     fi
 }
 
@@ -799,9 +823,9 @@ section_helm() {
     elif [ "$(echo "$releases_json" | jq 'length')" -eq 0 ]; then
         echo -e "     ${CYAN}(Không có Helm release)${NC}"
     else
-        echo "$releases_json" | jq -r '
-            ["NAMESPACE", "NAME", "REVISION", "UPDATED", "STATUS", "CHART", "APP_VERSION"],
-            (.[] | [
+        local releases
+        releases=$(echo "$releases_json" | jq -r '
+            .[] | [
                 (.namespace // "-"),
                 (.name // "-"),
                 ((.revision // "-") | tostring),
@@ -809,15 +833,17 @@ section_helm() {
                 (.status // "-"),
                 (.chart // "-"),
                 (.app_version // "-")
-            ]) | @tsv
-        ' | column -t -s $'\t' | awk '
-        NR==1{print "     '"${YELLOW}"'" $0 "'"${NC}"'"}
-        NR>1{
+            ] | @tsv
+        ' 2>/dev/null | sort -k1,1 -k2,2)
+        print_ns_grouped_table "$releases" "NAME\tREVISION\tUPDATED\tSTATUS\tCHART\tAPP_VERSION" | awk '
+        />> /{print; next}
+        /NAME[[:space:]]+REVISION/{print; next}
+        {
             line=$0;
             if (line ~ /deployed/) sub("deployed", "'"${GREEN}"'deployed'"${NC}"'", line);
             else if (line ~ /failed/) sub("failed", "'"${RED}"'failed'"${NC}"'", line);
             else if (line ~ /pending/) sub("pending", "'"${YELLOW}"'pending'"${NC}"'", line);
-            print "     " line;
+            print line;
         }'
         explain "STATUS=deployed là tốt; nếu failed/pending thì cần xem helm history hoặc pod events trong namespace tương ứng."
     fi
@@ -855,26 +881,103 @@ render_two_columns() {
     local left_file="$1"
     local right_file="$2"
     local cols="${COLUMNS:-}"
-    local left_width
+    local left_width right_width sep_width=5
 
     if [ -z "$cols" ] && command -v tput >/dev/null 2>&1; then
         cols=$(tput cols 2>/dev/null || true)
     fi
     [[ "$cols" =~ ^[0-9]+$ ]] || cols=160
 
-    # Keep the split readable on narrow terminals while still feeling like
-    # a half-screen layout on wide terminals.
-    if [ "$cols" -lt 120 ]; then
-        left_width=58
-    else
-        left_width=$(( (cols - 7) / 2 ))
+    left_width=$(( (cols - sep_width) / 2 ))
+    [ "$left_width" -lt 24 ] && left_width=24
+    right_width=$(( cols - sep_width - left_width ))
+    if [ "$right_width" -lt 24 ]; then
+        right_width=24
+        left_width=$(( cols - sep_width - right_width ))
+        [ "$left_width" -lt 24 ] && left_width=24
     fi
 
-    awk -v width="$left_width" -v sep="  \033[0;34m│\033[0m  " '
+    awk -v left_width="$left_width" -v right_width="$right_width" -v sep="  \033[0;34m│\033[0m  " -v reset="\033[0m" '
     function strip_ansi(s, out) {
         out = s
         gsub(/\033\[[0-9;]*[mK]/, "", out)
         return out
+    }
+    function visible_len(s) {
+        return length(strip_ansi(s))
+    }
+    function rstrip(s) {
+        sub(/[[:space:]]+$/, "", s)
+        return s
+    }
+    function ansi_cut(s, width,    i, j, c, vis, cut_raw, last_space_raw, last_space_vis, len) {
+        len = length(s)
+        vis = 0
+        cut_raw = len
+        last_space_raw = 0
+        last_space_vis = 0
+
+        for (i = 1; i <= len; i++) {
+            c = substr(s, i, 1)
+            if (c == "\033" && substr(s, i + 1, 1) == "[") {
+                for (j = i + 2; j <= len; j++) {
+                    if (substr(s, j, 1) ~ /[A-Za-z]/) {
+                        i = j
+                        break
+                    }
+                }
+                continue
+            }
+
+            vis++
+            if (c ~ /[[:space:]]/) {
+                last_space_raw = i
+                last_space_vis = vis
+            }
+            if (vis >= width) {
+                cut_raw = i
+                break
+            }
+        }
+
+        if (vis < width || cut_raw >= len) {
+            WRAP_PART = s
+            WRAP_REST = ""
+            return
+        }
+
+        if (last_space_raw > 0 && last_space_vis >= int(width * 0.45)) {
+            cut_raw = last_space_raw
+        }
+
+        WRAP_PART = rstrip(substr(s, 1, cut_raw))
+        WRAP_REST = substr(s, cut_raw + 1)
+        sub(/^[[:space:]]+/, "", WRAP_REST)
+    }
+    function wrap_line(s, width, out,    count, guard, previous) {
+        count = 0
+        guard = 0
+
+        if (s == "") {
+            out[++count] = ""
+            return count
+        }
+
+        while (visible_len(s) > width && guard++ < 200) {
+            previous = s
+            ansi_cut(s, width)
+            out[++count] = WRAP_PART
+            s = WRAP_REST
+            if (s == "" || s == previous) {
+                break
+            }
+        }
+
+        if (s != "") {
+            out[++count] = s
+        }
+
+        return count
     }
     FNR == NR {
         left[++left_count] = $0
@@ -886,16 +989,89 @@ render_two_columns() {
     END {
         max_count = left_count > right_count ? left_count : right_count
         for (i = 1; i <= max_count; i++) {
-            l = i <= left_count ? left[i] : ""
-            r = i <= right_count ? right[i] : ""
-            pad = width - length(strip_ansi(l))
-            if (pad < 1) {
-                pad = 1
+            left_line_count = wrap_line(i <= left_count ? left[i] : "", left_width, left_lines)
+            right_line_count = wrap_line(i <= right_count ? right[i] : "", right_width, right_lines)
+            pair_count = left_line_count > right_line_count ? left_line_count : right_line_count
+
+            for (j = 1; j <= pair_count; j++) {
+                l = j <= left_line_count ? left_lines[j] : ""
+                r = j <= right_line_count ? right_lines[j] : ""
+                pad = left_width - visible_len(l)
+                if (pad < 0) {
+                    pad = 0
+                }
+                printf "%s%s%*s%s%s\n", l, reset, pad, "", sep, r
             }
-            printf "%s%*s%s%s\n", l, pad, "", sep, r
         }
     }
     ' "$left_file" "$right_file"
+}
+
+legend_item() {
+    printf "  ${CYAN}%-20s${NC} %s\n" "$1" "$2"
+}
+
+print_legend() {
+    echo -e "\n${BLUE}${BOLD}--- LEGEND ---${NC}"
+
+    echo -e "  ${YELLOW}>> HEALTH SUMMARY${NC}"
+    legend_item "Nodes Ready" "Số node có condition Ready=True trên tổng số node."
+    legend_item "Pods Healthy" "Pod có phase Running hoặc Succeeded trên tổng số pod."
+    legend_item "PVC Bound" "PVC đã bind được volume trên tổng số PVC."
+    legend_item "Workloads Ready" "Workload ngoài kube-system có số replica sẵn sàng đạt mong muốn."
+    legend_item "Pod Problems" "Pod không Running/Succeeded, đang terminating, hoặc có container waiting/error."
+    legend_item "Restarts" "Tổng restart count của container trong toàn cluster."
+    legend_item "Pod Density" "Số pod đang chạy trên từng node, giúp thấy workload phân bố lệch hay đều."
+
+    echo ""
+    echo -e "  ${YELLOW}>> CLUSTER & OBJECTS${NC}"
+    legend_item "NS" "Kubernetes namespace. Trong report này namespace được gom thành header '>> <namespace>' thay cho cột NS lặp lại."
+    legend_item "NODE" "Máy tham gia cluster Kubernetes/K3s; pod được scheduler đặt chạy trên node."
+    legend_item "ROLE" "Vai trò node. master/control-plane giữ API/etcd; worker chủ yếu chạy workload."
+    legend_item "IP" "Địa chỉ node dùng để liên lạc trong cluster, ở đây thường là Tailscale IP."
+    legend_item "PING" "Độ trễ mạng từ node đang chạy script tới node khác; timeout/N/A là dấu hiệu cần kiểm tra mạng."
+    legend_item "NAMESPACES" "Tóm tắt số pod theo namespace đang nằm trên từng node."
+    legend_item "POD" "Đơn vị chạy container nhỏ nhất trong Kubernetes."
+    legend_item "READY" "Với pod: số container ready/tổng container. Với workload: số replica ready."
+    legend_item "STATUS" "Trạng thái hiện tại, ví dụ Running, Succeeded, Pending, Failed, CrashLoopBackOff."
+    legend_item "RESTARTS" "Tổng số lần container trong pod bị restart."
+    legend_item "AGE" "Tuổi object tính từ thời điểm được tạo."
+    legend_item "PVC" "PersistentVolumeClaim, yêu cầu lưu trữ bền vững cho pod."
+    legend_item "SIZE" "Dung lượng PVC hoặc image."
+
+    echo -e "\n  ${YELLOW}>> WORKLOADS & SCALING${NC}"
+    legend_item "WORKLOAD" "Nhóm object điều khiển pod, ví dụ Deployment, StatefulSet, DaemonSet."
+    legend_item "KIND" "Loại workload: deploy=Deployment, sts=StatefulSet, ds=DaemonSet."
+    legend_item "DESIRED" "Số replica mong muốn theo spec."
+    legend_item "UP-TO-DATE" "Số replica đã chạy revision/template mới nhất."
+    legend_item "AVAILABLE" "Số replica sẵn sàng phục vụ traffic theo điều kiện availability."
+    legend_item "HPA" "HorizontalPodAutoscaler, tự tăng/giảm replica theo metric."
+    legend_item "TARGET" "Workload mà HPA đang điều khiển."
+    legend_item "MIN->MAX" "Khoảng replica tối thiểu và tối đa HPA được phép dùng."
+    legend_item "CURRENT/DESIRED" "Replica hiện tại so với replica HPA đang muốn đạt tới."
+
+    echo -e "\n  ${YELLOW}>> NETWORK, IMAGES, HELM & SECRETS${NC}"
+    legend_item "SERVICE" "Endpoint ổn định để truy cập pod trong cluster."
+    legend_item "TYPE" "Kiểu Service/Secret. Service thường gặp: ClusterIP, NodePort, LoadBalancer."
+    legend_item "CLUSTER-IP" "IP nội bộ của Service trong Kubernetes cluster; None nghĩa headless service."
+    legend_item "PORTS" "Danh sách port/protocol Service expose."
+    legend_item "IMAGE" "Container image đang có trên node."
+    legend_item "[In-Use]" "Image đang được ít nhất một pod dùng."
+    legend_item "[Unused]" "Image còn trong cache node nhưng không thấy pod hiện tại dùng."
+    legend_item "HELM RELEASE" "Một lần cài đặt Helm chart vào cluster."
+    legend_item "REVISION" "Số phiên bản release sau mỗi lần helm install/upgrade/rollback."
+    legend_item "UPDATED" "Thời điểm Helm release được cập nhật gần nhất."
+    legend_item "CHART" "Tên và phiên bản Helm chart."
+    legend_item "APP_VERSION" "Phiên bản app mà chart khai báo."
+    legend_item "REPOSITORY" "Nguồn Helm chart cấu hình trên máy đang chạy script."
+    legend_item "SECRET" "Object chứa dữ liệu nhạy cảm, thường được lưu dạng base64; report chỉ in tên/key, không in giá trị."
+    legend_item "KEYS" "Tên các key có trong Secret."
+
+    echo -e "\n  ${YELLOW}>> COLORS & BARS${NC}"
+    legend_item "Health bar" "Dùng cho Nodes/Pods/PVC/Workloads: xanh lá là tỷ lệ tốt cao, vàng/cam/đỏ là cần chú ý."
+    legend_item "Resource bar" "Dùng cho CPU/RAM/Disk/load/process: xanh lá là dùng thấp, vàng/cam/đỏ là dùng cao."
+    legend_item "Load avg" "Tải CPU trung bình 1/5/15 phút; so với số core để ước lượng mức bận."
+    legend_item "RAM/Disk/Swap" "Tài nguyên local của node đang chạy script."
 }
 
 generate_full_report() {
@@ -938,6 +1114,7 @@ generate_full_report() {
 
     render_two_columns "$left_report" "$right_report"
     rm -rf "$tmp_dir"
+    print_legend
 
     echo -e "\n>>> Kiểm tra hoàn tất!"
 }

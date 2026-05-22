@@ -82,7 +82,7 @@ bash scripts/k3s-check.sh secrets
 bash scripts/k3s-check.sh export
 ```
 
-Default report in dạng 2 cột để dễ đọc trên terminal rộng: cột 1 gồm section 1-3 (overview, node/pod layout, workloads/HPA/services), cột 2 gồm section 4-8 (storage, tài nguyên local node, images, Helm, secrets). `overview` có graph nhanh cho RAM/disk local, mật độ pod theo node và hot list các pod lỗi/restart.
+Default report in dạng 2 cột để dễ đọc trên terminal rộng: cột 1 gồm section 1-3 (overview, node/pod layout, workloads/HPA/services), cột 2 gồm section 4-8 (storage, tài nguyên local node, images, Helm, secrets). Dòng dài sẽ tự wrap trong chiều rộng từng cột để giữ vạch phân chia liền mạch. Các bảng có namespace được gom theo header `>> <namespace>` thay vì lặp cột `NS`; cuối report có legend giải thích các khái niệm/cột chính. `overview` có graph nhanh cho RAM/disk local, mật độ pod theo node và hot list các pod lỗi/restart.
 
 Report export được ghi vào `scripts/k3s-check/k3s-check-<HHmmss-ddmmyy>.txt`.
 
