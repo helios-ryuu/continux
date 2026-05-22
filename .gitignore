@@ -15,6 +15,9 @@ experiments/results/*.parquet
 # Grafana screenshot export
 dashboards/exports/
 
+# Local finalize evidence/log bundle
+evidence/
+
 # Build artifacts
 *.pyc
 __pycache__/

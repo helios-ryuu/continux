@@ -1,6 +1,6 @@
 # Hướng Dẫn Đọc Dashboard Grafana
 
-> Trạng thái `v0.2.2`: các dashboard JSON đã được chuẩn hóa để import vào Grafana với datasource `VictoriaMetrics`. Dashboard tài nguyên dùng metric Kubernetes có sẵn. Các dashboard streaming, cutover và integrity có cả panel đo từ metric hạ tầng lẫn panel thực nghiệm `continux_*` để dùng khi bổ sung exporter ứng dụng.
+> Trạng thái `v0.2.3`: các dashboard JSON đã được chuẩn hóa để import vào Grafana với datasource `VictoriaMetrics`. Dashboard tài nguyên dùng metric Kubernetes có sẵn. Các dashboard streaming, cutover và integrity có panel thực nghiệm `continux_*`; repo đã có app `metrics-exporter` để sinh các metric này khi triển khai §5.1 trong `docs/FINALIZE.md`.
 
 ## 1. Cách import
 
@@ -35,7 +35,7 @@ Dashboard này dùng để đọc hiệu năng luồng Vector -> Redpanda -> Ris
 | `Topic offsets` | Offset cuối theo partition của topic | Tăng đều khi topic nhận event |
 | `RisingWave rows/s` | Tốc độ RisingWave xử lý row, có nhiều tên metric dự phòng theo phiên bản | Nên tăng khi source/MV đang nhận dữ liệu |
 | `RisingWave barrier latency p95` | Độ trễ p95 của barrier hoặc processing histogram | Càng thấp càng tốt; spike cao cần đối chiếu CPU/RAM |
-| `Application events/s` | Metric thực nghiệm `continux_events_ingested_total` và `continux_events_processed_total` | Chỉ có dữ liệu sau khi có exporter ứng dụng |
+| `Application events/s` | Metric thực nghiệm `continux_events_ingested_total` và `continux_events_processed_total` | Có dữ liệu sau khi `metrics-exporter` chạy và được VictoriaMetrics scrape |
 
 ## 4. `02-resource-util.json`
 
@@ -59,14 +59,14 @@ Dashboard này phục vụ kịch bản Blue/Green cutover. Một số panel là
 | Panel | Ý nghĩa | Cách đọc |
 |-------|---------|----------|
 | `Cutover readiness proxy` | Tỷ lệ pod Redpanda/RisingWave/Pipeline Ready | Nên là `100%` trước khi swap |
-| `Green readiness` | Metric `continux_green_ready` báo view green đã bắt kịp | `1` là sẵn sàng swap, `0` là chưa sẵn sàng hoặc chưa có exporter |
+| `Green readiness` | Metric `continux_green_ready` báo view green đã bắt kịp | `1` là sẵn sàng swap, `0` là chưa sẵn sàng hoặc exporter chưa được scrape |
 | `Latest cutover duration` | Thời gian swap gần nhất | Mục tiêu là thấp và ổn định |
 | `Seconds since last swap` | Tuổi của lần swap gần nhất | `0` thường nghĩa là chưa có metric swap |
 | `Serving availability` | Availability scrape target RisingWave trong lúc swap | Không nên tụt về `0` khi cutover |
 | `Query errors during cutover` | Lỗi truy vấn trong lúc swap | Kỳ vọng bằng `0` |
 | `Consumer lag during swap` | Lag Kafka trong cửa sổ cutover | Không nên tăng kéo dài sau swap |
 | `RisingWave restarts in selected range` | Restart của RisingWave trong khoảng đang xem | Nếu có restart thì chưa thể kết luận zero-downtime |
-| `Blue vs green row count` | So sánh row count giữa public/blue/green view | Cần exporter `continux_mv_rows` để có dữ liệu thật |
+| `Blue vs green row count` | So sánh row count giữa public/blue/green view | Dùng `continux_mv_rows` từ `metrics-exporter` |
 
 ## 6. `04-data-integrity.json`
 
@@ -98,9 +98,9 @@ Setup §1-10 đã chứng minh pipeline end-to-end chạy được, nhưng để
 
 ## 8. Metric thực nghiệm cần exporter
 
-Các metric dưới đây không tự có từ Kubernetes. Chúng cần một exporter nhỏ đọc từ `psql`, `rpk`, MinIO hoặc job kiểm thử rồi expose sang Prometheus/VictoriaMetrics:
+Các metric dưới đây không tự có từ Kubernetes. Repo đã có app `metrics-exporter` trong `config/metrics-exporter/`; exporter dùng `psql` đọc RisingWave catalog/MV, expose `/metrics`, và được scrape bằng `VMServiceScrape`.
 
-| Metric | Nguồn đề xuất | Dùng cho |
+| Metric | Nguồn exporter | Dùng cho |
 |--------|---------------|----------|
 | `continux_events_ingested_total` | Đếm event Vector/Redpanda nhận | Throughput ingest |
 | `continux_events_processed_total` | Đếm row RisingWave xử lý | Throughput xử lý |
@@ -112,5 +112,20 @@ Các metric dưới đây không tự có từ Kubernetes. Chúng cần một ex
 | `continux_checksum_mismatch_total` | Query checksum giữa view/sink | Integrity |
 | `continux_records_rejected_total` | Kiểm thử dữ liệu lỗi hoặc log parser | Chất lượng ingest |
 | `continux_iceberg_last_commit_timestamp_seconds` | Đọc metadata Iceberg/MinIO | Freshness sink |
+
+Triển khai nhanh:
+
+```bash
+kubectl apply -k config/metrics-exporter
+kubectl -n pipeline rollout status deploy/continux-metrics --timeout=300s
+```
+
+Triển khai GitOps sau khi commit/push:
+
+```bash
+argocd app sync root-app --grpc-web
+argocd app sync metrics-exporter --grpc-web
+argocd app wait metrics-exporter --health --sync --grpc-web
+```
 
 Khi exporter chưa chạy, các panel liên quan `continux_*` có thể hiển thị `0`. Khi exporter đã chạy, các panel này mới là bằng chứng chính cho báo cáo.

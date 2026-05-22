@@ -1,6 +1,6 @@
 # SETUP
 
-> Phiên bản dự án: `v0.2.2`.
+> Phiên bản dự án: `v0.2.3`.
 
 ## 0. Topology
 
@@ -792,7 +792,7 @@ kubectl -n redpanda exec redpanda-0 -c redpanda -- \
 
 # Kiểm tra image/tag, path input, Kafka backpressure, buffer và memory guardrail trong manifest render.
 kubectl kustomize config/vector | grep -E '0.55.0|/data/\*.jsonl|rate_limit_num|rate_limit_duration_secs|max_events|when_full|sizeLimit|memory:' -n
-# Output mong đợi sau khi cập nhật v0.2.2:
+# Output mong đợi sau khi cập nhật v0.2.3:
 # include = ["/data/*.jsonl"]
 # rate_limit_num = 2
 # rate_limit_duration_secs = 1
@@ -1063,7 +1063,7 @@ Checklist này là trạng thái tối thiểu để xem setup hoàn tất. Nế
 - [x] `argocd app list` có `root-app`, `cloudflared`, `redpanda-topics`, `victoria-scrapes`, `vector`, `pipeline`.
 - [x] MinIO có runtime path/bucket cần cho `rw-checkpoint`, `tlc-zone`; `iceberg-data` dùng ở §10.
 - [x] Redpanda topic `nyc-taxi-events` tồn tại.
-- [x] Vector chỉ chạy khi scale thủ công; v0.2.2 giữ rate limit cho demo ingest.
+- [x] Vector chỉ chạy khi scale thủ công; v0.2.3 giữ rate limit cho demo ingest.
 - [x] RisingWave query `mv_zone_stats` trả dữ liệu.
 - [x] Iceberg sink ghi metadata/data Parquet vào bucket `iceberg-data`.
 - [x] Grafana import được dashboard và đọc datasource VictoriaMetrics bằng panel thực nghiệm; xem hướng dẫn đọc chỉ số trong `docs/DASHBOARDS.md`.

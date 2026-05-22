@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: continux-metrics
+  namespace: pipeline
+  labels:
+    app: continux-metrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: continux-metrics
+  template:
+    metadata:
+      labels:
+        app: continux-metrics
+    spec:
+      nodeSelector:
+        role: data-plane
+      containers:
+        - name: exporter
+          image: postgres:16-alpine
+          command: ["/bin/sh", "/scripts/exporter.sh"]
+          ports:
+            - name: metrics
+              containerPort: 9108
+          env:
+            - name: PGHOST
+              value: risingwave.risingwave.svc.cluster.local
+            - name: PGPORT
+              value: "4567"
+            - name: PGDATABASE
+              value: dev
+            - name: PGUSER
+              value: root
+            - name: PGSSLMODE
+              value: disable
+            - name: SCRAPE_INTERVAL_SECONDS
+              value: "10"
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+            - name: metrics-web
+              mountPath: /www
+            - name: metrics-state
+              mountPath: /state
+      volumes:
+        - name: script
+          configMap:
+            name: continux-metrics-script
+            defaultMode: 0755
+        - name: metrics-web
+          emptyDir: {}
+        - name: metrics-state
+          emptyDir: {}

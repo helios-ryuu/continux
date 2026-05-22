@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: continux-metrics-script
+  namespace: pipeline
+data:
+  exporter.sh: |
+    #!/bin/sh
+    set -u
+
+    : "${PGHOST:=risingwave.risingwave.svc.cluster.local}"
+    : "${PGPORT:=4567}"
+    : "${PGDATABASE:=dev}"
+    : "${PGUSER:=root}"
+    : "${PGSSLMODE:=disable}"
+    : "${METRICS_PORT:=9108}"
+    : "${SCRAPE_INTERVAL_SECONDS:=10}"
+
+    export PGHOST PGPORT PGDATABASE PGUSER PGSSLMODE
+
+    WEB_DIR=/www
+    STATE_DIR=/state
+    METRICS_FILE="${WEB_DIR}/metrics"
+    TMP_FILE="${WEB_DIR}/metrics.tmp"
+    QUERY_ERRORS=0
+
+    mkdir -p "${WEB_DIR}" "${STATE_DIR}"
+
+    sql() {
+      psql -AtX -v ON_ERROR_STOP=1 -c "$1" 2>/tmp/continux-metrics-sql.err
+    }
+
+    scalar() {
+      raw="$(sql "$1")" || {
+        QUERY_ERRORS=$((QUERY_ERRORS + 1))
+        raw=""
+      }
+      value="$(printf '%s\n' "${raw}" | head -n 1 | tr -d '[:space:]')"
+      if [ -z "${value}" ]; then
+        value=0
+      fi
+      printf '%s' "${value}"
+    }
+
+    mv_exists() {
+      scalar "SELECT COUNT(*) FROM rw_catalog.rw_materialized_views WHERE name = '$1';"
+    }
+
+    mv_rows() {
+      view="$1"
+      if [ "$(mv_exists "${view}")" = "0" ]; then
+        printf '0'
+        return
+      fi
+      scalar "SELECT COUNT(*) FROM ${view};"
+    }
+
+    mv_trips() {
+      view="$1"
+      if [ "$(mv_exists "${view}")" = "0" ]; then
+        printf '0'
+        return
+      fi
+      scalar "SELECT COALESCE(SUM(trip_count), 0) FROM ${view};"
+    }
+
+    emit_mv_metric() {
+      view="$1"
+      rows="$(mv_rows "${view}")"
+      trips="$(mv_trips "${view}")"
+      printf 'continux_mv_rows{view="%s"} %s\n' "${view}" "${rows}"
+      printf 'continux_mv_trips{view="%s"} %s\n' "${view}" "${trips}"
+    }
+
+    render_metrics() {
+      public_rows="$(mv_rows mv_zone_stats)"
+      public_trips="$(mv_trips mv_zone_stats)"
+      blue_rows="$(mv_rows mv_zone_stats_blue)"
+      blue_trips="$(mv_trips mv_zone_stats_blue)"
+      green_rows="$(mv_rows mv_zone_stats_green)"
+
+      kafka_ingested="$(scalar "SELECT COALESCE(SUM(CASE WHEN high_watermark IS NULL THEN 0 ELSE GREATEST(high_watermark, 0) + 1 END), 0) FROM rw_catalog.rw_kafka_source_metrics;")"
+      kafka_processed_offsets="$(scalar "SELECT COALESCE(SUM(CASE WHEN latest_offset IS NULL THEN 0 ELSE GREATEST(latest_offset, 0) + 1 END), 0) FROM rw_catalog.rw_kafka_source_metrics;")"
+      kafka_lag="$(scalar "SELECT COALESCE(SUM(lag), 0) FROM rw_catalog.rw_kafka_job_lag;")"
+      iceberg_last_commit="$(scalar "SELECT COALESCE(CAST(EXTRACT(EPOCH FROM MAX(timestamp_ms)) AS BIGINT), 0) FROM rw_catalog.rw_iceberg_snapshots;")"
+
+      green_ready=0
+      if [ "${green_rows}" != "0" ]; then
+        green_ready=1
+      fi
+
+      checksum_mismatch=0
+      if [ "${blue_rows}" != "0" ] && { [ "${public_rows}" != "${blue_rows}" ] || [ "${public_trips}" != "${blue_trips}" ]; }; then
+        checksum_mismatch=1
+      fi
+
+      {
+        printf '# HELP continux_exporter_up Whether the Continux metrics exporter rendered metrics successfully.\n'
+        printf '# TYPE continux_exporter_up gauge\n'
+        printf 'continux_exporter_up 1\n'
+        printf '# HELP continux_exporter_sql_query_errors_total SQL query errors seen by the metrics exporter.\n'
+        printf '# TYPE continux_exporter_sql_query_errors_total counter\n'
+        printf 'continux_exporter_sql_query_errors_total %s\n' "${QUERY_ERRORS}"
+
+        printf '# HELP continux_mv_rows Row count for public, blue and green materialized views.\n'
+        printf '# TYPE continux_mv_rows gauge\n'
+        printf '# HELP continux_mv_trips Sum of trip_count for public, blue and green materialized views.\n'
+        printf '# TYPE continux_mv_trips gauge\n'
+        emit_mv_metric mv_zone_stats
+        emit_mv_metric mv_zone_stats_blue
+        emit_mv_metric mv_zone_stats_green
+
+        printf '# HELP continux_events_ingested_total Approximate input events available in Kafka as seen by RisingWave source metrics.\n'
+        printf '# TYPE continux_events_ingested_total counter\n'
+        printf 'continux_events_ingested_total %s\n' "${kafka_ingested}"
+        printf '# HELP continux_events_processed_total Trips currently represented in the public materialized view.\n'
+        printf '# TYPE continux_events_processed_total counter\n'
+        printf 'continux_events_processed_total %s\n' "${public_trips}"
+        printf '# HELP continux_kafka_processed_offsets_total Approximate source offsets processed by RisingWave.\n'
+        printf '# TYPE continux_kafka_processed_offsets_total counter\n'
+        printf 'continux_kafka_processed_offsets_total %s\n' "${kafka_processed_offsets}"
+        printf '# HELP continux_kafka_lag Current Kafka lag reported by RisingWave rw_kafka_job_lag.\n'
+        printf '# TYPE continux_kafka_lag gauge\n'
+        printf 'continux_kafka_lag %s\n' "${kafka_lag}"
+
+        printf '# HELP continux_green_ready Whether the green MV exists and has rows.\n'
+        printf '# TYPE continux_green_ready gauge\n'
+        printf 'continux_green_ready %s\n' "${green_ready}"
+        printf '# HELP continux_checksum_mismatch_total Integrity mismatch flag between public and blue views.\n'
+        printf '# TYPE continux_checksum_mismatch_total gauge\n'
+        printf 'continux_checksum_mismatch_total %s\n' "${checksum_mismatch}"
+        printf '# HELP continux_records_rejected_total Rejected records by reason. Defaults to 0 until parser validation is added.\n'
+        printf '# TYPE continux_records_rejected_total counter\n'
+        printf 'continux_records_rejected_total{reason="parse"} 0\n'
+        printf '# HELP continux_iceberg_last_commit_timestamp_seconds Last Iceberg snapshot timestamp observed by RisingWave.\n'
+        printf '# TYPE continux_iceberg_last_commit_timestamp_seconds gauge\n'
+        printf 'continux_iceberg_last_commit_timestamp_seconds %s\n' "${iceberg_last_commit}"
+
+        if [ -f "${STATE_DIR}/cutover.prom" ]; then
+          cat "${STATE_DIR}/cutover.prom"
+        else
+          printf '# HELP continux_cutover_duration_seconds Latest measured blue/green swap duration.\n'
+          printf '# TYPE continux_cutover_duration_seconds gauge\n'
+          printf 'continux_cutover_duration_seconds 0\n'
+          printf '# HELP continux_last_swap_timestamp_seconds Unix timestamp of the last blue/green swap.\n'
+          printf '# TYPE continux_last_swap_timestamp_seconds gauge\n'
+          printf 'continux_last_swap_timestamp_seconds 0\n'
+          printf '# HELP continux_query_errors_total Query errors observed during cutover.\n'
+          printf '# TYPE continux_query_errors_total counter\n'
+          printf 'continux_query_errors_total 0\n'
+        fi
+      } > "${TMP_FILE}"
+
+      mv "${TMP_FILE}" "${METRICS_FILE}"
+    }
+
+    render_metrics
+    busybox httpd -f -p "0.0.0.0:${METRICS_PORT}" -h "${WEB_DIR}" &
+    HTTPD_PID="$!"
+
+    trap 'kill "${HTTPD_PID}" 2>/dev/null || true; exit 0' INT TERM
+
+    while true; do
+      render_metrics
+      sleep "${SCRAPE_INTERVAL_SECONDS}" &
+      wait "$!"
+    done

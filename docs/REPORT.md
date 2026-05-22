@@ -1,6 +1,6 @@
 # REPORT
 
-> Phiên bản tài liệu: `v0.2.2`. Trạng thái hiện tại: setup §1-10 đã chạy trên cụm thật; SQL/MV/Iceberg đã có output truy vấn và object MinIO. Bước clear state ở §11 đã được xác nhận để chuẩn bị replay demo sạch.
+> Phiên bản tài liệu: `v0.2.3`. Trạng thái hiện tại: setup §1-10 đã chạy trên cụm thật; `docs/FINALIZE.md` đã thực hiện tới hết §4. Sau clear demo, SQL object đã được re-apply, `tlc_zone` có 265 dòng, `mv_zone_stats` đang sạch trước replay và MinIO/Iceberg metadata đã được verify. Repo đã có manifest `metrics-exporter` cho metric `continux_*`.
 
 ## 1. Tóm tắt
 
@@ -32,7 +32,7 @@ Cụm dùng Tailscale mesh VPN, K3s embedded etcd, quorum `2/3`.
 3. Redpanda nhận topic `nyc-taxi-events`.
 4. RisingWave tạo source/table/MV và join với Taxi Zone lookup trên MinIO.
 5. Iceberg sink ghi kết quả xuống `iceberg-data`.
-6. Grafana hiển thị resource metrics; dashboard streaming/cutover/integrity đã có panel proxy và panel thực nghiệm, nhưng các metric `continux_*` vẫn cần exporter để dùng làm bằng chứng cuối.
+6. Grafana hiển thị resource metrics; dashboard streaming/cutover/integrity đã có panel proxy và panel thực nghiệm. `metrics-exporter` trong `config/metrics-exporter/` sinh metric `continux_*` từ RisingWave catalog/MV để dùng làm bằng chứng cuối.
 
 ## 5. Kết quả cần chứng minh
 
@@ -44,7 +44,7 @@ Cụm dùng Tailscale mesh VPN, K3s embedded etcd, quorum `2/3`.
 | Lakehouse output | `mc ls --recursive local/iceberg-data/nyc/zone_stats/` có metadata/data |
 | Observability | Grafana dashboard đọc datasource VictoriaMetrics; các panel thực nghiệm có dữ liệu thật |
 
-## 6. Kết quả đã ghi nhận ở v0.2.2
+## 6. Kết quả nền đã ghi nhận trước finalize
 
 | Hạng mục | Kết quả |
 |----------|---------|
@@ -61,23 +61,36 @@ Cụm dùng Tailscale mesh VPN, K3s embedded etcd, quorum `2/3`.
 | Replay reset | §11 đã dừng Vector, drop sink/MV/source/table RisingWave, xóa và tạo lại topic `nyc-taxi-events`, dọn prefix Iceberg `nyc/zone_stats/` bằng MinIO delete marker |
 | Resource | Sau khi tăng Grafana resource, k3s-check ghi Workloads Ready `22/22`, node-exporter DaemonSet `3/3`, Grafana restart mới `0` |
 
+## 6.1. Kết quả finalize v0.2.3 tới §4
+
+| Hạng mục | Kết quả |
+|----------|---------|
+| Evidence baseline | Đã tạo `evidence/finalize/<RUN_ID>/` và lưu cluster check, Argo CD app list, nodes, pods, PVC |
+| GitOps drift | `cloudflared` và `vector` đã sync lại; app hiện có `Synced/Healthy`; Vector giữ `replicas=0` trước replay |
+| RisingWave cluster | `SHOW CLUSTER` có meta, compute, compactor, frontend đều `RUNNING` |
+| Pipeline SQL | Sau khi re-apply bằng Argo CD hook, catalog có đủ `tlc_zone`, `nyc_taxi_src`, `mv_zone_stats_blue`, `mv_zone_stats`, `sink_zone_stats` |
+| Lookup | `SELECT COUNT(*) FROM tlc_zone` trả `265` |
+| MV trước replay | `mv_zone_stats` trả `0` dòng và `0` trips, đúng trạng thái sau clear topic và trước khi bật Vector replay |
+| MinIO/Iceberg | `tlc-zone/taxi_zone_lookup.csv` tồn tại; `iceberg-data/nyc/zone_stats/` có `metadata/v1.metadata.json` và `metadata/version-hint.text` |
+| Metrics exporter | Manifest `config/metrics-exporter/` và Argo CD app `metrics-exporter` đã được thêm vào repo; bước runtime kế tiếp là deploy/verify §5.1 |
+
 ## 7. Nhận xét vận hành
 
 - Các bước §1-10 đã thực hiện đúng thứ tự và hiệu quả cho mục tiêu bootstrap: workload chính Ready, PVC Bound, Vector chỉ bật sau preflight, SQL/MV/Iceberg được apply sau khi RisingWave healthy.
 - `helm v4.1.4` vẫn dùng được cho setup đã ghi nhận; `tool-version.sh` báo có stable mới hơn `v4.2.0`, nên việc nâng Helm có thể để maintenance sau khi chốt demo.
 - `redpanda-configuration-cdk5k` còn trong hot list ở trạng thái `Failed`, nhưng đây là pod job/configuration cũ; pod `redpanda-configuration-vl774` đã `Succeeded` và workload Redpanda Ready, nên chưa phải blocker.
 - Output `psql SHOW CLUSTER` đã được capture: meta, compute, compactor và frontend đều `RUNNING`; compute có parallelism `2`, compactor có parallelism `3`.
-- Khi bật Vector, CPU của `pipeline`, `redpanda`, `risingwave`, `observability` tăng là đúng kỳ vọng. v0.2.2 giữ rate limit ở Vector Kafka sink để demo ổn định hơn.
+- Khi bật Vector, CPU của `pipeline`, `redpanda`, `risingwave`, `observability` tăng là đúng kỳ vọng. v0.2.3 giữ rate limit ở Vector Kafka sink để demo ổn định hơn.
 - RisingWave `v2.8.3` dùng Iceberg `catalog.type = 'storage'`; cấu hình `hosted` không còn phù hợp với sink hiện tại.
 - Khi chạy clear demo §11, cần dừng Vector trước để không ghi event mới trong lúc xóa topic/RisingWave state. MinIO trả `Created delete marker`, nghĩa là prefix đã sạch với listing thông thường nhưng version cũ vẫn có thể còn trong object store.
-- Các dashboard `streaming-perf`, `cutover` và `data-integrity` đã có panel proxy từ Kubernetes/Redpanda/RisingWave và panel thực nghiệm `continux_*`. Phần `continux_*` vẫn cần exporter sinh metric thật trước khi dùng làm bằng chứng chính. Chi tiết ở `docs/DASHBOARDS.md`.
+- Các dashboard `streaming-perf`, `cutover` và `data-integrity` đã có panel proxy từ Kubernetes/Redpanda/RisingWave và panel thực nghiệm `continux_*`. v0.2.3 đã bổ sung `metrics-exporter`; cần deploy và verify scrape trước khi dùng các panel này làm bằng chứng chính. Chi tiết ở `docs/DASHBOARDS.md`.
 
 ## 8. Chưa Hoàn Thành Theo Đề Cương
 
 Hoàn tất setup §1-10 mới chứng minh pipeline lakehouse chạy end-to-end. Theo `docs/PROPOSE.md`, dự án vẫn cần thêm thực nghiệm để được xem là hoàn chỉnh:
 
 - Chạy và đo blue/green cutover cho materialized view.
-- Ghi metric hoặc log định lượng cho downtime, query errors, consumer lag, throughput và latency.
+- Deploy/verify `metrics-exporter`, rồi ghi metric hoặc log định lượng cho downtime, query errors, consumer lag, throughput và latency.
 - Ghi metric integrity như Blue/Green row count, checksum mismatch, rejected records và Iceberg freshness.
 - Chụp dashboard hoặc lưu log chứng minh các nhóm chỉ số trên.
 
@@ -87,7 +100,7 @@ Hoàn tất setup §1-10 mới chứng minh pipeline lakehouse chạy end-to-end
 - Vector được scale thủ công để tránh ingest khi cluster chưa sẵn sàng.
 - `helios-pc` giữ quorum, không chạy workload ứng dụng mặc định.
 - Secrets được tạo runtime bằng Kubernetes Secret, không lưu trong Git.
-- v0.2.2 chưa có exporter cho metric ứng dụng `continux_*`.
+- `metrics-exporter` đã có manifest trong repo nhưng cần deploy/verify trên cụm trước khi chụp dashboard cuối.
 
 ## 10. Tài liệu liên quan
 

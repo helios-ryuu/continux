@@ -6,3 +6,4 @@ resources:
   - victoria-scrapes-app.yaml
   - redpanda-topics-app.yaml
   - pipeline-app.yaml
+  - metrics-exporter-app.yaml

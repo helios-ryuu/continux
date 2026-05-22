@@ -7,7 +7,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.2-0A7CC7?style=flat-square" alt="Version v0.2.2">
+  <img src="https://img.shields.io/badge/version-v0.2.3-0A7CC7?style=flat-square" alt="Version v0.2.3">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
@@ -60,8 +60,9 @@ Chi tiết đề cương xem tại [docs/PROPOSE.md](./docs/PROPOSE.md).
 Tài liệu liên quan:
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - Kiến trúc, topology, placement và yêu cầu hệ thống.
 - [docs/SETUP.md](./docs/SETUP.md) - Trình tự setup từ máy sạch tới pipeline chạy được.
+- [docs/FINALIZE.md](./docs/FINALIZE.md) - Runbook sau setup để replay, đo dashboard, cutover và chốt báo cáo.
 - [docs/SCRIPTS.md](./docs/SCRIPTS.md) - Tài liệu script vận hành.
-- [docs/TIMELINE.md](./docs/TIMELINE.md) - Mốc triển khai v0.2.2.
+- [docs/TIMELINE.md](./docs/TIMELINE.md) - Mốc triển khai v0.2.3.
 - [docs/REPORT.md](./docs/REPORT.md) - Báo cáo đồ án.
 - [docs/DASHBOARDS.md](./docs/DASHBOARDS.md) - Hướng dẫn import và đọc chỉ số Grafana.
 
@@ -78,7 +79,7 @@ Tài liệu liên quan:
 
 ## HẠ TẦNG MÁY CHỦ
 
-Cụm tham chiếu v0.2.2 gồm **3 K3s server** nối với nhau bằng **Tailscale mesh VPN**.
+Cụm tham chiếu v0.2.3 gồm **3 K3s server** nối với nhau bằng **Tailscale mesh VPN**.
 
 | Node Kubernetes | Máy | Hệ điều hành | Vai trò |
 |-----------------|-----|--------------|---------|
@@ -101,7 +102,7 @@ Lưu ý: WSL trên `Helios-PC` được Tailscale đặt tên `helios-pc-wsl` đ
 
 ## KHỞI CHẠY DỰ ÁN
 
-**Phiên bản hiện tại:** `v0.2.2` - hoàn tất setup §1-10 trên cụm thật: Vector ingest có kiểm soát, RisingWave SQL/MV trả dữ liệu, Iceberg sink ghi Parquet vào MinIO và output đã che secret được cập nhật trong tài liệu.
+**Phiên bản hiện tại:** `v0.2.3` - hoàn tất setup §1-10 và đã chạy `docs/FINALIZE.md` tới hết §4: Argo CD drift đã sync, RisingWave SQL object đã re-apply, `tlc_zone` có 265 dòng, `mv_zone_stats` đang sạch trước replay và MinIO/Iceberg metadata đã verify. Repo cũng có manifest `metrics-exporter` để sinh metric `continux_*` ở bước §5.
 
 Quy trình tổng quát:
 
@@ -111,7 +112,7 @@ Quy trình tổng quát:
 4. Cài CLI quản trị, deploy Argo CD, đăng ký repo GitOps và apply App-of-Apps.
 5. Deploy MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana theo [docs/SETUP.md](./docs/SETUP.md).
 6. Tải NYC TLC parquet, convert bằng `scripts/partojsonl.py`, sync Vector ở `replicas: 0`, rồi scale thủ công khi preflight xanh.
-7. Apply SQL source/table/MV/sink, verify bằng RisingWave query, Redpanda topic và Iceberg object output. Dashboard JSON đã chuẩn hóa; các panel `continux_*` cần exporter thực nghiệm để dùng làm bằng chứng cuối.
+7. Apply SQL source/table/MV/sink, verify bằng RisingWave query, Redpanda topic và Iceberg object output. Dashboard JSON đã chuẩn hóa; `config/metrics-exporter/` cung cấp exporter thực nghiệm cho các panel `continux_*`.
 
 ---
 

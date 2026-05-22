@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-> Phiên bản dự án: `v0.2.2`. Kiến trúc dưới đây phản ánh cụm thật sau khi hoàn tất `docs/SETUP.md` §1-10.
+> Phiên bản dự án: `v0.2.3`. Kiến trúc dưới đây phản ánh cụm thật sau khi hoàn tất `docs/SETUP.md` §1-10 và `docs/FINALIZE.md` §1-4.
 
 ## 1. Tổng quan
 
@@ -12,7 +12,7 @@ Stack chính:
 - **Argo CD + Helm**: GitOps và triển khai chart.
 - **Vector + Redpanda**: giả lập stream JSONL và broker Kafka-compatible.
 - **RisingWave + Apache Iceberg + MinIO**: compute streaming và lưu trữ lakehouse.
-- **VictoriaMetrics + Grafana + Cloudflare Tunnel**: metrics và dashboard.
+- **VictoriaMetrics + Grafana + metrics-exporter + Cloudflare Tunnel**: metrics, dashboard và metric thực nghiệm `continux_*`.
 
 ## 2. Topology
 
@@ -67,6 +67,7 @@ tolerations:
 5. Materialized View `mv_zone_stats` tổng hợp thống kê theo zone/borough.
 6. Iceberg sink ghi kết quả xuống bucket `iceberg-data`.
 7. VictoriaMetrics scrape metrics; Grafana import dashboard từ `dashboards/*.json`.
+8. `metrics-exporter` đọc RisingWave catalog/MV và expose metric `continux_*` cho dashboard thực nghiệm.
 
 ## 4. GitOps Layout
 
@@ -77,6 +78,7 @@ tolerations:
 | `config/redpanda/` | Redpanda Helm values |
 | `config/risingwave/` | RisingWave Helm values |
 | `config/vector/` | Vector ConfigMap, PVC, Deployment |
+| `config/metrics-exporter/` | Exporter metric thực nghiệm `continux_*` và VMServiceScrape |
 | `config/victoria-metrics/` | VictoriaMetrics values và scrape config |
 | `gitops/apps/` | App-of-Apps cho Argo CD |
 | `gitops/pipeline/` | SQL apply Job |

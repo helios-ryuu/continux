@@ -74,7 +74,7 @@ Hệ thống được đánh giá qua 4 nhóm chỉ số cốt lõi:
 | **Hiệu năng xử lý luồng** *(Streaming Performance)* | Thông lượng (events/giây); độ trễ đầu cuối; và đặc biệt là **Consumer Lag** — đo mức chênh lệch giữa dữ liệu mới vào Redpanda và khả năng xử lý của RisingWave. |
 | **Tiêu thụ tài nguyên** *(Resource Utilization & Stability)* | Giám sát mức độ tiêu thụ CPU, Memory (RAM) trên toàn cụm. |
 
-> Ghi chú triển khai v0.2.2: hoàn tất setup §1-10 mới chứng minh pipeline lakehouse chạy end-to-end. Để xem là hoàn thành đề tài theo đề cương, vẫn cần thực nghiệm và dashboard cho bốn nhóm chỉ số trên, đặc biệt là cutover Blue/Green, integrity và consumer lag/throughput.
+> Ghi chú triển khai v0.2.3: đã hoàn tất setup §1-10 và finalize §1-4; repo đã có manifest `metrics-exporter` cho metric `continux_*`. Để xem là hoàn thành đề tài theo đề cương, vẫn cần triển khai exporter, replay ingest sạch và chụp dashboard cho bốn nhóm chỉ số, đặc biệt là cutover Blue/Green, integrity và consumer lag/throughput.
 
 ---
 
