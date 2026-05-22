@@ -851,17 +851,94 @@ section_helm() {
 }
 
 # ======================== EXPORT & MAIN ========================
+render_two_columns() {
+    local left_file="$1"
+    local right_file="$2"
+    local cols="${COLUMNS:-}"
+    local left_width
+
+    if [ -z "$cols" ] && command -v tput >/dev/null 2>&1; then
+        cols=$(tput cols 2>/dev/null || true)
+    fi
+    [[ "$cols" =~ ^[0-9]+$ ]] || cols=160
+
+    # Keep the split readable on narrow terminals while still feeling like
+    # a half-screen layout on wide terminals.
+    if [ "$cols" -lt 120 ]; then
+        left_width=58
+    else
+        left_width=$(( (cols - 7) / 2 ))
+    fi
+
+    awk -v width="$left_width" -v sep="  \033[0;34m│\033[0m  " '
+    function strip_ansi(s, out) {
+        out = s
+        gsub(/\033\[[0-9;]*[mK]/, "", out)
+        return out
+    }
+    FNR == NR {
+        left[++left_count] = $0
+        next
+    }
+    {
+        right[++right_count] = $0
+    }
+    END {
+        max_count = left_count > right_count ? left_count : right_count
+        for (i = 1; i <= max_count; i++) {
+            l = i <= left_count ? left[i] : ""
+            r = i <= right_count ? right[i] : ""
+            pad = width - length(strip_ansi(l))
+            if (pad < 1) {
+                pad = 1
+            }
+            printf "%s%*s%s%s\n", l, pad, "", sep, r
+        }
+    }
+    ' "$left_file" "$right_file"
+}
+
 generate_full_report() {
     echo "K3s Cluster Check — $(date '+%Y-%m-%d %H:%M:%S')"
     echo "================================================="
-    section_timed section_overview
-    section_timed section_node
-    section_timed section_res
-    section_timed section_pvc
-    section_timed section_sys
-    section_timed section_img
-    section_timed section_helm
-    section_timed section_secrets
+
+    local tmp_dir left_report right_report
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/k3s-check-cols.XXXXXX" 2>/dev/null)
+    if [ -z "$tmp_dir" ]; then
+        section_timed section_overview
+        section_timed section_node
+        section_timed section_res
+        section_timed section_pvc
+        section_timed section_sys
+        section_timed section_img
+        section_timed section_helm
+        section_timed section_secrets
+        echo -e "\n>>> Kiểm tra hoàn tất!"
+        return
+    fi
+
+    left_report="$tmp_dir/left.txt"
+    right_report="$tmp_dir/right.txt"
+
+    {
+        echo -e "${BLUE}${BOLD}CỘT 1: SECTION 1-3${NC}"
+        section_timed section_overview
+        section_timed section_node
+        section_timed section_res
+    } > "$left_report"
+
+    {
+        echo -e "${BLUE}${BOLD}CỘT 2: SECTION 4-8${NC}"
+        section_timed section_pvc
+        section_timed section_sys
+        section_timed section_img
+        section_timed section_helm
+        section_timed section_secrets
+    } > "$right_report"
+
+    render_two_columns "$left_report" "$right_report"
+    rm -rf "$tmp_dir"
+
     echo -e "\n>>> Kiểm tra hoàn tất!"
 }
 
