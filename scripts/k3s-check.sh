@@ -153,7 +153,7 @@ print_ns_grouped_table() {
     ns_list=$(printf "%s\n" "$rows" | awk -F'\t' 'NF && $1 != "" {print $1}' | sort -u)
     while IFS= read -r ns; do
         [ -z "$ns" ] && continue
-        echo -e "${group_indent}${YELLOW}>> $ns${NC}"
+        echo -e "${group_indent}${ORANGE}>> $ns${NC}"
         (
             echo -e "${YELLOW}${header}${NC}"
             printf "%s\n" "$rows" | awk -F'\t' -v ns="$ns" 'BEGIN{OFS="\t"} $1 == ns {$1=""; sub(/^\t/, ""); print}'
@@ -547,7 +547,7 @@ section_node() {
         echo -en "  ${CYAN}ⓘ Liệt kê pod theo node.${NC} "
     fi
     for node in $SORTED_NODES; do
-        echo -e "  ${YELLOW}>> $node${NC}"
+        echo -e "  ${ORANGE}>> $node${NC}"
         NODE_PODS=$(echo "$ALL_PODS" | awk -v n="$node" '$1==n {print $2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}')
 
         if [ -z "$NODE_PODS" ]; then
@@ -609,7 +609,7 @@ section_secrets() {
     fi
 
     for ns in $ns_list; do
-        echo -e "  ${YELLOW}>> $ns${NC}"
+        echo -e "  ${ORANGE}>> $ns${NC}"
         local sec_data=$(echo "$RAW_SECRETS_JSON" | jq -r --arg ns "$ns" '
             .items[] | select(.metadata.namespace==$ns and .type != "kubernetes.io/service-account-token") |
             "\(.metadata.name)\t\(.type)\t\((.data // {}) | keys | join(", "))"
@@ -636,7 +636,7 @@ section_pvc() {
     ')
 
     for node in $SORTED_NODES; do
-        echo -e "  ${YELLOW}>> $node${NC}"
+        echo -e "  ${ORANGE}>> $node${NC}"
         NODE_PVC=""
         while IFS=$'\t' read -r pvc_ns pvc_name pvc_size; do
             [ -z "$pvc_name" ] && continue
@@ -778,7 +778,7 @@ section_img() {
     SYS_IMAGES="rancher|k8s\.io|gcr\.io|klipper|pause|coredns|traefik|metrics|local-path"
 
     for node in $SORTED_NODES; do
-        echo -e "${YELLOW}>> Node: $node${NC}"
+        echo -e "${ORANGE}>> Node: $node${NC}"
         NODE_IMAGES=$(echo "$RAW_NODES_JSON" | jq -r --arg n "$node" '
             .items[] | select(.metadata.name==$n) | .status.images[]? | "\(.names[0])\t\(.sizeBytes)"
         ' 2>/dev/null | grep -vE "$SYS_IMAGES" | grep -v "<none>" | sort -u)
@@ -954,8 +954,7 @@ render_two_columns() {
         WRAP_REST = substr(s, cut_raw + 1)
         sub(/^[[:space:]]+/, "", WRAP_REST)
     }
-    function wrap_line(s, width, out,    count, guard, previous) {
-        count = 0
+    function append_wrapped(s, width, out, count,    guard, previous) {
         guard = 0
 
         if (s == "") {
@@ -987,21 +986,22 @@ render_two_columns() {
         right[++right_count] = $0
     }
     END {
-        max_count = left_count > right_count ? left_count : right_count
-        for (i = 1; i <= max_count; i++) {
-            left_line_count = wrap_line(i <= left_count ? left[i] : "", left_width, left_lines)
-            right_line_count = wrap_line(i <= right_count ? right[i] : "", right_width, right_lines)
-            pair_count = left_line_count > right_line_count ? left_line_count : right_line_count
+        for (i = 1; i <= left_count; i++) {
+            left_wrapped_count = append_wrapped(left[i], left_width, left_wrapped, left_wrapped_count)
+        }
+        for (i = 1; i <= right_count; i++) {
+            right_wrapped_count = append_wrapped(right[i], right_width, right_wrapped, right_wrapped_count)
+        }
 
-            for (j = 1; j <= pair_count; j++) {
-                l = j <= left_line_count ? left_lines[j] : ""
-                r = j <= right_line_count ? right_lines[j] : ""
-                pad = left_width - visible_len(l)
-                if (pad < 0) {
-                    pad = 0
-                }
-                printf "%s%s%*s%s%s\n", l, reset, pad, "", sep, r
+        max_count = left_wrapped_count > right_wrapped_count ? left_wrapped_count : right_wrapped_count
+        for (i = 1; i <= max_count; i++) {
+            l = i <= left_wrapped_count ? left_wrapped[i] : ""
+            r = i <= right_wrapped_count ? right_wrapped[i] : ""
+            pad = left_width - visible_len(l)
+            if (pad < 0) {
+                pad = 0
             }
+            printf "%s%s%*s%s%s\n", l, reset, pad, "", sep, r
         }
     }
     ' "$left_file" "$right_file"
