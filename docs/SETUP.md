@@ -540,14 +540,19 @@ Mở console, tạo hoặc xác nhận buckets `iceberg-data`, `rw-checkpoint`, 
 kubectl -n minio port-forward --address 0.0.0.0 svc/minio-console 9001:9001
 ```
 
-Tạo Secret cho RisingWave:
+Tạo Secret cho RisingWave. Secret này được Helm chart dùng cho state store và được inject vào RisingWave meta/compute pods để SQL S3/Iceberg connector đọc credential qua default AWS credential provider chain.
 
 ```bash
-# Secret này được chart RisingWave đọc để ghi checkpoint xuống bucket rw-checkpoint.
+read -r -s -p "MinIO key-risingwave secret: " RISINGWAVE_S3_SECRET
+echo
+
+# Secret này ở namespace risingwave, không commit vào Git.
 kubectl -n risingwave create secret generic risingwave-s3-credentials \
   --from-literal=AWS_ACCESS_KEY_ID=key-risingwave \
-  --from-literal=AWS_SECRET_ACCESS_KEY=<key-risingwave-secret> \
+  --from-literal=AWS_SECRET_ACCESS_KEY="${RISINGWAVE_S3_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f -
+unset RISINGWAVE_S3_SECRET
+
 # Output đã xác nhận:
 # secret/risingwave-s3-credentials created
 ```
@@ -591,7 +596,7 @@ kubectl -n redpanda exec redpanda-0 -c redpanda -- \
 
 ### 7.4. RisingWave
 
-RisingWave đọc Redpanda, xử lý SQL streaming và ghi Iceberg sink xuống MinIO. Với topology này, các component chạy trên `role=data-plane`.
+RisingWave đọc Redpanda, xử lý SQL streaming và ghi Iceberg sink xuống MinIO. Với topology này, các component chạy trên `role=data-plane`. File `config/risingwave/helm-values.yaml` trỏ tới Secret `risingwave-s3-credentials` và set `DISABLE_DEFAULT_CREDENTIAL=false` cho meta/compute pods, để SQL dùng `enable_config_load = 'true'` mà không cần ghi access key/secret key vào Git.
 
 ```bash
 helm repo add risingwavelabs https://risingwavelabs.github.io/helm-charts/
@@ -854,18 +859,25 @@ Kiểm tra tổng hợp sau khi hoàn tất §1-9:
 
 Mục này là nơi bắt đầu phần streaming/tính toán/truy vấn đầy đủ: RisingWave tạo Kafka source, materialized view, Iceberg sink, rồi bạn verify bằng SQL query và object output trên MinIO. Nếu Vector đã bật ở §9, RisingWave sẽ đọc lại topic từ đầu do `scan.startup.mode = 'earliest'`; nếu Vector chưa bật, hãy apply SQL xong rồi scale Vector lên `1`.
 
-Trước khi commit, thay placeholder secret trong SQL bằng secret thật của access key `key-risingwave`.
+Không thay secret thật vào SQL. SQL chỉ bật `enable_config_load = 'true'`; RisingWave tự đọc `AWS_ACCESS_KEY_ID` và `AWS_SECRET_ACCESS_KEY` từ Kubernetes Secret `risingwave/risingwave-s3-credentials` đã được inject vào meta/compute pods ở §7.4.
 
-Trước khi sync SQL, thay secret thật của `key-risingwave` trong:
+Nếu cụm đã cài RisingWave trước khi `config/risingwave/helm-values.yaml` có `extraEnvVarsSecret`, chạy lại Helm upgrade để rollout env mới vào pods:
 
-- `sql/02-tables/tlc-taxi-zone.sql`
-- `sql/04-sinks/iceberg-zone-stats.sql`
+```bash
+RISINGWAVE_CHART_VERSION=$(helm search repo risingwavelabs/risingwave -o json | jq -r '.[0].version')
+helm upgrade --install risingwave risingwavelabs/risingwave \
+  --namespace risingwave --create-namespace \
+  --version "${RISINGWAVE_CHART_VERSION}" \
+  -f config/risingwave/helm-values.yaml
+kubectl -n risingwave rollout status statefulset/risingwave-meta --timeout=300s
+kubectl -n risingwave rollout status statefulset/risingwave-compute --timeout=300s
+```
 
 Commit và sync:
 
 ```bash
-# Commit SQL/Job để Argo CD lấy đúng desired state từ Git.
-git add sql/ gitops/pipeline/
+# Commit SQL, Job apply và RisingWave Helm values để Git ghi lại flow secret runtime.
+git add sql/ gitops/pipeline/ config/risingwave/
 git commit -m "feat(sql): apply streaming lakehouse pipeline"
 git push
 

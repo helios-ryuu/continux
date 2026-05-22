@@ -23,6 +23,10 @@ iceberg:
 computeComponent:
   replicas: 1
   nodeSelector: { role: data-plane }
+  extraEnvVars:
+    - name: DISABLE_DEFAULT_CREDENTIAL
+      value: "false"
+  extraEnvVarsSecret: risingwave-s3-credentials
   resources:
     requests: { cpu: 500m, memory: 1.5Gi }
     limits:   { cpu: 2,    memory: 2.5Gi }
@@ -30,6 +34,10 @@ computeComponent:
 metaComponent:
   replicas: 1
   nodeSelector: { role: data-plane }
+  extraEnvVars:
+    - name: DISABLE_DEFAULT_CREDENTIAL
+      value: "false"
+  extraEnvVarsSecret: risingwave-s3-credentials
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
