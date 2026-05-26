@@ -1,6 +1,6 @@
-# SCRIPTS v1.0.0
+# SCRIPTS
 
-Tất cả script vận hành nằm trong `scripts/`. Phiên bản `v1.0.0` chỉ giữ các script thuộc topology 3 K3s server của dự án; helper agent generic ngoài topology đã được loại bỏ.
+Tất cả script vận hành nằm trong `scripts/`. Repo chỉ giữ các script thuộc topology 3 K3s server của dự án; helper generic ngoài topology không được thêm vào đây.
 
 ## Danh Sách
 
@@ -127,7 +127,7 @@ Output JSONL chứa các field pipeline cần: `pickup_time`, `pu_location_id`, 
 
 ## `k3s-purge.sh`
 
-`k3s-purge.sh` là công cụ phá hủy có chủ đích. Không dùng trong luồng chính của [SETUP.md](./SETUP.md) hoặc [FINALIZE.md](./FINALIZE.md).
+`k3s-purge.sh` là công cụ phá hủy có chủ đích. Không dùng trong luồng chính của [RUNBOOK.md](./RUNBOOK.md).
 
 Reset cluster về trạng thái vừa cài K3s, giữ K3s và các node:
 

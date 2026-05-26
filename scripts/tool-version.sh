@@ -150,6 +150,6 @@ printf "  ${CYAN}%-16s${NC} %-30s ${CYAN}(APT — chạy apt upgrade để cập
 
 echo ""
 echo -e "${YELLOW}── Ghi chú ───────────────────────────────────────────────${NC}"
-echo -e "  ${ORANGE}↑${NC}  = có bản stable mới hơn → xem ${CYAN}SETUP.md mục 'Cập nhật phần mềm (Maintenance)'${NC}"
+echo -e "  ${ORANGE}↑${NC}  = có bản stable mới hơn → xem ${CYAN}RUNBOOK.md mục 'Phiên Bản Chuẩn Của Stack'${NC}"
 echo -e "  ${CYAN}?${NC}  = không lấy được phiên bản mới nhất (kiểm tra kết nối mạng)"
 echo ""

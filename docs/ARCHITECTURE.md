@@ -1,6 +1,6 @@
-# ARCHITECTURE v1.0.0
+# ARCHITECTURE
 
-Tài liệu này mô tả kiến trúc Continux ở mốc hoàn tất `v1.0.0`: cụm K3s 3 server, pipeline Data Lakehouse thời gian thực, GitOps, quan sát và kịch bản Blue/Green cutover.
+Tài liệu này mô tả kiến trúc Continux: cụm K3s 3 server, pipeline Data Lakehouse thời gian thực, GitOps, quan sát và kịch bản Blue/Green cutover.
 
 ## 1. Tổng Quan
 
@@ -113,18 +113,7 @@ Cutover được thực hiện ở lớp RisingWave materialized view:
 ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green;
 ```
 
-Kết quả đo ở `v1.0.0`:
-
-| Chỉ số | Giá trị |
-|--------|---------|
-| Public trước swap | `69 zones / 986 trips` |
-| Green trước swap | `69 zones / 978 trips` |
-| Cutover duration | `0.145226s` |
-| Query errors | `0` |
-| Public sau swap | `69 zones / 978 trips` |
-| View giữ tên green sau swap | `69 zones / 986 trips` |
-
-Lệch checksum sau swap là expected nếu dashboard so logic mới với logic cũ.
+Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần đổi query phía người dùng; view giữ tên `mv_zone_stats_green` chứa logic cũ. Số đo cụ thể (duration, query errors, row counts trước/sau) của từng lượt thực nghiệm được lưu trong `evidence/` ngoài repo. Lệch checksum sau swap là expected nếu dashboard so logic mới với logic cũ.
 
 ## 6. Yêu Cầu Và Tiêu Chí
 
@@ -137,8 +126,8 @@ Lệch checksum sau swap là expected nếu dashboard so logic mới với logic
 | FR-05 | Observability | Grafana đọc VictoriaMetrics và metric `continux_*` |
 | NFR-01 | HA control plane | 3 K3s server Ready, quorum `2/3` |
 | NFR-02 | Resource safety | Vector mặc định `replicas=0`, chỉ scale thủ công |
-| NFR-03 | Reproducible setup | `SETUP.md` đi từ máy sạch đến verify end-to-end |
-| NFR-04 | Demo replay | `FINALIZE.md` có replay sạch, output SQL/Iceberg/dashboard |
+| NFR-03 | Reproducible setup | `RUNBOOK.md` đi từ máy sạch đến verify end-to-end |
+| NFR-04 | Demo replay | `RUNBOOK.md` có replay sạch và dọn dẹp để chạy lại từ đầu |
 
 ## 7. Vận Hành
 

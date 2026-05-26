@@ -36,7 +36,7 @@ esac
 # ======================== KIỂM TRA ĐIỀU KIỆN ========================
 [ "$(id -u)" -ne 0 ] && die "Chạy với sudo: sudo bash $0 <imac-ip> <token> [node-name] [profile]"
 
-command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem SETUP.md §3."
+command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem RUNBOOK.md §2.2."
 tailscale status >/dev/null 2>&1    || die "Tailscale chưa kết nối. Chạy: sudo tailscale up"
 
 # ======================== ĐỌC THAM SỐ ========================

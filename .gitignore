@@ -21,3 +21,19 @@ evidence/
 # Build artifacts
 *.pyc
 __pycache__/
+
+# Artifact build LaTeX trong paper/ - giữ .tex, .bib, .md, figures/, .pdf
+paper/*.aux
+paper/*.bbl
+paper/*.bcf
+paper/*.bcf-SAVE-ERROR
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.run.xml
+paper/*.synctex.gz
+paper/*.toc
+paper/*.lof
+paper/*.lot
+paper/*.out

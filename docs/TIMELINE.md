@@ -1,6 +1,6 @@
-# TIMELINE v1.0.0
+# TIMELINE
 
-Timeline này ghi lại mốc hoàn tất triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối. Trạng thái `v1.0.0` đã hoàn tất: cluster K3s 3 server Ready, pipeline end-to-end chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công và evidence đã được thu theo `RUN_ID=20260522-151720`.
+Timeline này ghi lại các mốc triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối: cluster K3s 3 server Ready, pipeline end-to-end chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công, dashboard có dữ liệu và evidence được thu cho từng lượt thực nghiệm.
 
 ## 1. Mục Tiêu
 
@@ -11,27 +11,27 @@ Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC en
 | Ngày | Hạng mục | Kết quả |
 |------|----------|---------|
 | 20/05/2026 | Chuẩn bị repo, docs, scripts, config | Repo có cấu trúc GitOps, script K3s, dashboard và SQL |
-| 21/05/2026 | Chuẩn bị OS, Tailscale, K3s | `imac`, `continux-vps`, `helios-pc` join cụm K3s HA, `3/3 Ready` |
+| 21/05/2026 | Chuẩn bị OS, Tailscale, K3s | `imac`, `continux-vps`, `helios-pc` join cụm K3s HA, đủ node `Ready` |
 | 21/05/2026 | Deploy stack nền | Argo CD, MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana triển khai thành công |
-| 22/05/2026 | Dataset và pipeline SQL | JSONL `3,952,451` dòng, `tlc_zone=265`, `mv_zone_stats` có dữ liệu, Iceberg sinh object |
+| 22/05/2026 | Dataset và pipeline SQL | JSONL convert thành công, `tlc_zone` có dữ liệu, `mv_zone_stats` có dữ liệu, Iceberg sinh object |
 | 22/05/2026 | Metrics exporter | `continux_exporter_up=1`, VictoriaMetrics scrape được metric `continux_*` |
-| 22/05/2026 | Replay ingest | `RUN_ID=20260522-151720`, replay cuối `69 zones / 986 trips` |
-| 22/05/2026 | Blue/Green cutover | Public MV đổi sang logic green `69 zones / 978 trips`, duration `0.145226s`, query errors `0` |
-| 22/05/2026 | Chuẩn hóa tài liệu | Version `1.0.0`, docs/runbook/report đồng bộ với evidence cuối |
+| 22/05/2026 | Replay ingest | Replay end-to-end sinh MV và Iceberg object |
+| 22/05/2026 | Blue/Green cutover | Public MV chuyển sang logic green, query loop không lỗi |
+| 22/05/2026 | Chuẩn hóa tài liệu | Docs/runbook/report đồng bộ với evidence cuối |
 
 ## 3. Trạng Thái Hệ Thống Ở Mốc Chốt
 
 | Hạng mục | Trạng thái |
 |----------|------------|
-| K3s | `3/3` nodes Ready |
-| PVC | `5/5` Bound |
-| Workloads | `23/23` Available sau replay |
+| K3s | Đủ 3 node `Ready` |
+| PVC | Tất cả `Bound` |
+| Workloads | Tất cả `Available` sau replay |
 | Argo CD | App chính `Synced/Healthy` |
 | Vector | Dừng ở `replicas=0` sau replay |
 | RisingWave | meta, compute, compactor, frontend `Running` |
 | MinIO/Iceberg | Có data Parquet, equality-delete và position-delete Parquet |
 | Grafana | Dashboard streaming/resource/cutover/integrity có dữ liệu |
-| Cutover | duration `0.145226s`, query errors `0` |
+| Cutover | Query loop ghi nhận `0` lỗi, RisingWave không restart |
 
 ## 4. Gantt Hoàn Tất
 
@@ -54,7 +54,7 @@ SQL + MV + Iceberg sink            █
 Metrics exporter                   █
 Replay ingest sạch                 █
 Blue/Green cutover                 █
-Báo cáo và chuẩn hóa v1.0.0        ◆
+Báo cáo và chuẩn hóa runbook       ◆
 ```
 
 ## 5. Critical Path Đã Đóng
@@ -68,7 +68,7 @@ Báo cáo và chuẩn hóa v1.0.0        ◆
 7. Metrics exporter expose `continux_*` và VictoriaMetrics scrape được.
 8. Replay ingest sinh MV và Iceberg object.
 9. Green MV được tạo, query loop không lỗi, swap public MV thành công.
-10. Báo cáo và tài liệu dùng cùng một bộ số liệu evidence.
+10. Báo cáo và tài liệu dùng cùng một bộ số liệu evidence (số đo cụ thể nằm trong `evidence/` ngoài repo).
 
 ## 6. Phân Công
 
@@ -93,18 +93,17 @@ Báo cáo và chuẩn hóa v1.0.0        ◆
 - [x] Redpanda topic `nyc-taxi-events` tồn tại.
 - [x] RisingWave `SHOW CLUSTER` trả 4 worker `RUNNING`.
 - [x] Vector đọc JSONL và có thể scale thủ công.
-- [x] `tlc_zone` có `265` dòng.
-- [x] Replay sạch đạt `69 zones / 986 trips`.
+- [x] `tlc_zone` được nạp từ Taxi Zone lookup.
+- [x] Replay sạch sinh kết quả trong `mv_zone_stats`.
 - [x] Iceberg sinh object mới trong MinIO.
 - [x] Metrics exporter `continux_*` hoạt động.
-- [x] Blue/Green cutover đạt duration `0.145226s`, query errors `0`.
+- [x] Blue/Green cutover hoàn tất với query errors `0`.
 - [x] Dashboard cho 4 nhóm chỉ số có bằng chứng.
-- [x] Tài liệu chính đồng bộ version `1.0.0`.
 
 ## 8. Rủi Ro Đã Xử Lý
 
-| Rủi ro | Cách xử lý trong v1.0.0 |
-|--------|-------------------------|
+| Rủi ro | Cách xử lý |
+|--------|-----------|
 | iMac 8 GB RAM quá tải khi ingest | Vector dùng rate limit và mặc định `replicas=0`; scale thủ công, dừng ngay khi đủ mẫu |
 | WSL sleep làm mất quorum | `helios-pc` chỉ giữ quorum; giữ Windows/WSL awake trong thực nghiệm |
 | Secret runtime lộ trong Git | Tạo bằng Kubernetes Secret, không commit secret |
@@ -114,9 +113,7 @@ Báo cáo và chuẩn hóa v1.0.0        ◆
 
 ## 9. Definition Of Done
 
-- Repo không còn helper legacy ngoài topology chính.
-- `VERSION` là `1.0.0`.
-- `SETUP.md` dựng được hệ thống từ máy sạch đến end-to-end.
-- `FINALIZE.md` tái hiện được replay, cutover và evidence cuối.
+- `RUNBOOK.md` dựng được hệ thống từ máy sạch đến end-to-end và dọn dẹp để chạy lại từ đầu.
 - `REPORT.md` là bản báo cáo học thuật hoàn chỉnh.
 - Không commit dataset, evidence, screenshot lớn hoặc secret.
+- Phiên bản hệ thống được phản ánh trong `VERSION` và badge ở `README.md`.

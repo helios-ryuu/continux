@@ -1,4 +1,4 @@
-# ĐỀ CƯƠNG ĐỒ ÁN MÔN HỌC v1.0.0
+# ĐỀ CƯƠNG ĐỒ ÁN MÔN HỌC
 
 ## 1. Tên Đề Tài
 
@@ -25,9 +25,9 @@ Trong hệ thống giao thông thông minh, dữ liệu di chuyển là một lu
 Hệ thống sử dụng **NYC Taxi & Limousine Commission (TLC) Trip Record Data**:
 
 - **Nguồn dataset:** <https://registry.opendata.aws/nyc-tlc-trip-records-pds/>
-- **Bản thực nghiệm:** Yellow Taxi `2026-03`
-- **Số dòng sau convert JSONL:** `3,952,451`
-- **Dữ liệu tham chiếu:** TLC Taxi Zone lookup, `265` dòng
+- **Bản thực nghiệm:** Yellow Taxi tháng được cấu hình trong runbook
+- **Convert nguồn:** Parquet được convert sang JSONL trước khi replay
+- **Dữ liệu tham chiếu:** TLC Taxi Zone lookup, upload lên MinIO trước khi RisingWave nạp vào bảng `tlc_zone`
 
 Phân tách dữ liệu:
 
@@ -48,12 +48,14 @@ Continux bổ sung góc nhìn vận hành:
 
 ## 6. Chỉ Số Và Tiêu Chí Đánh Giá
 
-| Nhóm chỉ số | Mô tả | Evidence v1.0.0 |
-|-------------|-------|-----------------|
-| **Cutover & GitOps Deployment** | Đo khả năng đổi logic không gián đoạn, readiness, duration, query errors và restart | `ALTER MATERIALIZED VIEW ... SWAP WITH ...`, duration `0.145226s`, query errors `0` |
-| **Data Integrity & Exactly-Once Semantics** | Đối chiếu row/trip count, rejected records, Iceberg output và mismatch theo logic | Replay `69 zones / 986 trips`; sau cutover public `69 zones / 978 trips`; rejected records `0` |
-| **Streaming Performance** | Quan sát replay ingest, processed events, lag, throughput proxy và RisingWave rows/s | Vector replay từ epoch `1779465600`, consumer lag `0`, MinIO có Parquet mới |
-| **Resource Utilization & Stability** | Theo dõi CPU/RAM/PVC/restart trên cluster tài nguyên giới hạn | Nodes Ready `3/3`, Workloads Ready `23/23`, PVC Bound `5/5`, RAM `imac` khoảng `49%` sau replay |
+| Nhóm chỉ số | Mô tả | Cách đo |
+|-------------|-------|---------|
+| **Cutover & GitOps Deployment** | Đo khả năng đổi logic không gián đoạn, readiness, duration, query errors và restart | `ALTER MATERIALIZED VIEW ... SWAP WITH ...`, query loop liên tục bắt lỗi, exporter ghi duration và timestamp |
+| **Data Integrity & Exactly-Once Semantics** | Đối chiếu row/trip count, rejected records, Iceberg output và mismatch theo logic | SQL count public/blue/green; `continux_records_rejected_total`; MinIO listing Iceberg |
+| **Streaming Performance** | Quan sát replay ingest, processed events, lag, throughput proxy và RisingWave rows/s | Vector logs, Redpanda topic offsets, exporter `continux_events_processed_total`, RisingWave rows/s proxy |
+| **Resource Utilization & Stability** | Theo dõi CPU/RAM/PVC/restart trên cluster tài nguyên giới hạn | Node-exporter + kube-state-metrics qua VictoriaMetrics; `bash scripts/k3s-check.sh overview` |
+
+Số đo cụ thể của mỗi lượt thực nghiệm được lưu trong `evidence/` ngoài repo.
 
 ## 7. Thành Phẩm Bàn Giao
 
@@ -64,7 +66,7 @@ Continux bổ sung góc nhìn vận hành:
 3. Bộ dashboard Grafana cho 4 nhóm chỉ số:
    streaming performance, resource utilization, cutover, data integrity.
 4. Runbook triển khai và thực nghiệm:
-   [SETUP.md](./SETUP.md), [FINALIZE.md](./FINALIZE.md).
+   [RUNBOOK.md](./RUNBOOK.md).
 5. Báo cáo học thuật:
    [REPORT.md](./REPORT.md).
 

@@ -7,7 +7,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v1.0.0-0A7CC7?style=flat-square" alt="Version v1.0.0">
+  <img src="https://img.shields.io/badge/version-v1.1.0-0A7CC7?style=flat-square" alt="Version v1.1.0">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
@@ -33,11 +33,10 @@
 - [Giới thiệu môn học](#giới-thiệu-môn-học)
 - [Giới thiệu đồ án](#giới-thiệu-đồ-án)
 - [Thành viên nhóm](#thành-viên-nhóm)
-- [Trạng thái v1.0.0](#trạng-thái-v100)
+- [Phạm vi hệ thống](#phạm-vi-hệ-thống)
 - [Hạ tầng triển khai](#hạ-tầng-triển-khai)
 - [Quy trình vận hành](#quy-trình-vận-hành)
-- [Tài liệu chính](#tài-liệu-chính)
-- [Công nghệ sử dụng](#công-nghệ-sử-dụng)
+- [Khái niệm và công nghệ sử dụng](#khái-niệm-và-công-nghệ-sử-dụng)
 
 ## Giới Thiệu Môn Học
 
@@ -55,8 +54,6 @@
 
 Continux triển khai một kiến trúc **Data Lakehouse thời gian thực** trên cụm **K3s HA 3 server**. Hệ thống dùng dữ liệu NYC TLC Yellow Taxi, Vector để mô phỏng luồng sự kiện, Redpanda làm broker Kafka-compatible, RisingWave xử lý streaming SQL, MinIO lưu dữ liệu Iceberg/checkpoint, Argo CD điều phối GitOps, VictoriaMetrics và Grafana phục vụ quan sát.
 
-Đóng góp chính của phiên bản `v1.0.0` là chứng minh pipeline end-to-end, replay dữ liệu có kiểm soát và Blue/Green cutover ở lớp materialized view với thời gian swap đo được `0.145226s`, query errors `0`.
-
 ## Thành Viên Nhóm
 
 | STT | MSSV | Họ và tên | GitHub | Email |
@@ -64,18 +61,14 @@ Continux triển khai một kiến trúc **Data Lakehouse thời gian thực** t
 | 1 | 23521367 | Ngô Tiến Sỹ | [helios-ryuu](https://github.com/helios-ryuu) | 23521367@gm.uit.edu.vn |
 | 2 | 23520982 | Nguyễn Văn Nam | [Sinister-VN](https://github.com/Sinister-VN) | 23520982@gm.uit.edu.vn |
 
-## Trạng Thái v1.0.0
+## Phạm Vi Hệ Thống
 
-Phiên bản `v1.0.0` là mốc hoàn tất đồ án:
-
-- Cụm K3s có `3/3` node Ready qua Tailscale: `imac`, `continux-vps`, `helios-pc`.
+- Cụm K3s 3 node Ready qua Tailscale: `imac`, `continux-vps`, `helios-pc`.
 - Argo CD quản lý các app chính bằng App-of-Apps: `cloudflared`, `redpanda-topics`, `pipeline`, `vector`, `victoria-scrapes`, `metrics-exporter`.
-- MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana đã triển khai ổn định.
-- Dataset NYC TLC Yellow Taxi `2026-03` đã được convert từ Parquet sang JSONL với `3,952,451` dòng.
-- Lookup TLC Taxi Zone có `265` dòng.
-- Replay ingest cuối đạt `69 zones / 986 trips`.
-- Blue/Green cutover đưa public MV sang logic green, kết quả sau swap là `69 zones / 978 trips`.
-- Metric cutover đã vào VictoriaMetrics: duration `0.145226s`, query errors `0`, timestamp `1779467656`.
+- MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana được triển khai bằng Helm.
+- Dataset NYC TLC Yellow Taxi (Parquet) được convert sang JSONL trước khi replay; Taxi Zone lookup CSV được upload lên MinIO trước khi RisingWave nạp vào bảng `tlc_zone`.
+- Pipeline có thể chạy replay end-to-end và Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; số đo cụ thể của mỗi lượt được lưu trong `evidence/` ngoài repo.
+- Bốn nhóm dashboard Grafana (`streaming-perf`, `resource-util`, `cutover`, `data-integrity`) đọc metric `continux_*` và metric hạ tầng từ VictoriaMetrics.
 
 ## Hạ Tầng Triển Khai
 
@@ -110,30 +103,40 @@ NYC TLC Parquet
 
 Quy trình triển khai chuẩn:
 
-1. Chạy [docs/SETUP.md](./docs/SETUP.md) để dựng máy, K3s HA, GitOps, data plane, observability, dataset và pipeline SQL.
-2. Chạy [docs/FINALIZE.md](./docs/FINALIZE.md) để thu evidence, replay ingest, verify Iceberg, chạy Blue/Green cutover và chốt tag `v1.0.0`.
-3. Đọc kết quả dashboard theo [docs/DASHBOARDS.md](./docs/DASHBOARDS.md).
-4. Dùng [docs/REPORT.md](./docs/REPORT.md) làm báo cáo học thuật cuối cùng.
+1. Theo [docs/RUNBOOK.md](./docs/RUNBOOK.md) để dựng hệ thống từ máy sạch, khởi chạy một lượt thực nghiệm end-to-end (replay + Blue/Green cutover) và dọn dẹp để chạy lại từ đầu.
+2. Đọc kết quả dashboard theo [docs/DASHBOARDS.md](./docs/DASHBOARDS.md).
+3. Dùng [docs/REPORT.md](./docs/REPORT.md) làm báo cáo học thuật cuối cùng.
 
-## Tài Liệu Chính
+## Khái Niệm Và Công Nghệ Sử Dụng
 
-- [docs/PROPOSE.md](./docs/PROPOSE.md): Đề cương, bài báo nền tảng và tiêu chí đánh giá.
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md): Kiến trúc, topology, GitOps layout và yêu cầu vận hành.
-- [docs/SETUP.md](./docs/SETUP.md): Runbook dựng hệ thống từ máy sạch đến pipeline end-to-end.
-- [docs/FINALIZE.md](./docs/FINALIZE.md): Runbook thực nghiệm cuối, replay, cutover và evidence.
-- [docs/DASHBOARDS.md](./docs/DASHBOARDS.md): Hướng dẫn đọc dashboard Grafana.
-- [docs/SCRIPTS.md](./docs/SCRIPTS.md): Mô tả script vận hành.
-- [docs/TIMELINE.md](./docs/TIMELINE.md): Timeline hoàn tất.
-- [docs/REPORT.md](./docs/REPORT.md): Báo cáo đồ án bản chốt.
+### Khái Niệm Nền Tảng
 
-## Công Nghệ Sử Dụng
+| Khái niệm | Ý nghĩa | Cách áp dụng trong Continux |
+|-----------|---------|-----------------------------|
+| **Data Lakehouse** | Kiến trúc kết hợp khả năng lưu dữ liệu linh hoạt của Data Lake với bảng phân tích có quản trị của Data Warehouse. | Dữ liệu tổng hợp từ RisingWave được ghi theo định dạng Apache Iceberg trên MinIO. |
+| **Streaming pipeline** | Chuỗi xử lý dữ liệu ngay khi event được phát sinh hoặc phát lại, thay vì đợi một batch hoàn tất. | Vector phát JSONL vào Redpanda; RisingWave cập nhật materialized view liên tục. |
+| **Materialized view** | Kết quả truy vấn được duy trì sẵn và tự cập nhật khi nguồn dữ liệu thay đổi. | `mv_zone_stats` cung cấp số liệu thống kê chuyến xe theo khu vực. |
+| **GitOps** | Cách vận hành lấy Git làm nguồn cấu hình mong muốn và tự đồng bộ ra cluster. | Argo CD đọc manifest trong repo và quản lý các application Kubernetes. |
+| **Blue/Green cutover** | Duy trì logic hiện tại và logic mới song song, rồi chuyển public workload khi bản mới sẵn sàng. | RisingWave tạo `mv_zone_stats_green` và swap với `mv_zone_stats`. |
+| **Observability** | Thu thập metric và hiển thị trạng thái để đánh giá sức khỏe, hiệu năng và chất lượng dữ liệu. | VictoriaMetrics lưu metrics; Grafana trực quan hóa resource, replay, cutover và integrity. |
 
-**Nền tảng và điều phối:** K3s, Argo CD, Helm, Tailscale, Cloudflare Tunnel.
+### Thành Phần Triển Khai
 
-**Thu thập và truyền tải dữ liệu:** Vector, Redpanda.
+| Nhóm | Công nghệ | Công nghệ là gì | Đóng góp vào dự án |
+|------|-----------|-----------------|---------------------|
+| Nền tảng | **[K3s](https://docs.k3s.io/)** | Bản phân phối Kubernetes gọn nhẹ, phù hợp cụm nhỏ và edge/lab. | Vận hành cluster HA 3 server để chạy toàn bộ workload của đề tài. |
+| Kết nối | **[Tailscale](https://tailscale.com/)** | Mạng mesh VPN dựa trên WireGuard. | Tạo mạng riêng giữa `imac`, `continux-vps`, `helios-pc` cho Kubernetes/etcd giao tiếp an toàn. |
+| Đóng gói | **[Helm](https://helm.sh/)** | Trình quản lý package/chart cho Kubernetes. | Cài và cấu hình các stack như Argo CD, MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana. |
+| GitOps | **[Argo CD](https://argo-cd.readthedocs.io/)** | Continuous Delivery controller dành cho Kubernetes. | Đồng bộ manifest từ Git, quản lý App-of-Apps và ghi nhận trạng thái `Synced/Healthy`. |
+| Truy cập | **[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)** | Tunnel đưa dịch vụ nội bộ ra domain HTTPS mà không mở port trực tiếp. | Cung cấp đường truy cập an toàn tới Argo CD UI và Grafana UI. |
+| Ingest | **[Vector](https://vector.dev/docs/)** | Công cụ thu thập, biến đổi và chuyển tiếp dữ liệu hiệu năng cao. | Đọc JSONL từ dataset, phát event có kiểm soát vào Redpanda để replay dòng chuyến xe. |
+| Message broker | **[Redpanda](https://docs.redpanda.com/)** | Broker streaming tương thích Kafka API. | Lưu topic `nyc-taxi-events`, tách producer Vector khỏi consumer RisingWave. |
+| Streaming SQL | **[RisingWave](https://docs.risingwave.com/)** | Cơ sở dữ liệu streaming dùng SQL và materialized view. | Join event với Taxi Zone lookup, tổng hợp thống kê, duy trì Blue/Green MV và ghi sink. |
+| Table format | **[Apache Iceberg](https://iceberg.apache.org/docs/latest/)** | Định dạng bảng cho object storage, quản lý metadata và thay đổi dữ liệu. | Biến output streaming thành dữ liệu lakehouse có thể kiểm chứng bằng object Parquet/metadata. |
+| Object storage | **[MinIO](https://min.io/)** | Hệ lưu trữ đối tượng tương thích S3, tự host. | Lưu Taxi Zone CSV, checkpoint/state của RisingWave và Iceberg output. |
+| Metrics storage | **[VictoriaMetrics](https://docs.victoriametrics.com/)** | Cơ sở dữ liệu chuỗi thời gian tương thích Prometheus. | Thu metric Kubernetes, workload và `continux_*` để truy vấn kết quả thực nghiệm. |
+| Visualization | **[Grafana](https://grafana.com/docs/grafana/latest/)** | Công cụ xây dashboard từ datasource quan sát. | Trình bày bốn nhóm chỉ số: streaming, resource, cutover và data integrity. |
+| Metric ứng dụng | **[metrics-exporter `continux_*`](./config/metrics-exporter/)** | Exporter tùy biến truy vấn RisingWave rồi xuất Prometheus metrics. | Cung cấp số dòng MV, readiness green, thời gian cutover và số lỗi query cho dashboard. |
+| Dữ liệu | **[NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)** | Bộ dữ liệu mở về các chuyến taxi New York. | Cung cấp nguồn sự kiện Yellow Taxi và Taxi Zone lookup để minh họa bài toán giao thông. |
 
-**Xử lý luồng và lưu trữ:** RisingWave, Apache Iceberg, MinIO.
-
-**Giám sát:** VictoriaMetrics, Grafana, metrics-exporter `continux_*`.
-
-**Dataset:** [NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
+Thông tin chi tiết về quy trình dữ liệu, triển khai và thực nghiệm được trình bày trong [docs/RUNBOOK.md](./docs/RUNBOOK.md).

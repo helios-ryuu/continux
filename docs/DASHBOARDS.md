@@ -1,6 +1,6 @@
-# DASHBOARDS v1.0.0
+# DASHBOARDS
 
-Tài liệu này hướng dẫn đọc các dashboard Grafana ở mốc hoàn tất `v1.0.0`. Dashboard dùng datasource `VictoriaMetrics`, kết hợp metric Kubernetes/Redpanda/RisingWave và metric thực nghiệm `continux_*` từ `config/metrics-exporter/`.
+Tài liệu này hướng dẫn đọc các dashboard Grafana. Dashboard dùng datasource `VictoriaMetrics`, kết hợp metric Kubernetes/Redpanda/RisingWave và metric thực nghiệm `continux_*` từ `config/metrics-exporter/`.
 
 ## 1. Import Dashboard
 
@@ -33,24 +33,17 @@ Một số panel dùng PromQL dạng `... or vector(0)` để dashboard không v
 
 Dashboard này chứng minh pipeline ingest và xử lý luồng.
 
-| Panel | Ý nghĩa | Mốc v1.0.0 |
-|-------|---------|------------|
-| `Scrape target health` | Tỷ lệ target được VictoriaMetrics scrape thành công | Sau khi exporter chạy, target health đạt mức quan sát được; ảnh cuối có `11/11` target, health `100%` |
+| Panel | Ý nghĩa | Diễn giải |
+|-------|---------|-----------|
+| `Scrape target health` | Tỷ lệ target được VictoriaMetrics scrape thành công | Sau khi exporter chạy, target health đạt mức quan sát được; kỳ vọng `100%` cho các target chính |
 | `Pipeline pods ready` | Pod chính trong pipeline/redpanda/risingwave Ready | Có thể thấp hơn `100%` nếu Vector đã dừng sau replay, đây là chủ đích |
-| `Consumer lag` | Lag Kafka trong cửa sổ đo | `0` trong ảnh cuối |
+| `Consumer lag` | Lag Kafka trong cửa sổ đo | Kỳ vọng `0` khi consumer (RisingWave) bắt kịp producer (Vector) |
 | `Vector and Redpanda network bytes/s` | Proxy traffic Vector -> Redpanda | Tăng khi Vector replay, giảm khi dừng Vector |
 | `Topic offsets` | Offset topic theo partition | Có tín hiệu khi ingest; panel có thể phẳng sau khi dừng |
 | `RisingWave rows/s` | Proxy tốc độ xử lý của RisingWave | Tăng trong replay, về thấp khi đã dừng |
 | `Application events/s` | `continux_events_processed_total` và metric liên quan | Dùng kèm SQL count vì Kafka catalog metrics còn hạn chế |
 
-Kết quả replay dùng cho báo cáo:
-
-```text
-Replay start epoch: 1779465600
-Before stop: 66 zones / 912 trips
-Final replay: 69 zones / 986 trips
-Consumer lag: 0 trong ảnh cuối
-```
+Số đo cụ thể của từng lượt nằm trong `evidence/`.
 
 ## 4. Dashboard `resource-util`
 
@@ -67,59 +60,43 @@ Dashboard này đọc mức tiêu thụ tài nguyên và độ ổn định work
 | `PVC used percent` | Phần trăm PVC đã dùng | MinIO/Redpanda/VictoriaMetrics còn nhiều dư địa |
 | `PVC free bytes` | Dung lượng còn trống | Dùng để kiểm soát Iceberg và retention |
 
-Mốc cluster sau replay:
-
-```text
-Nodes Ready 3/3
-PVC Bound 5/5
-Workloads Ready 23/23
-RAM imac khoảng 49%
-Disk / khoảng 11%
-```
+Số đo cụ thể của từng lượt nằm trong `evidence/`.
 
 ## 5. Dashboard `cutover`
 
 Dashboard này phục vụ kịch bản Blue/Green cutover.
 
-| Panel | Ý nghĩa | Mốc v1.0.0 |
-|-------|---------|------------|
+| Panel | Ý nghĩa | Diễn giải |
+|-------|---------|-----------|
 | `Cutover readiness proxy` | Tỷ lệ workload liên quan Ready | Dùng như tín hiệu hạ tầng trước swap |
 | `Green readiness` | `continux_green_ready` | `1` sau khi green MV có dòng |
-| `Latest cutover duration` | `continux_cutover_duration_seconds` | `0.145226s` |
-| `Seconds since last swap` | Tuổi lần swap gần nhất | Dựa trên `1779466691` |
+| `Latest cutover duration` | `continux_cutover_duration_seconds` | Duration của lần swap gần nhất |
+| `Seconds since last swap` | Tuổi lần swap gần nhất | Dựa trên `continux_last_swap_timestamp_seconds` |
 | `Serving availability` | Target RisingWave còn được scrape | Không tụt trong lúc swap |
-| `Query errors during cutover` | `continux_query_errors_total` | `0` |
-| `Consumer lag during swap` | Lag Kafka trong cửa sổ cutover | `0` trong ảnh cuối |
-| `RisingWave restarts in selected range` | Restart của compactor/compute/frontend/meta | `0` |
+| `Query errors during cutover` | `continux_query_errors_total` | Kỳ vọng `0` |
+| `Consumer lag during swap` | Lag Kafka trong cửa sổ cutover | Kỳ vọng `0` khi consumer bắt kịp |
+| `RisingWave restarts in selected range` | Restart của compactor/compute/frontend/meta | Kỳ vọng `0` |
 | `Blue vs green row count` | Public/blue/green rows | Public chuyển sang logic green sau swap |
 
-Kết quả cutover:
-
-```text
-Public trước swap: 69 zones / 986 trips
-Green trước swap: 69 zones / 978 trips
-Duration: 0.145226s
-Query errors: 0
-Public sau swap: 69 zones / 978 trips
-```
+Số đo cụ thể của từng lượt nằm trong `evidence/`.
 
 ## 6. Dashboard `data-integrity`
 
 Dashboard này đọc tính toàn vẹn dữ liệu và output lakehouse.
 
-| Panel | Ý nghĩa | Mốc v1.0.0 |
-|-------|---------|------------|
-| `Public MV rows` | Số dòng `mv_zone_stats` | `69` |
+| Panel | Ý nghĩa | Diễn giải |
+|-------|---------|-----------|
+| `Public MV rows` | Số dòng `mv_zone_stats` | Số nhóm zone của lượt replay |
 | `Checksum mismatch` | Cờ lệch checksum giữa các view | `0` khi so cùng logic; `1` sau cutover là expected nếu so logic mới với logic cũ |
 | `Iceberg freshness` | Tuổi commit Iceberg gần nhất | Một số metric snapshot có thể chưa ánh xạ đủ, đối chiếu bằng MinIO listing |
-| `MinIO PVC used` | Dung lượng PVC MinIO đã dùng | Khoảng `9.8-10.0%` trong ảnh cuối |
-| `Blue/green/public row count` | So sánh row count các view | Sau swap public và green-name đều `69` dòng |
-| `Rejected records/s` | Record lỗi parse | `0` |
+| `MinIO PVC used` | Dung lượng PVC MinIO đã dùng | Tăng nhẹ khi Iceberg sinh Parquet |
+| `Blue/green/public row count` | So sánh row count các view | Sau swap public và green-name có thể bằng nhau hoặc chênh tùy logic |
+| `Rejected records/s` | Record lỗi parse | Kỳ vọng `0` |
 | `RisingWave sink rows/s` | Proxy dòng source/sink | Có tín hiệu trong replay, về thấp sau khi dừng |
 | `MinIO storage growth` | Tăng trưởng object store | Tăng khi Iceberg sinh Parquet |
 | `Data path target health` | Target scrape theo service | Dùng để phân biệt lỗi metric với lỗi service |
 
-Sau cutover, public MV là logic green `69/978`, còn view giữ tên `mv_zone_stats_green` chứa logic cũ `69/986`. Vì vậy `Checksum mismatch = 1` trong ảnh sau cutover là kết quả có chủ đích của thử nghiệm đổi logic, không phải mất dữ liệu.
+Sau cutover, public MV mang logic green, còn view giữ tên `mv_zone_stats_green` chứa logic cũ. Vì vậy `Checksum mismatch = 1` trong ảnh sau cutover là kết quả có chủ đích của thử nghiệm đổi logic, không phải mất dữ liệu.
 
 ## 7. Metric `continux_*`
 
@@ -146,9 +123,9 @@ curl -G 'http://127.0.0.1:8428/api/v1/query' \
   --data-urlencode 'query=continux_exporter_up'
 ```
 
-## 8. Kết Luận Từ Dashboard v1.0.0
+## 8. Kết Luận Từ Dashboard
 
-- Pipeline có replay dữ liệu thật và MV tăng lên `69 zones / 986 trips`.
+- Pipeline có replay dữ liệu thật và MV tăng khi event được phát; số đo cụ thể nằm trong `evidence/`.
 - Tài nguyên cluster nằm trong ngưỡng kiểm soát; PVC còn nhiều dung lượng.
-- Cutover hoàn tất bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`, duration `0.145226s`, query errors `0`, không có RisingWave restart.
+- Cutover hoàn tất bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; tiêu chí thành công là query errors `0`, không có RisingWave restart, duration thấp.
 - Data integrity cần đọc theo giai đoạn: mismatch `0` khi so cùng logic trước cutover; mismatch sau cutover là dấu hiệu logic mới đã khác logic cũ.
