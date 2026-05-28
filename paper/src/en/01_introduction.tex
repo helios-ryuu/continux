@@ -13,7 +13,14 @@ Continux studies the question above in a setting that is reproducible in a labor
 Ursa primarily addresses streaming-engine and ingestion architecture. Continux does not reproduce Ursa's cost benchmark; it instead examines the \emph{operational layer} above ingestion, comprising GitOps-managed deployment, observability dashboards, and a RisingWave materialized-view name swap used to evolve public analytical logic, which is detailed in Section~\ref{sec:background}.
 
 \subsection{Objectives and scope}
-The study has four coordinated objectives that move from design to evaluation. \emph{First}, design a streaming lakehouse pipeline that runs end-to-end from NYC TLC data to Apache Iceberg objects on object storage. \emph{Second}, deploy that pipeline on a high-availability (HA) K3s cluster of three servers with a clean separation between a \emph{data plane} (the components that process data), a \emph{control/observability plane}, and a \emph{quorum-only} node that participates in cluster consensus voting without hosting data workloads. \emph{Third}, execute a Blue/Green cutover at the public materialized-view query layer and observe transition duration, query errors, and workload status in that window. \emph{Fourth}, evaluate the artifact strictly from collected repository evidence and supplied dashboard captures, without extending conclusions beyond what was measured.
+The study has four coordinated objectives that move from design to evaluation:
+
+\begin{itemize}
+\item Design a streaming lakehouse pipeline from NYC TLC data to Apache Iceberg objects on object storage.
+\item Deploy the pipeline on a three-server HA K3s cluster with separate data, control/observability, and quorum-only roles.
+\item Execute a Blue/Green cutover at the public materialized-view query layer while observing duration, query errors, and workload status.
+\item Evaluate the artifact strictly from collected evidence and dashboard captures, without extending conclusions beyond what was measured.
+\end{itemize}
 
 The processed source is the public NYC TLC Yellow Taxi dataset for \texttt{2026-03}, joined with the Taxi Zone Lookup table. The Parquet input -- a columnar compressed format optimized for analytics -- is converted to \texttt{3,952,451} JSONL records. The reported experiment deliberately stops the Vector replay process after the public MV reaches \texttt{986} trips; the final MV therefore reflects a sample rather than the full converted file. Cutover conclusions apply to the public query name \texttt{mv\_zone\_stats}; the study does not claim that the downstream Iceberg sink automatically migrates to green logic as a result of the materialized-view name swap.
 
@@ -35,6 +42,13 @@ RQ4 & Has end-to-end exactly-once behavior been verified? & No offset/duplicate/
 \end{table*}
 
 \subsection{Contributions and organization}
-Continux contributes four interrelated outcomes. First, a reproducible streaming lakehouse artifact deployed on a three-server K3s cluster using GitOps -- an operating model in which desired state is declared in Git and an agent (here Argo CD) continuously enforces it. Second, a Blue/Green materialized-view swap scenario measured while a public query loop runs continuously. Third, a set of observability dashboards together with explicit interpretation guidelines for cutover, resources, and data integrity. Fourth, an evidence-bounded analysis that clearly separates \emph{documented platform capabilities} from \emph{measured outcomes at this artifact}.
+Continux contributes four interrelated outcomes:
+
+\begin{itemize}
+\item A reproducible streaming lakehouse artifact deployed on a three-server K3s cluster using GitOps.
+\item A Blue/Green materialized-view swap scenario measured while a public query loop runs continuously.
+\item Observability dashboards with explicit interpretation guidance for cutover, resources, and data integrity.
+\item An evidence-bounded analysis that separates documented platform capabilities from measured outcomes at this artifact.
+\end{itemize}
 
 Chapter 2 presents the theoretical background on lakehouse storage, stream processing, materialized views, GitOps, observability, and the Ursa paper. Chapter 3 describes the Design Science Research method, the Continux architecture, K3s topology, SQL objects, and Blue/Green design. Chapter 4 reports experimental results, including a source-data quality analysis, replay ingestion, cutover, and resource observations. Chapter 5 discusses results, limitations, and conclusions. The appendices preserve core SQL, configuration excerpts, evidence indexing, and a detailed terminology table.

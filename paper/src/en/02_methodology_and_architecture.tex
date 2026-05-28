@@ -56,8 +56,10 @@ Keeping these paths distinct clarifies the measurement boundary: Iceberg objects
 
 Nodes communicate through \emph{Tailscale} -- a mesh VPN built on the WireGuard protocol that creates an overlay network among hosts that may be in different physical networks, as if they shared a LAN. K3s in HA mode uses \emph{embedded etcd}: \emph{etcd} is a distributed key-value store that holds the Kubernetes cluster state, and ``embedded'' means it runs inside the K3s process rather than separately. The cluster requires a \texttt{2/3} \emph{quorum}: at least two of three etcd members must remain online for write operations to reach consensus, which is why \texttt{helios-pc} is reserved as a quorum-only voter and does not run data workloads. Compute and storage workloads are placed on \texttt{imac} to exploit its local SSD and RAM; \texttt{continux-vps} hosts the control plane and observability stack.
 
+\clearpage
+\onecolumn
 \subsection{SQL objects and Blue/Green design}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Core data objects}
 \begin{tabularx}{\textwidth}{@{}p{0.27\textwidth}p{0.27\textwidth}Y@{}}
@@ -72,7 +74,7 @@ Nodes communicate through \emph{Tailscale} -- a mesh VPN built on the WireGuard 
 \texttt{sink\_zone\_stats} & Public MV at sink creation & Iceberg upsert output\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 The public name \texttt{mv\_zone\_stats} is the client query contract: clients need not modify SQL when serving logic changes from blue to green. Conversely, \texttt{sink\_zone\_stats} was created from a dependency that existed before the swap, so green results at the public MV do not by themselves establish that the Iceberg sink automatically changed logic.
 
@@ -89,7 +91,7 @@ SWAP WITH mv_zone_stats_green;
 \end{lstlisting}
 
 \subsection{Evaluation measures}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Evaluation measure groups and interpretation}
 \begin{tabularx}{\textwidth}{@{}p{0.23\textwidth}p{0.35\textwidth}Y@{}}
@@ -102,7 +104,7 @@ Streaming activity & Replay progress, dashboard, displayed lag & Demonstrates ac
 Resource stability & Nodes, workloads, PVC, CPU/RAM & Cluster sustains measured scenario\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 \subsection{Evidence provenance and traceability}
 The local evidence bundle for the measured run is located at \path{evidence/finalize/20260522-151720/} and contains \texttt{48} textual or JSON output files. Baseline files record node, PVC, Argo CD, and RisingWave readiness; the \texttt{05-*} group records replay and Iceberg listing results; and the \texttt{06-*} group records green catch-up, the query loop, swap, duration, and metrics stored by VictoriaMetrics.

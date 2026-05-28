@@ -8,7 +8,7 @@ RQ3 is supported by cluster health and resource dashboards. The low rate limit a
 Relative to Ursa, Continux does not propose a streaming engine. It contributes an operational perspective that combines lakehouse-streaming motivation with GitOps, observability, and public query-logic replacement on a modest deployed environment.
 
 \subsection{Limitations}\label{sec:limitations}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Evidence limitations and consequences}
 \begin{tabularx}{\textwidth}{@{}p{0.49\textwidth}Y@{}}
@@ -25,7 +25,16 @@ Topic replication factor is \texttt{1} & Broker node-failure tolerance is not ev
 Raw dataset can contain \texttt{pickup\_time} outside the configured month and extreme \texttt{trip\_distance} outliers & Current green logic filters only negative values; time-range and distance-range filters are not applied\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 \subsection{Future work}
-Future research can pursue four complementary directions. First, attach a stable \emph{event identity} -- an identifier preserved from the source JSONL through to the Iceberg sink -- so that duplicates and losses can be reconciled across the entire path, allowing end-to-end exactly-once to be verified by measurement rather than inferred from connector configuration. Second, run measured multi-load benchmarks on a larger data plane, using the load profiles defined in the repository (\texttt{low}, \texttt{medium}, \texttt{high}) to produce latency/throughput curves. Third, design a cutover that also covers the downstream sink -- for instance creating a new sink bound to the green MV before cutover and renaming the sink, or compacting and rewriting Iceberg snapshots under the new logic -- so that conclusions can be extended to the full lakehouse path. Fourth, extend the source from a recorded dataset to live mobility events (for example traffic sensors or bus GPS telemetry). These are directions for subsequent releases, not part of the current results.
+Future research can pursue four complementary directions:
+
+\begin{itemize}
+\item Attach a stable \emph{event identity} from the source JSONL through to the Iceberg sink, so duplicates and losses can be reconciled across the entire path.
+\item Run measured multi-load benchmarks on a larger data plane, using the repository load profiles (\texttt{low}, \texttt{medium}, \texttt{high}) to produce latency/throughput curves.
+\item Design a cutover that also covers the downstream sink, for instance by creating a new sink bound to the green MV before cutover and then switching the sink.
+\item Extend the source from a recorded dataset to live mobility events, such as traffic sensors or bus GPS telemetry.
+\end{itemize}
+
+These are directions for subsequent releases, not part of the current results.

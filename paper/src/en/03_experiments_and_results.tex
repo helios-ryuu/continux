@@ -1,7 +1,7 @@
 \section{Experimental Results}\label{sec:results}
 
 \subsection{Environment and versions}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Software versions recorded in the repository}
 \label{tab:versions-en}
@@ -21,10 +21,10 @@ Grafana & \texttt{v13.0.1+security-01}\\
 cloudflared & \texttt{2026.5.0}\\
 \bottomrule
 \end{tabular}
-\end{table*}
+\end{table}
 
 \subsection{Cluster, GitOps, and pipeline readiness}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Infrastructure and pipeline results}
 \label{tab:infra-results-en}
@@ -41,12 +41,12 @@ TLC lookup table & \texttt{265} rows\\
 Iceberg objects & data Parquet, equality-delete, position-delete, metadata\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 \subsection{Source data-quality analysis}\label{sec:dataquality}
 Before interpreting the replay outcomes, the study examines the raw dataset directly to explain why the green logic was designed as it is. The complete file \path{data/raw/yellow_tripdata_2026-03.jsonl} is scanned sequentially once on host \texttt{imac} using a Python script -- without sampling -- to count quality violations and compute basic distributions for \texttt{fare\_amount}, \texttt{trip\_distance}, \texttt{pu\_location\_id}, and \texttt{pickup\_time}. Table~\ref{tab:dataset-quality-en} summarizes the result.
 
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Quality analysis of the NYC TLC Yellow Taxi \texttt{2026-03} dataset after JSONL conversion}
 \label{tab:dataset-quality-en}
@@ -68,9 +68,15 @@ Peak hour by \texttt{pickup\_time} & \texttt{18:00} with \texttt{279,487} trips\
 Lowest hour by \texttt{pickup\_time} & \texttt{04:00} with \texttt{35,646} trips\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
-The analysis yields three implications for design and evaluation. First, the green logic's \texttt{fare\_amount >= 0} predicate is grounded in a real phenomenon: \texttt{20,724} records carry negative fares, representing \texttt{0.5243\%} of the raw dataset. This small rate is consistent with the observed \texttt{8}-trip difference between blue (\texttt{986}) and green (\texttt{978}) in the replay sample: at \texttt{986} trips, the expected count at that raw-data rate is approximately $986 \times 0.5243\% \approx 5$, near the observed difference given emission order and uneven zone distribution. Second, no record has \texttt{trip\_distance < 0}; that predicate is preventive for other slices rather than a filter contributing exclusions in this run. Third, the maximum \texttt{trip\_distance} is \texttt{288,381.68} miles and \texttt{pickup\_time} includes dates outside \texttt{2026-03} (from \texttt{2008-12-31} to \texttt{2026-04-01}); the current green logic does not handle these raw-schema anomalies.
+The analysis yields three implications for design and evaluation:
+
+\begin{itemize}
+\item The green logic's \texttt{fare\_amount >= 0} predicate is grounded in a real phenomenon: \texttt{20,724} records carry negative fares, representing \texttt{0.5243\%} of the raw dataset. This rate is consistent with the observed \texttt{8}-trip difference between blue (\texttt{986}) and green (\texttt{978}) in the replay sample; at \texttt{986} trips, the expected count is approximately $986 \times 0.5243\% \approx 5$.
+\item No record has \texttt{trip\_distance < 0}; that predicate is preventive for other slices rather than a filter contributing exclusions in this run.
+\item The maximum \texttt{trip\_distance} is \texttt{288,381.68} miles and \texttt{pickup\_time} includes dates outside \texttt{2026-03}, from \texttt{2008-12-31} to \texttt{2026-04-01}. The current green logic does not handle these raw-schema anomalies.
+\end{itemize}
 
 The analysis also explains why the MV contains only \texttt{69} (\texttt{borough}, \texttt{zone}) pairs although the dataset touches \texttt{261} \texttt{pu\_location\_id} codes: within the measured replay window, Vector delivered a \texttt{986}-trip sample before it was deliberately stopped, and that sample did not cover every zone. The peak hour at \texttt{18:00} and the lowest hour at \texttt{04:00} illustrate time-varying ITS load; these dataset-level figures do not represent measured artifact throughput.
 
@@ -79,15 +85,15 @@ Vector is enabled for a controlled interval and then returned to \texttt{replica
 
 This result does not represent peak throughput or full processing of all \texttt{3,952,451} JSONL records. The load-profile files in the repository have no accompanying run results and are not reported as a benchmark.
 
-\begin{figure*}[t!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth]{streaming-perf.png}
+\includegraphics[width=0.9\textwidth]{streaming-perf.png}
 \caption{Streaming-performance dashboard after the replay/cutover period. Consumer lag displays \texttt{0} in the captured window.}
 \label{fig:streaming-en}
-\end{figure*}
+\end{figure}
 
 \subsection{Blue/Green MV cutover}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Blue/Green MV swap results}
 \label{tab:cutover-results-en}
@@ -106,40 +112,40 @@ Public MV after swap & \texttt{69 zones / 978 trips}\\
 View retaining the green name after swap & \texttt{69 zones / 986 trips}\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 The \texttt{8}-trip difference between blue and green matches green's exclusion of records with negative \texttt{fare\_amount} or \texttt{trip\_distance}. Available evidence does not identify this difference as a transition failure.
 
 The query loop in \path{06-query-loop-during-cutover.txt} records successful reads transitioning from \texttt{69|986} to \texttt{69|978} between \texttt{16:17:36--16:18:16 UTC} on \texttt{2026-05-22}, with no \texttt{ERROR} line. The duration file records the swap timestamp at \texttt{16:18:11 UTC} and duration \texttt{0.145226 s}; VictoriaMetrics files collected afterward confirm that the duration metric and \texttt{continux\_query\_errors\_total = 0} were stored. Because the source bundle's swap/duration files have update times after the transition log, the duration is treated as a runbook-recorded measure associated with the observed transition, not independently reconstructed latency. This supports no observed interruption in the measured query loop, not absence of every client-side or network failure mode.
 
-\begin{figure*}[t!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth]{cutover.png}
+\includegraphics[width=0.9\textwidth]{cutover.png}
 \caption{Cutover dashboard: green readiness, zero query errors, and zero RisingWave restarts. The duration panel visually rounds a sub-second measurement.}
 \label{fig:cutover-en}
-\end{figure*}
+\end{figure}
 
 \subsection{Observed integrity and resources}
 The integrity dashboard displays \texttt{69} public MV rows and a checksum mismatch of \texttt{1} after the swap. The exporter compares public output with baseline logic; once public represents green logic, this mismatch is expected and is not evidence of duplicate or lost records. The \enquote{Iceberg freshness} panel displays \enquote{56 years}; because timestamp mapping is invalid in the current observation setup, this value is excluded from the findings.
 
-\begin{figure*}[t!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth]{data-integrity.png}
+\includegraphics[width=0.9\textwidth]{data-integrity.png}
 \caption{Data-integrity dashboard after swap; mismatch is interpreted as a deliberate logic difference.}
 \label{fig:integrity-en}
-\end{figure*}
+\end{figure}
 
 The resource dashboard displays workload availability of \texttt{15/15} at capture time and MinIO/Redpanda PVC usage at approximately \texttt{9.8\%}. Local output \path{05-k3s-overview-after-replay.txt} records \texttt{23/23} workloads available after replay, approximately \texttt{49\%} RAM usage on \texttt{imac}, and approximately \texttt{11\%} usage of its root disk.
 
-\begin{figure*}[t!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth]{resource-util.png}
+\includegraphics[width=0.9\textwidth]{resource-util.png}
 \caption{Resource-utilization dashboard during the experimental observation window.}
 \label{fig:resource-en}
-\end{figure*}
+\end{figure}
 
 \subsection{Evaluation summary}
-\begin{table*}[t!]
+\begin{table}[H]
 \centering
 \caption{Evidence-bounded findings}
 \begin{tabularx}{\textwidth}{@{}p{0.26\textwidth}p{0.34\textwidth}Y@{}}
@@ -154,4 +160,4 @@ End-to-end exactly-once & No reconciliation evidence & Not concluded\\
 Multi-load performance & No completed run results & Not concluded\\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
