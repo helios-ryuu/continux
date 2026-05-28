@@ -164,6 +164,12 @@ Quy trình triển khai chi tiết nằm trong [RUNBOOK.md](./RUNBOOK.md). Tóm 
 9. Tải dataset, convert JSONL, upload Taxi Zone lookup.
 10. Sync Vector ở `replicas=0`, apply SQL, bật ingest thủ công và verify end-to-end.
 
+### 7.1. Đóng Gói Paper
+
+Từ release `1.2.0`, bản paper nộp kèm được quản lý trong `paper/` thay vì nhồi toàn bộ nội dung vào một file TeX dài. Hai wrapper `paper/main_vi.tex` và `paper/main_en.tex` dùng layout `article` hai cột, còn nội dung từng phần nằm trong `paper/src/vi/` và `paper/src/en/`.
+
+PDF cuối được commit là `paper/main_vi.pdf` và `paper/main_en.pdf`. `docs/REPORT.md` tiếp tục đóng vai trò báo cáo/evidence companion, dùng để tra cứu nhanh quy trình, kết quả và lệnh kiểm chứng.
+
 ## 8. Thiết Kế Pipeline Dữ Liệu
 
 ### 8.1. Dataset

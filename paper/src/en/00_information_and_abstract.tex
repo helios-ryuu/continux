@@ -1,0 +1,20 @@
+\title{\Large\textbf{Building a Real-Time Data Lakehouse Architecture for Intelligent Transportation Systems on a Kubernetes Cluster}}
+\author{
+    Ngô Tiến Sỹ (23521367) \quad Nguyễn Văn Nam (23520982) \\[0.5em]
+    \fontsize{10pt}{11pt}\selectfont \textit{University of Information Technology -- VNU HCMC} \\
+    \fontsize{10pt}{11pt}\selectfont \textit{Distributed Databases and Big Data -- IS211.Q22 \& IS405.Q23} \\
+    \fontsize{10pt}{11pt}\selectfont \textit{Supervisor: M.Sc. Nguyễn Hồ Duy Trí}
+}
+\date{Ho Chi Minh City, 2026}
+
+\maketitle
+
+\begin{abstract}
+Intelligent transportation systems must continuously ingest and aggregate event data while allowing analytical logic to evolve without interrupting serving queries. This study designs and evaluates \textbf{Continux}, a real-time data lakehouse architecture deployed on a resource-constrained three-server K3s cluster. The pipeline uses the March 2026 NYC TLC Yellow Taxi dataset, converts Parquet records to JSONL, replays events through Vector and Redpanda, processes streaming SQL in RisingWave, delivers results to Apache Iceberg on MinIO, manages deployment with Argo CD, and observes runtime behavior with VictoriaMetrics and Grafana.
+
+Following Design Science Research, the study evaluates an architectural artifact through one controlled replay and a Blue/Green materialized-view (MV) cutover scenario. The converted source dataset contains \texttt{3,952,451} records; the measured replay was deliberately stopped when the public materialized view reached \texttt{69} zones and \texttt{986} trips and therefore does not represent full-dataset processing. Before cutover, the public/blue views yielded \texttt{69/986}, whereas the green view, applying additional data-quality filters, yielded \texttt{69/978}. The runbook records a \texttt{0.145226 s} duration for \texttt{ALTER MATERIALIZED VIEW ... SWAP WITH ...}; the query loop observed no query errors, RisingWave components did not restart, and the public MV reflected green logic after the swap.
+
+The results demonstrate \textbf{observed query-layer zero-downtime} within the experimental window and the feasibility of running a GitOps-observed streaming lakehouse on a small K3s cluster. This study does not claim independently verified end-to-end exactly-once processing, because the available evidence does not reconcile offsets, duplicates, or losses across the complete path. It also does not claim that the Iceberg sink dependency automatically followed the green logic after the MV name swap.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Data Lakehouse, stream processing, Materialized View, Blue/Green cutover, RisingWave, Apache Iceberg, GitOps, K3s, ITS.

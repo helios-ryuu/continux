@@ -1,0 +1,40 @@
+\section{Introduction}\label{sec:introduction}
+
+\subsection{Problem context}
+Urban mobility data arrives continuously and has immediate operational relevance: each trip contributes pickup location, distance, fare, and zone-demand observations. An Intelligent Transportation System (ITS) -- a transport platform that uses real-time data to coordinate dispatch, analytics, and planning -- requires more than delayed batch analysis; operators also need near-real-time aggregates and a way to modify analytical rules when data-quality or business requirements evolve. ``Near-real-time'' here means that results must reflect the most recent events within seconds to tens of seconds rather than after a scheduled batch run.
+
+In batch processing, the system collects a body of data and computes results on a schedule, so an analytical view commonly represents the past after a planned delay. Stream processing instead treats each newly emitted record as an \emph{event} -- a message that can update a served result the moment it arrives. A key abstraction that makes this possible at the analytical layer is the \emph{materialized view} (MV): a query result that the system maintains incrementally as input changes, so readers query the maintained aggregate rather than recomputing from raw records. This distinction matters for ITS: a changing zone-demand aggregate is operationally useful only if it can be observed soon enough and if its definition can be modified safely while it is being served.
+
+The lakehouse model is an architecture that combines the flexibility of a \emph{data lake} (open files on inexpensive object storage) with the managed table semantics of a \emph{data warehouse}, and was formally proposed in prior research~\cite{armbrust2021lakehouse}. Stream processing adds further components to the operational path: a \emph{broker} (intermediate layer that stores and routes messages), a computation engine, a \emph{state store} (which holds intermediate state across events), a \emph{sink} (output that writes to a downstream system), and an observability layer. The Ursa paper \parencite{merli2025ursa} identifies the cost and complexity that arise when streaming and lakehouse infrastructure are separated, and proposes a Kafka-compatible lakehouse-native engine. At the analytical application layer, a practical question remains widely unanswered: can the definition of a serving aggregate be changed without observed query failures during the transition?
+
+\subsection{Motivation}
+Continux studies the question above in a setting that is reproducible in a laboratory: a lightweight Kubernetes cluster, the public NYC TLC taxi dataset, and standard open-source components. The chosen Kubernetes distribution is K3s -- a lightweight Kubernetes distribution maintained by SUSE that can run on resource-constrained machines -- which allows the project to exercise core Kubernetes concepts without large-scale cloud infrastructure. The ITS motivation also relates to the United Nations Sustainable Development Goals (SDG): SDG 8 through efficient mobility-supporting digital infrastructure, SDG 9 through data infrastructure innovation, and SDG 11 through observable urban mobility analytics \parencite{sdg8,sdg9,sdg11}. These connections motivate the application domain; they do not constitute a quantified SDG impact evaluation.
+
+Ursa primarily addresses streaming-engine and ingestion architecture. Continux does not reproduce Ursa's cost benchmark; it instead examines the \emph{operational layer} above ingestion, comprising GitOps-managed deployment, observability dashboards, and a RisingWave materialized-view name swap used to evolve public analytical logic, which is detailed in Section~\ref{sec:background}.
+
+\subsection{Objectives and scope}
+The study has four coordinated objectives that move from design to evaluation. \emph{First}, design a streaming lakehouse pipeline that runs end-to-end from NYC TLC data to Apache Iceberg objects on object storage. \emph{Second}, deploy that pipeline on a high-availability (HA) K3s cluster of three servers with a clean separation between a \emph{data plane} (the components that process data), a \emph{control/observability plane}, and a \emph{quorum-only} node that participates in cluster consensus voting without hosting data workloads. \emph{Third}, execute a Blue/Green cutover at the public materialized-view query layer and observe transition duration, query errors, and workload status in that window. \emph{Fourth}, evaluate the artifact strictly from collected repository evidence and supplied dashboard captures, without extending conclusions beyond what was measured.
+
+The processed source is the public NYC TLC Yellow Taxi dataset for \texttt{2026-03}, joined with the Taxi Zone Lookup table. The Parquet input -- a columnar compressed format optimized for analytics -- is converted to \texttt{3,952,451} JSONL records. The reported experiment deliberately stops the Vector replay process after the public MV reaches \texttt{986} trips; the final MV therefore reflects a sample rather than the full converted file. Cutover conclusions apply to the public query name \texttt{mv\_zone\_stats}; the study does not claim that the downstream Iceberg sink automatically migrates to green logic as a result of the materialized-view name swap.
+
+\subsection{Research questions}
+\begin{table*}[t!]
+\centering
+\caption{Research questions and available evidence}
+\label{tab:rqs-en}
+\begin{tabularx}{\textwidth}{@{}p{0.08\textwidth}Y Y Y@{}}
+\toprule
+\textbf{ID} & \textbf{Question} & \textbf{Evidence} & \textbf{Bounded conclusion}\\
+\midrule
+RQ1 & Can public analytical logic be switched without observed query errors during the swap window? & Runbook duration \texttt{0.145226 s}; query errors \texttt{0}. & Yes, at query layer in the observed window.\\
+RQ2 & Does the pipeline generate observable lakehouse output? & MinIO lists Parquet data, delete objects, and metadata. & Yes, after replay.\\
+RQ3 & Can the constrained cluster run the designed scenario? & \texttt{3/3} nodes, \texttt{5/5} PVCs, \texttt{23/23} workloads. & Yes, for this scenario.\\
+RQ4 & Has end-to-end exactly-once behavior been verified? & No offset/duplicate/loss reconciliation. & Not established.\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Contributions and organization}
+Continux contributes four interrelated outcomes. First, a reproducible streaming lakehouse artifact deployed on a three-server K3s cluster using GitOps -- an operating model in which desired state is declared in Git and an agent (here Argo CD) continuously enforces it. Second, a Blue/Green materialized-view swap scenario measured while a public query loop runs continuously. Third, a set of observability dashboards together with explicit interpretation guidelines for cutover, resources, and data integrity. Fourth, an evidence-bounded analysis that clearly separates \emph{documented platform capabilities} from \emph{measured outcomes at this artifact}.
+
+Chapter 2 presents the theoretical background on lakehouse storage, stream processing, materialized views, GitOps, observability, and the Ursa paper. Chapter 3 describes the Design Science Research method, the Continux architecture, K3s topology, SQL objects, and Blue/Green design. Chapter 4 reports experimental results, including a source-data quality analysis, replay ingestion, cutover, and resource observations. Chapter 5 discusses results, limitations, and conclusions. The appendices preserve core SQL, configuration excerpts, evidence indexing, and a detailed terminology table.

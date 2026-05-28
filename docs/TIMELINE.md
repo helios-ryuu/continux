@@ -1,6 +1,6 @@
 # TIMELINE
 
-Timeline này ghi lại các mốc triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối: cluster K3s 3 server Ready, pipeline end-to-end chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công, dashboard có dữ liệu và evidence được thu cho từng lượt thực nghiệm.
+Timeline này ghi lại các mốc triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối: cluster K3s 3 server Ready, pipeline end-to-end chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công, dashboard có dữ liệu, evidence được thu cho từng lượt thực nghiệm và paper LaTeX song ngữ được đóng gói.
 
 ## 1. Mục Tiêu
 
@@ -18,6 +18,7 @@ Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC en
 | 22/05/2026 | Replay ingest | Replay end-to-end sinh MV và Iceberg object |
 | 22/05/2026 | Blue/Green cutover | Public MV chuyển sang logic green, query loop không lỗi |
 | 22/05/2026 | Chuẩn hóa tài liệu | Docs/runbook/report đồng bộ với evidence cuối |
+| 26/05/2026 | Chuẩn hóa paper LaTeX | Tách paper tiếng Việt/Anh thành module trong `paper/src/`, wrapper hai cột và build lại PDF |
 
 ## 3. Trạng Thái Hệ Thống Ở Mốc Chốt
 
@@ -38,9 +39,9 @@ Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC en
 Ký hiệu: `█` hoàn tất, `◆` mốc chốt.
 
 ```text
-Ngày                         20 21 22
---------------------------------------
-Repo, docs, scripts          █  █  █
+Ngày                         20 21 22 26
+-----------------------------------------
+Repo, docs, scripts          █  █  █  █
 Chuẩn bị 3 máy + Tailscale   █  █
 K3s HA 3 server                 █
 Labels, taints, quorum          █
@@ -55,6 +56,7 @@ Metrics exporter                   █
 Replay ingest sạch                 █
 Blue/Green cutover                 █
 Báo cáo và chuẩn hóa runbook       ◆
+Paper LaTeX song ngữ module           ◆
 ```
 
 ## 5. Critical Path Đã Đóng
@@ -114,6 +116,7 @@ Báo cáo và chuẩn hóa runbook       ◆
 ## 9. Definition Of Done
 
 - `RUNBOOK.md` dựng được hệ thống từ máy sạch đến end-to-end và dọn dẹp để chạy lại từ đầu.
-- `REPORT.md` là bản báo cáo học thuật hoàn chỉnh.
+- `REPORT.md` là bản báo cáo/evidence companion cho đồ án.
+- `paper/main_vi.pdf` và `paper/main_en.pdf` là bản paper LaTeX cuối, build từ source module trong `paper/src/`.
 - Không commit dataset, evidence, screenshot lớn hoặc secret.
 - Phiên bản hệ thống được phản ánh trong `VERSION` và badge ở `README.md`.

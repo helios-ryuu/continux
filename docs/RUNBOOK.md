@@ -41,6 +41,7 @@ Nguyên tắc bảo mật:
 
 | Thành phần | Phiên bản |
 |------------|-----------|
+| Continux | `1.2.0` |
 | K3s | `v1.35.5+k3s1` |
 | Helm | `v4.1.4` |
 | Argo CD | app `v3.4.2`, chart `argo-cd` `9.5.14` |
@@ -53,6 +54,29 @@ Nguyên tắc bảo mật:
 | cloudflared | `2026.5.0` |
 
 Phiên bản hệ thống Continux nằm trong file `VERSION` ở root repo.
+
+### 1.1. Cấu Trúc Paper LaTeX
+
+Release `1.2.0` chuẩn hóa bản paper song ngữ thành cấu trúc LaTeX module:
+
+| File/thư mục | Vai trò |
+|--------------|---------|
+| `paper/main_vi.tex` | Wrapper bản tiếng Việt, format `article` hai cột |
+| `paper/main_en.tex` | Wrapper bản tiếng Anh, format `article` hai cột |
+| `paper/src/vi/` | Nội dung từng section của paper tiếng Việt |
+| `paper/src/en/` | Nội dung từng section của paper tiếng Anh |
+| `paper/main_vi.pdf` | PDF tiếng Việt được build từ wrapper và module |
+| `paper/main_en.pdf` | PDF tiếng Anh được build từ wrapper và module |
+
+Khi chỉnh nội dung paper, sửa file trong `paper/src/<ngôn-ngữ>/` thay vì nhồi toàn bộ nội dung vào wrapper. Wrapper chỉ giữ preamble, thứ tự `\input{...}` và cấu hình layout. Nếu máy đã có TeX Live và `latexmk`, build lại PDF bằng:
+
+```bash
+cd ~/continux/paper
+latexmk -pdf -interaction=nonstopmode main_vi.tex
+latexmk -pdf -interaction=nonstopmode main_en.tex
+```
+
+Các artifact phụ của LaTeX trong `paper/` được ignore; chỉ commit `.tex`, `.bib`, figures và PDF cuối.
 
 ## 2. Dựng Hệ Thống Từ Máy Sạch
 

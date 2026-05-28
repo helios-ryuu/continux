@@ -1,0 +1,157 @@
+\section{Kết quả thực nghiệm}\label{sec:results}
+
+\subsection{Môi trường và phiên bản}
+\begin{table*}[t!]
+\centering
+\caption{Phiên bản phần mềm được ghi trong repo}
+\label{tab:versions-vi}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Thành phần} & \textbf{Phiên bản}\\
+\midrule
+K3s & \texttt{v1.35.5+k3s1}\\
+Helm & \texttt{v4.1.4}\\
+Argo CD & \texttt{v3.4.2}\\
+Tailscale & \texttt{v1.98.2}\\
+Redpanda & \texttt{v26.1.8}\\
+RisingWave & \texttt{v2.8.3}\\
+Vector & \texttt{0.55.0-alpine}\\
+VictoriaMetrics & \texttt{v1.143.0}\\
+Grafana & \texttt{v13.0.1+security-01}\\
+cloudflared & \texttt{2026.5.0}\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Cluster, GitOps và pipeline readiness}
+\begin{table*}[t!]
+\centering
+\caption{Kết quả hạ tầng và pipeline}
+\label{tab:infra-results-vi}
+\begin{tabularx}{0.92\textwidth}{@{}p{0.48\textwidth}Y@{}}
+\toprule
+\textbf{Chỉ số} & \textbf{Kết quả}\\
+\midrule
+K3s nodes Ready & \texttt{3/3}\\
+PVC Bound & \texttt{5/5}\\
+Workloads Available sau replay & \texttt{23/23}\\
+Argo CD applications chính & \texttt{Synced/Healthy}\\
+RisingWave roles & meta, compute, compactor, frontend \texttt{RUNNING}\\
+TLC lookup table & \texttt{265} dòng\\
+Iceberg objects & data Parquet, equality-delete, position-delete, metadata\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Phân tích chất lượng dữ liệu nguồn}\label{sec:dataquality}
+Trước khi diễn giải kết quả replay, đề tài đối chiếu chính xác dataset thô để giải thích vì sao logic green được thiết kế như đã trình bày. Toàn bộ tệp \path{data/raw/yellow_tripdata_2026-03.jsonl} được scan tuần tự một lần trên host \texttt{imac} bằng script Python -- không lấy mẫu -- để đếm các trường hợp vi phạm chất lượng và tính phân phối cơ bản của \texttt{fare\_amount}, \texttt{trip\_distance}, \texttt{pu\_location\_id} và \texttt{pickup\_time}. Kết quả được tổng hợp ở Bảng~\ref{tab:dataset-quality-vi}.
+
+\begin{table*}[t!]
+\centering
+\caption{Phân tích chất lượng dataset NYC TLC Yellow Taxi tháng \texttt{2026-03} sau chuyển đổi JSONL}
+\label{tab:dataset-quality-vi}
+\begin{tabularx}{\textwidth}{@{}p{0.42\textwidth}Y@{}}
+\toprule
+\textbf{Chỉ số quan sát được trên dataset thô} & \textbf{Giá trị}\\
+\midrule
+Tổng số bản ghi JSONL & \texttt{3.952.451}\\
+Bản ghi có \texttt{fare\_amount < 0} & \texttt{20.724} (\texttt{0,5243\%})\\
+Bản ghi có \texttt{trip\_distance < 0} & \texttt{0}\\
+Bản ghi có \texttt{fare\_amount = 0} & \texttt{2.995}\\
+\texttt{fare\_amount} min / max & \texttt{-990,00} / \texttt{1.843,30} USD\\
+\texttt{fare\_amount} mean / median & \texttt{21,33} / \texttt{15,60} USD\\
+\texttt{trip\_distance} min / max & \texttt{0} / \texttt{288.381,68} miles\\
+\texttt{trip\_distance} mean / median & \texttt{5,98} / \texttt{1,82} miles\\
+\texttt{pu\_location\_id} xuất hiện trong dataset & \texttt{261}/\texttt{265} mã\\
+Khoảng \texttt{pickup\_time} & \texttt{2008-12-31} đến \texttt{2026-04-01} (\texttt{35} ngày phân biệt)\\
+Giờ cao điểm theo \texttt{pickup\_time} & \texttt{18:00} với \texttt{279.487} chuyến\\
+Giờ thấp điểm theo \texttt{pickup\_time} & \texttt{04:00} với \texttt{35.646} chuyến\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Kết quả này có ba ý nghĩa cho thiết kế và đánh giá. Thứ nhất, bộ lọc \texttt{fare\_amount >= 0} của logic green được \emph{đặt trên một hiện tượng có thật} -- \texttt{20.724} bản ghi với cước âm chiếm \texttt{0,5243\%} dataset thô. Tỉ lệ nhỏ này phù hợp với chênh lệch \texttt{8} chuyến giữa blue (\texttt{986}) và green (\texttt{978}) đo được trên mẫu nhỏ của lượt replay: ở mức \texttt{986} chuyến, kỳ vọng số bản ghi cước âm là khoảng $986 \times 0{,}5243\% \approx 5$ chuyến, gần với \texttt{8} chuyến quan sát được; chênh trong khoảng đó nằm trong dao động hợp lý do thứ tự phát và phân phối theo zone không đồng đều. Thứ hai, không có bản ghi nào với \texttt{trip\_distance < 0} trong dataset; vì vậy predicate \texttt{trip\_distance >= 0} trong logic green là một biện pháp \emph{phòng ngừa} dành cho các tháng dữ liệu khác hoặc các dataset tương tự, chứ không tạo ra bản ghi bị lọc nào trong lượt được đo. Thứ ba, \texttt{trip\_distance} có giá trị tối đa \texttt{288.381,68} miles và \texttt{pickup\_time} chứa các mốc ngoài tháng \texttt{2026-03} (từ \texttt{2008-12-31} đến \texttt{2026-04-01}); đây là các anomaly schema thô không được logic green hiện tại xử lý và được liệt kê tại Mục~\ref{sec:limitations}.
+
+Phân tích này cũng giải thích tại sao MV chỉ chứa \texttt{69} cặp (\texttt{borough}, \texttt{zone}) chứ không phải toàn bộ \texttt{261} mã \texttt{pu\_location\_id} mà dataset chạm vào: trong cửa sổ replay đã đo, Vector chỉ đưa được một mẫu \texttt{986} chuyến qua broker trước khi được dừng có chủ đích, và mẫu nhỏ này không phủ hết tất cả các vùng. Bối cảnh giờ -- cao điểm \texttt{18:00}, thấp điểm \texttt{04:00} -- minh họa tính chất tải biến thiên theo thời gian của ITS và củng cố luận điểm cần observability gần thời gian thực; tuy nhiên các con số này thuộc cấp dataset, không phải kết quả đo throughput của artifact.
+
+\subsection{Replay ingest và output lakehouse}
+Vector được mở trong khoảng có kiểm soát rồi đưa về \texttt{replicas=0}. File \path{05-mv-before-stop.txt} ghi public MV ở \texttt{66 zones / 912 trips}; sau khi các event đã nhận được xử lý hết, \path{05-mv-final-count.txt} ghi trạng thái ổn định \texttt{69 zones / 986 trips}. File \path{05-minio-iceberg-after-replay.txt} liệt kê output Iceberg mới, cho thấy đường ghi lakehouse đã hoạt động trong lượt replay.
+
+Kết quả này không đại diện throughput tối đa hay xử lý toàn bộ \texttt{3.952.451} dòng. Các file cấu hình mức tải trong repo không kèm output thực nghiệm, nên không được trình bày thành benchmark.
+
+\begin{figure*}[t!]
+\centering
+\includegraphics[width=0.65\textwidth]{streaming-perf.png}
+\caption{Dashboard streaming performance sau lượt replay/cutover. Consumer lag hiển thị \texttt{0} trong cửa sổ ảnh.}
+\label{fig:streaming-vi}
+\end{figure*}
+
+\subsection{Blue/Green MV cutover}
+\begin{table*}[t!]
+\centering
+\caption{Kết quả Blue/Green MV swap}
+\label{tab:cutover-results-vi}
+\begin{tabularx}{0.92\textwidth}{@{}p{0.52\textwidth}Y@{}}
+\toprule
+\textbf{Chỉ số} & \textbf{Giá trị}\\
+\midrule
+Public MV trước swap & \texttt{69 zones / 986 trips}\\
+Blue MV trước swap & \texttt{69 zones / 986 trips}\\
+Green MV trước swap & \texttt{69 zones / 978 trips}\\
+Cutover command & \texttt{ALTER MATERIALIZED VIEW ... SWAP WITH ...}\\
+Duration do runbook ghi & \texttt{0,145226 s}\\
+Query errors trong loop & \texttt{0}\\
+RisingWave restarts trong swap & \texttt{0}\\
+Public MV sau swap & \texttt{69 zones / 978 trips}\\
+View mang tên green sau swap & \texttt{69 zones / 986 trips}\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Chênh lệch \texttt{8} trips giữa blue và green phù hợp điều kiện green loại record có \texttt{fare\_amount < 0} hoặc \texttt{trip\_distance < 0}. Evidence không cho thấy chênh lệch này phát sinh từ lỗi chuyển giao.
+
+Query loop trong \path{06-query-loop-during-cutover.txt} ghi các truy vấn thành công từ trạng thái \texttt{69|986} sang \texttt{69|978} trong khoảng \texttt{16:17:36--16:18:16 UTC} ngày \texttt{2026-05-22}, không có dòng \texttt{ERROR}. File duration ghi timestamp swap \texttt{16:18:11 UTC} và duration \texttt{0,145226 s}; hai file VictoriaMetrics thu sau đó xác nhận metric duration và \texttt{continux\_query\_errors\_total = 0} đã được lưu. Do file swap/duration trong bundle nguồn có mốc cập nhật sau log chuyển trạng thái, số duration được dùng như phép đo runbook đã ghi nhận gắn với transition quan sát, chưa phải latency được kiểm chứng lại độc lập. Bằng chứng hỗ trợ nhận định không ghi nhận gián đoạn truy vấn, chứ không chứng minh mọi client hoặc mọi lỗi mạng đều vắng mặt.
+
+\begin{figure*}[t!]
+\centering
+\includegraphics[width=0.65\textwidth]{cutover.png}
+\caption{Dashboard cutover: green ready, query errors bằng \texttt{0} và restart bằng \texttt{0}; panel duration làm tròn giá trị nhỏ hơn một giây.}
+\label{fig:cutover-vi}
+\end{figure*}
+
+\subsection{Integrity quan sát được và tài nguyên}
+Dashboard integrity hiển thị public MV có \texttt{69} dòng và checksum mismatch \texttt{1} sau swap. Exporter so public với logic baseline; sau cutover public mang green logic, nên mismatch là kết quả mong đợi của thay đổi định nghĩa, không phải bằng chứng duplicate hoặc loss. Panel \enquote{Iceberg freshness} hiển thị \enquote{56 years}; do metric timestamp chưa hợp lệ trong cấu hình quan sát, giá trị này không được dùng làm kết quả.
+
+\begin{figure*}[t!]
+\centering
+\includegraphics[width=0.65\textwidth]{data-integrity.png}
+\caption{Dashboard data integrity sau swap; mismatch được diễn giải theo thay đổi logic.}
+\label{fig:integrity-vi}
+\end{figure*}
+
+Dashboard tài nguyên ghi workload availability \texttt{15/15} ở thời điểm ảnh và PVC MinIO/Redpanda khoảng \texttt{9,8\%}. Output cục bộ \path{05-k3s-overview-after-replay.txt} ghi tình trạng toàn cluster sau replay là \texttt{23/23} workload available, RAM \texttt{imac} khoảng \texttt{49\%} và disk root khoảng \texttt{11\%}.
+
+\begin{figure*}[t!]
+\centering
+\includegraphics[width=0.65\textwidth]{resource-util.png}
+\caption{Dashboard resource utilization trong cửa sổ quan sát thực nghiệm.}
+\label{fig:resource-vi}
+\end{figure*}
+
+\subsection{Tổng hợp đánh giá}
+\begin{table*}[t!]
+\centering
+\caption{Tổng hợp kết luận theo evidence}
+\begin{tabularx}{\textwidth}{@{}p{0.26\textwidth}p{0.34\textwidth}Y@{}}
+\toprule
+\textbf{Nhóm} & \textbf{Evidence đạt được} & \textbf{Kết luận}\\
+\midrule
+Query-layer cutover & Runbook duration \texttt{0,145226 s}, lỗi \texttt{0}, restart \texttt{0} & Zero-downtime quan sát được cho public MV\\
+Lakehouse output & Iceberg objects sau replay & Sink đã ghi output trong replay\\
+Logic difference & Green ít hơn blue \texttt{8} trips & Thay đổi bộ lọc được quan sát\\
+Cluster stability & \texttt{3/3}, \texttt{5/5}, \texttt{23/23} & Đủ chạy kịch bản đã đo\\
+Exactly-Once end-to-end & Không có reconciliation & Không kết luận\\
+Multi-load performance & Không có run results & Không kết luận\\
+\bottomrule
+\end{tabularx}
+\end{table*}

@@ -1,0 +1,33 @@
+\section{Thảo luận}\label{sec:discussion}
+
+\subsection{Thảo luận kết quả}
+Kết quả trả lời tích cực RQ1 trong phạm vi quan sát: public name của MV được chuyển từ baseline sang candidate mà query loop không ghi nhận lỗi. Duration \texttt{0,145226 s} do runbook ghi là chỉ báo vận hành cho thay đổi SQL nhỏ trên cụm lab; do provenance file chưa cho phép tái dựng latency độc lập, con số này không phải SLA hay bằng chứng cho mọi pattern truy vấn.
+
+RQ2 được trả lời qua output Parquet/metadata trên MinIO sau replay. Tuy nhiên, điều này chỉ chứng minh sink hoạt động trong pipeline đã chạy; bởi tài liệu RisingWave mô tả swap là đổi tên MV và yêu cầu xem xét riêng các dependency, nghiên cứu không khẳng định sink đã đổi sang green sau swap.
+
+RQ3 được trả lời bằng sức khỏe cụm và dashboard tài nguyên. Rate limit thấp và việc dừng Vector là lựa chọn bảo vệ data plane 8 GB RAM; kết quả phản ánh tính khả thi chức năng, không phải công suất tối đa.
+
+So với Ursa, Continux không đề xuất engine mới. Giá trị bổ sung là nối động lực streaming lakehouse với GitOps, evidence vận hành và đổi logic public query trên môi trường nhỏ có thể trình diễn.
+
+\subsection{Hạn chế}\label{sec:limitations}
+\begin{table*}[t!]
+\centering
+\caption{Giới hạn bằng chứng và tác động tới kết luận}
+\begin{tabularx}{\textwidth}{@{}p{0.49\textwidth}Y@{}}
+\toprule
+\textbf{Giới hạn} & \textbf{Tác động}\\
+\midrule
+Không đối chiếu offset, event key, duplicate và loss & Không xác nhận Exactly-Once end-to-end\\
+Lượt replay chỉ dừng ở \texttt{986} trips & Không suy rộng thành xử lý toàn dataset hoặc throughput tối đa\\
+Không có run ba mức tải & Không báo cáo latency/throughput theo tải\\
+Sink là dependency tạo trước MV swap & Không kết luận Iceberg table chuyển sang green logic\\
+Kafka catalog/Iceberg freshness metric chưa đầy đủ & Dựa trên SQL count và MinIO listing cho kết luận hiện hữu\\
+File duration/swap được cập nhật sau log chuyển trạng thái & Báo duration như số đo runbook, không coi là latency tái dựng độc lập\\
+Replication topic là \texttt{1} & Không đánh giá broker fault tolerance khi node lỗi\\
+Dataset thô chứa timestamp ngoài tháng \texttt{2026-03} và outlier cực đoan của \texttt{trip\_distance} & Logic green hiện tại chỉ lọc giá trị âm; bộ lọc theo phạm vi thời gian và phạm vi quãng đường chưa được áp dụng\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Hướng phát triển}
+Các nghiên cứu tiếp theo có thể đi theo bốn hướng bổ sung lẫn nhau. Hướng đầu tiên là gắn \emph{event identity} ổn định -- một định danh không đổi xuyên suốt từ JSONL gốc đến Iceberg sink -- để có thể đối chiếu duplicate hoặc loss qua toàn đường dữ liệu, từ đó kiểm chứng tính Exactly-Once end-to-end thay vì dựa vào cấu hình connector. Hướng thứ hai là benchmark nhiều mức tải trên một data plane lớn hơn 8\,GB RAM, dùng đúng các kịch bản đã định nghĩa trong repo (\texttt{low}, \texttt{medium}, \texttt{high}) để thu biểu đồ latency/throughput theo tải. Hướng thứ ba là thiết kế cutover bao gồm cả sink downstream -- ví dụ tạo sink mới gắn vào green MV trước cutover rồi đổi tên sink, hoặc thực hiện compaction/rewrite snapshot Iceberg theo logic mới -- để có thể kết luận về toàn đường ghi lakehouse. Hướng thứ tư là mở rộng nguồn dữ liệu sang sự kiện giao thông trực tiếp (vd. cảm biến giao thông, dữ liệu GPS xe buýt) thay vì replay dataset có sẵn. Đây là định hướng cho các phiên bản kế tiếp, không phải phần kết quả của lượt thực nghiệm hiện tại.

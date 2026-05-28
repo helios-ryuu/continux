@@ -7,7 +7,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v1.1.0-0A7CC7?style=flat-square" alt="Version v1.1.0">
+  <img src="https://img.shields.io/badge/version-v1.2.0-0A7CC7?style=flat-square" alt="Version v1.2.0">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
@@ -105,7 +105,7 @@ Quy trình triển khai chuẩn:
 
 1. Theo [docs/RUNBOOK.md](./docs/RUNBOOK.md) để dựng hệ thống từ máy sạch, khởi chạy một lượt thực nghiệm end-to-end (replay + Blue/Green cutover) và dọn dẹp để chạy lại từ đầu.
 2. Đọc kết quả dashboard theo [docs/DASHBOARDS.md](./docs/DASHBOARDS.md).
-3. Dùng [docs/REPORT.md](./docs/REPORT.md) làm báo cáo học thuật cuối cùng.
+3. Dùng [paper/main_vi.pdf](./paper/main_vi.pdf) và [paper/main_en.pdf](./paper/main_en.pdf) làm bản paper LaTeX cuối; [docs/REPORT.md](./docs/REPORT.md) là báo cáo/evidence companion.
 
 ## Khái Niệm Và Công Nghệ Sử Dụng
 

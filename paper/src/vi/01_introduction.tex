@@ -1,0 +1,43 @@
+\section{Giới thiệu tổng quan}\label{sec:introduction}
+
+\subsection{Đặt vấn đề}
+Dữ liệu giao thông đô thị phát sinh liên tục và mang ý nghĩa vận hành tức thời: mỗi chuyến xe bổ sung thông tin về điểm đón, quãng đường, chi phí và nhu cầu theo khu vực. Với hệ thống giao thông thông minh, gọi tắt là ITS (\emph{Intelligent Transportation System}), việc lưu dữ liệu chỉ để phân tích theo batch là chưa đủ; người vận hành cần theo dõi tổng hợp cập nhật gần thời gian thực và cần thay đổi quy tắc phân tích khi yêu cầu chất lượng dữ liệu hoặc chính sách nghiệp vụ thay đổi. Yêu cầu ``cập nhật gần thời gian thực'' ở đây nghĩa là kết quả phải phản ánh sự kiện gần nhất trong khoảng từ giây đến vài chục giây, thay vì sau một lần chạy batch định kỳ.
+
+Trong xử lý batch, hệ thống gom một lượng dữ liệu rồi tính toán theo lịch định trước; kết quả vì vậy thường phản ánh quá khứ sau một độ trễ. Ngược lại, xử lý luồng (\emph{stream processing}) xem mỗi bản ghi mới là một \emph{event} -- một thông điệp có thể cập nhật kết quả đang phục vụ ngay khi đến. Một thành phần then chốt cho phép thực hiện điều này là \emph{materialized view} (MV), tức một bảng kết quả truy vấn được hệ thống tự cập nhật khi dữ liệu nguồn thay đổi; người đọc truy vấn MV thay vì tính lại từ dữ liệu thô. Sự khác biệt giữa batch và streaming đặc biệt quan trọng với ITS, vì một thống kê khu vực đang tăng tải chỉ hữu ích cho vận hành nếu có thể được quan sát đủ sớm và nếu logic thống kê có thể sửa đổi an toàn khi đang phục vụ.
+
+Data Lakehouse là mô hình kiến trúc kết hợp tính linh hoạt của \emph{data lake} (lưu trữ tệp mở trên object storage chi phí thấp) với khả năng quản trị bảng và phân tích có cấu trúc kiểu \emph{data warehouse}, được đề xuất chính thức trong nghiên cứu trước đây~\cite{armbrust2021lakehouse}. Trong khi đó, xử lý luồng đưa thêm vào chuỗi vận hành các thành phần như \emph{broker} (lớp trung gian lưu và phân phối thông điệp), engine tính toán, \emph{state store} (nơi giữ trạng thái trung gian), \emph{sink} (đầu ra ghi xuống một hệ thống đích) và lớp quan sát. Bài báo Ursa \parencite{merli2025ursa} chỉ ra chi phí và độ phức tạp khi streaming và lakehouse bị tách rời, đồng thời đề xuất một engine lakehouse-native cho Kafka. Tại lớp ứng dụng phân tích vẫn còn một câu hỏi thực hành chưa được trả lời rộng rãi: khi logic tổng hợp đang phục vụ truy vấn phải thay đổi, việc chuyển đổi có thể thực hiện mà không làm xuất hiện lỗi truy vấn hay không?
+
+\subsection{Lý do chọn đề tài}
+Continux khảo sát câu hỏi đặt ra ở mục trước trong bối cảnh khả thi với phòng thí nghiệm: một cụm Kubernetes nhẹ tên K3s, dữ liệu taxi mở của Sở Taxi và Dịch vụ vận tải New York (NYC TLC) và các công nghệ nguồn mở thông dụng. K3s là một bản phân phối Kubernetes gọn nhẹ do SUSE phát hành, có khả năng chạy trên máy có tài nguyên hạn chế; lựa chọn K3s giúp đề tài tái hiện được nhiều khái niệm cốt lõi của Kubernetes mà không yêu cầu hạ tầng đám mây quy mô lớn. Đề tài có liên hệ với các Mục tiêu Phát triển Bền vững (\emph{Sustainable Development Goal}, SDG) của Liên Hợp Quốc: SDG 8 qua nhu cầu hạ tầng dữ liệu hỗ trợ dịch vụ di chuyển hiệu quả; SDG 9 qua thử nghiệm hạ tầng số và đổi mới công nghệ; và SDG 11 qua khả năng quan sát dữ liệu di chuyển phục vụ đô thị bền vững \parencite{sdg8,sdg9,sdg11}. Liên hệ này được sử dụng như động lực ứng dụng, không phải một phép đánh giá định lượng tác động SDG.
+
+Ursa nhấn mạnh đường ghi lakehouse-native và bảo đảm xử lý của streaming engine. Continux không tái hiện benchmark chi phí của Ursa; thay vào đó, đề tài khảo sát \emph{lớp vận hành} (operational layer) phía trên ingest, bao gồm GitOps cho triển khai, dashboard cho quan sát, và một kỹ thuật thay đổi logic truy vấn dùng hai materialized view song song cùng phép \emph{swap} tên trong RisingWave -- streaming database SQL được trình bày chi tiết ở Chương 2.
+
+\subsection{Mục tiêu nghiên cứu}
+Nghiên cứu hướng tới bốn mục tiêu phối hợp với nhau, đi từ thiết kế đến đánh giá. \emph{Thứ nhất}, thiết kế một pipeline streaming lakehouse hoàn chỉnh từ dữ liệu NYC TLC tới đầu ra theo định dạng bảng Apache Iceberg trên object storage. \emph{Thứ hai}, triển khai pipeline đó trên một cụm K3s sẵn sàng cao (\emph{high availability}, HA) gồm ba server, có phân tách rõ ràng giữa \emph{data plane} (các thành phần xử lý dữ liệu), \emph{control/observability plane} (điều khiển và quan sát), và một node chỉ giữ vai trò \emph{quorum-only} -- tức tham gia bỏ phiếu để cụm đạt đồng thuận chứ không chạy workload dữ liệu. \emph{Thứ ba}, thực hiện một kịch bản Blue/Green cutover tại lớp public materialized view và quan sát thời gian chuyển đổi, lỗi truy vấn cũng như trạng thái workload trong cửa sổ đó. \emph{Thứ tư}, đánh giá artifact bằng đúng evidence đã thu thập, không mở rộng kết luận vượt quá dữ liệu đo được.
+
+\subsection{Đối tượng và phạm vi}
+Đối tượng xử lý là dữ liệu công khai NYC TLC Yellow Taxi tháng \texttt{2026-03} và bảng tra cứu khu vực Taxi Zone Lookup. Tệp Parquet nguồn (định dạng cột nén tối ưu cho phân tích) được chuyển thành JSONL -- một tệp văn bản trong đó mỗi dòng là một bản ghi JSON độc lập -- gồm \texttt{3.952.451} dòng. Trong lượt thực nghiệm được báo cáo, công cụ phát sự kiện Vector được bật có kiểm soát rồi dừng để bảo toàn tài nguyên của cụm lab, khiến kết quả MV cuối phản ánh \texttt{986} chuyến chứ không phải toàn bộ tệp.
+
+Phạm vi công nghệ được khảo sát gồm Vector (nguồn phát sự kiện), Redpanda (broker tương thích Kafka), RisingWave (streaming SQL engine với materialized view), MinIO kết hợp Apache Iceberg (object storage và table format), Argo CD (công cụ GitOps cho Kubernetes), VictoriaMetrics (cơ sở dữ liệu time series), Grafana (lớp trực quan hóa metric), và K3s (bản phân phối Kubernetes nền). Phạm vi đánh giá cutover được giới hạn ở tên truy vấn public \texttt{mv\_zone\_stats}; báo cáo không kiểm chứng rằng đường ghi xuống Iceberg sink phía sau tự chuyển sang logic green nhờ phép đổi tên materialized view.
+
+\subsection{Câu hỏi nghiên cứu}
+\begin{table*}[t!]
+\centering
+\caption{Câu hỏi nghiên cứu và evidence trả lời}
+\label{tab:rqs-vi}
+\begin{tabularx}{\textwidth}{@{}p{0.08\textwidth}Y Y Y@{}}
+\toprule
+\textbf{ID} & \textbf{Câu hỏi} & \textbf{Evidence} & \textbf{Kết luận trong phạm vi đo}\\
+\midrule
+RQ1 & Chuyển public logic mà không ghi nhận lỗi truy vấn trong cửa sổ swap? & Runbook duration \texttt{0,145226 s}; query errors \texttt{0}. & Có, ở lớp truy vấn và trong cửa sổ quan sát.\\
+RQ2 & Pipeline có tạo output lakehouse quan sát được? & MinIO có data, equality-delete, position-delete Parquet và metadata. & Có, sau lượt replay.\\
+RQ3 & Cụm nhỏ có vận hành được kịch bản thiết kế? & \texttt{3/3} node, \texttt{5/5} PVC, \texttt{23/23} workload. & Có, cho lượt đo báo cáo.\\
+RQ4 & Exactly-Once end-to-end đã được xác nhận? & Không có reconciliation duplicate/loss/offset. & Chưa thể kết luận.\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Đóng góp và cấu trúc báo cáo}
+Đề tài đóng góp bốn nội dung gắn kết với nhau. Thứ nhất là một artifact streaming lakehouse có thể tái hiện trên cụm K3s ba server, triển khai bằng GitOps -- tức cách vận hành mà toàn bộ trạng thái mong muốn được mô tả khai báo trong Git và một agent (ở đây là Argo CD) đảm bảo cụm luôn về đúng trạng thái đó. Thứ hai là một kịch bản Blue/Green MV swap được đo trong khi public query vẫn được gọi liên tục. Thứ ba là bộ dashboard quan sát kèm theo cách diễn giải cụ thể cho cutover, tài nguyên và data integrity. Thứ tư là một phân tích giới hạn bằng chứng nhằm tách rõ \emph{năng lực công nghệ được tài liệu hóa} khỏi \emph{kết quả đã đo được tại artifact}.
+
+Chương 2 trình bày cơ sở lý thuyết về Data Lakehouse, stream processing, materialized view, GitOps, observability và bài báo nền tảng Ursa. Chương 3 mô tả phương pháp Design Science Research, kiến trúc Continux, topology cụm K3s, đối tượng SQL và thiết kế Blue/Green. Chương 4 trình bày kết quả thực nghiệm, bao gồm phân tích chất lượng dữ liệu nguồn, replay ingest, cutover và quan sát tài nguyên. Chương 5 thảo luận kết quả, giới hạn và kết luận. Phần phụ lục cung cấp SQL cốt lõi, cấu hình trích yếu, chỉ mục evidence và bảng thuật ngữ chi tiết.

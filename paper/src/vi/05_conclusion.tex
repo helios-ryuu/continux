@@ -1,0 +1,8 @@
+\section{Kết luận}\label{sec:conclusion}
+Continux xây dựng thành công một artifact Data Lakehouse thời gian thực trên K3s gồm ingest, broker, streaming SQL, Iceberg object storage, GitOps và observability. Từ evidence hiện có, hệ thống thực hiện một lượt replay tạo public MV và Iceberg output; trong kịch bản Blue/Green MV swap, query loop ghi \texttt{0} lỗi và không có restart RisingWave, còn runbook ghi duration \texttt{0,145226 s}.
+
+Đóng góp thực nghiệm nổi bật là minh chứng cho cập nhật logic ở \textbf{lớp truy vấn public} mà không ghi nhận gián đoạn trong cửa sổ thử nghiệm. Báo cáo không tuyên bố Exactly-Once end-to-end, benchmark đa tải hay full-path sink cutover khi chưa có phép đo tương ứng. Sự phân biệt này giữ cho kết luận kiểm chứng được từ evidence hiện có.
+
+\setlength\bibitemsep{1pt}
+\setlength\bibhang{1em}
+\renewcommand*{\bibfont}{\small}

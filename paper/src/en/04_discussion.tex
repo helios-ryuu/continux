@@ -1,0 +1,31 @@
+\section{Discussion}\label{sec:discussion}
+RQ1 is answered positively within the observed boundary: the public MV name moved from baseline to candidate logic without a query-loop error. The runbook-recorded duration of \texttt{0.145226 s} is an operational indicator for a small SQL-logic change on this laboratory cluster; since file provenance does not enable independent latency reconstruction, it is neither an SLA nor proof for all query patterns or failure modes.
+
+RQ2 is supported by Parquet and metadata objects in MinIO after replay. This demonstrates an operational sink in the exercised pipeline; because RisingWave documents the swap as an MV name operation and treats dependent sinks separately, the study does not claim that the sink moved to green logic after the swap.
+
+RQ3 is supported by cluster health and resource dashboards. The low rate limit and the deliberate shutdown of Vector protect the resource-constrained data-plane node; the result establishes functional feasibility, not maximum capacity.
+
+Relative to Ursa, Continux does not propose a streaming engine. It contributes an operational perspective that combines lakehouse-streaming motivation with GitOps, observability, and public query-logic replacement on a modest deployed environment.
+
+\subsection{Limitations}\label{sec:limitations}
+\begin{table*}[t!]
+\centering
+\caption{Evidence limitations and consequences}
+\begin{tabularx}{\textwidth}{@{}p{0.49\textwidth}Y@{}}
+\toprule
+\textbf{Limitation} & \textbf{Consequence}\\
+\midrule
+No offset, stable-event-key, duplicate, or loss reconciliation & End-to-end exactly-once is not verified\\
+Replay stopped at \texttt{986} trips & No full-dataset or peak-throughput claim\\
+No measured runs for three load levels & No load/latency benchmark is reported\\
+Sink dependency predates MV swap & No Iceberg green-cutover claim\\
+Incomplete Kafka catalog/Iceberg freshness metrics & Findings rely on SQL counts and MinIO listings\\
+Duration/swap files updated after the transition log & Duration is reported as a runbook measure, not independently reconstructed latency\\
+Topic replication factor is \texttt{1} & Broker node-failure tolerance is not evaluated\\
+Raw dataset can contain \texttt{pickup\_time} outside the configured month and extreme \texttt{trip\_distance} outliers & Current green logic filters only negative values; time-range and distance-range filters are not applied\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Future work}
+Future research can pursue four complementary directions. First, attach a stable \emph{event identity} -- an identifier preserved from the source JSONL through to the Iceberg sink -- so that duplicates and losses can be reconciled across the entire path, allowing end-to-end exactly-once to be verified by measurement rather than inferred from connector configuration. Second, run measured multi-load benchmarks on a larger data plane, using the load profiles defined in the repository (\texttt{low}, \texttt{medium}, \texttt{high}) to produce latency/throughput curves. Third, design a cutover that also covers the downstream sink -- for instance creating a new sink bound to the green MV before cutover and renaming the sink, or compacting and rewriting Iceberg snapshots under the new logic -- so that conclusions can be extended to the full lakehouse path. Fourth, extend the source from a recorded dataset to live mobility events (for example traffic sensors or bus GPS telemetry). These are directions for subsequent releases, not part of the current results.

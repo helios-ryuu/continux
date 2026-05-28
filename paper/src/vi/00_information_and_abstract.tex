@@ -1,0 +1,20 @@
+\title{\Large\textbf{Xây dựng kiến trúc Data Lakehouse thời gian thực cho hệ thống giao thông thông minh trên cụm Kubernetes}}
+\author{
+    Ngô Tiến Sỹ (23521367) \quad Nguyễn Văn Nam (23520982) \\[0.5em]
+    \fontsize{10pt}{11pt}\selectfont \textit{Trường Đại học Công nghệ Thông tin -- Đại học Quốc gia TP.HCM} \\
+    \fontsize{10pt}{11pt}\selectfont \textit{Cơ sở dữ liệu phân tán và Dữ liệu lớn -- IS211.Q22 \& IS405.Q23} \\
+    \fontsize{10pt}{11pt}\selectfont \textit{GVHD: ThS. Nguyễn Hồ Duy Trí}
+}
+\date{TP. Hồ Chí Minh, 2026}
+
+\maketitle
+
+\begin{abstract}
+Các hệ thống giao thông thông minh cần tiếp nhận và tổng hợp dữ liệu phát sinh liên tục, đồng thời cần thay đổi logic phân tích mà không làm gián đoạn khả năng truy vấn đang phục vụ. Nghiên cứu này thiết kế và đánh giá \textbf{Continux}, một kiến trúc Data Lakehouse thời gian thực chạy trên cụm K3s ba server có tài nguyên giới hạn. Pipeline sử dụng dữ liệu NYC TLC Yellow Taxi tháng \texttt{2026-03}, chuyển đổi Parquet sang JSONL, phát sự kiện bằng Vector, trung chuyển qua Redpanda, xử lý bằng RisingWave streaming SQL, ghi kết quả theo Apache Iceberg trên MinIO, quản lý triển khai bằng Argo CD và quan sát qua VictoriaMetrics/Grafana.
+
+Theo phương pháp Design Science Research, nghiên cứu xây dựng artifact kiến trúc và đánh giá qua một lượt replay có kiểm soát cùng kịch bản Blue/Green materialized view (MV) cutover. Dataset nguồn sau chuyển đổi có \texttt{3.952.451} dòng; lượt thực nghiệm được dừng có chủ đích sau khi public MV đạt \texttt{69} vùng và \texttt{986} chuyến, không phải phép xử lý toàn bộ dataset. Trước cutover, public/blue MV có kết quả \texttt{69/986}, còn green MV áp dụng bộ lọc chất lượng dữ liệu đạt \texttt{69/978}. Runbook ghi duration của lệnh \texttt{ALTER MATERIALIZED VIEW ... SWAP WITH ...} là \texttt{0,145226 s}; vòng lặp truy vấn không ghi nhận lỗi, các thành phần RisingWave không restart và public MV sau swap phản ánh logic green.
+
+Kết quả chứng minh tính khả thi của \textbf{zero-downtime quan sát được ở lớp truy vấn} trong cửa sổ thực nghiệm, đồng thời cho thấy một pipeline lakehouse có thể vận hành trên cụm K3s nhỏ với GitOps và quan sát tập trung. Nghiên cứu không tuyên bố đã kiểm chứng Exactly-Once end-to-end, vì evidence hiện có không bao gồm phép đối chiếu offset, duplicate hoặc loss trên toàn đường dữ liệu; cũng không kết luận Iceberg sink tự chuyển phụ thuộc theo logic green sau thao tác đổi tên MV.
+\end{abstract}
+
+\noindent\textbf{Từ khóa:} Data Lakehouse, stream processing, Materialized View, Blue/Green cutover, RisingWave, Apache Iceberg, GitOps, K3s, ITS.

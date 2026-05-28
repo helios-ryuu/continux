@@ -1,0 +1,82 @@
+\section{Core SQL}\label{app:core-sql}
+\subsection{Source and baseline view}
+\begin{lstlisting}[language=SQL]
+CREATE SOURCE IF NOT EXISTS nyc_taxi_src (
+    event_id VARCHAR,
+    event_time TIMESTAMPTZ,
+    pickup_time TIMESTAMPTZ,
+    pu_location_id INT,
+    do_location_id INT,
+    fare_amount DOUBLE PRECISION,
+    trip_distance DOUBLE PRECISION
+) WITH (
+    connector = 'kafka',
+    topic = 'nyc-taxi-events',
+    properties.bootstrap.server = 'redpanda.redpanda:9093',
+    scan.startup.mode = 'earliest'
+) FORMAT PLAIN ENCODE JSON;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats_blue AS
+SELECT z.borough, z.zone, COUNT(*) AS trip_count,
+       SUM(t.fare_amount) AS total_fare,
+       AVG(t.trip_distance) AS avg_distance
+FROM nyc_taxi_src t
+JOIN tlc_zone z ON t.pu_location_id = z.location_id
+GROUP BY z.borough, z.zone;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats AS
+SELECT * FROM mv_zone_stats_blue;
+\end{lstlisting}
+
+\subsection{Green view and swap}
+\begin{lstlisting}[language=SQL]
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats_green AS
+SELECT z.borough, z.zone, COUNT(*) AS trip_count,
+       SUM(t.fare_amount) AS total_fare,
+       AVG(t.trip_distance) AS avg_distance
+FROM nyc_taxi_src t
+JOIN tlc_zone z ON t.pu_location_id = z.location_id
+WHERE t.fare_amount >= 0
+  AND t.trip_distance >= 0
+GROUP BY z.borough, z.zone;
+
+ALTER MATERIALIZED VIEW mv_zone_stats
+SWAP WITH mv_zone_stats_green;
+\end{lstlisting}
+
+\subsection{Iceberg sink}
+\begin{lstlisting}[language=SQL]
+CREATE SINK IF NOT EXISTS sink_zone_stats FROM mv_zone_stats
+WITH (
+    connector = 'iceberg',
+    type = 'upsert',
+    primary_key = 'borough,zone',
+    catalog.type = 'storage',
+    warehouse.path = 's3://iceberg-data/',
+    database.name = 'nyc',
+    create_table_if_not_exists = 'true',
+    table.name = 'zone_stats'
+);
+\end{lstlisting}
+
+\section{Operational Configuration Excerpts}\label{app:config}
+\begin{lstlisting}
+# Redpanda topic
+topics:
+  - name: nyc-taxi-events
+    partitions: 3
+    replicationFactor: 1
+    config:
+      retention.ms: "86400000"
+
+# Vector rate in the deployed ConfigMap
+rate_limit_num = 2
+rate_limit_duration_secs = 1
+
+# RisingWave state store
+stateStore:
+  s3:
+    enabled: true
+    endpoint: http://minio.minio.svc.cluster.local:9000
+    bucket: rw-checkpoint
+\end{lstlisting}
