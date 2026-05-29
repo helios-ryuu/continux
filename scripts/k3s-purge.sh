@@ -28,7 +28,7 @@ Usage:
       Reset the running cluster to a clean post-K3s-install state.
       Keeps K3s and nodes running, but deletes workloads, app namespaces,
       Helm releases/repositories, PV/PVC objects, ArgoCD apps, and known
-      stack CRDs.
+      stack CRDs. If present, it also stops/disables host redpanda.service.
 
 Options:
   --nuke      Remove K3s traces from the current node.
@@ -68,6 +68,44 @@ kubectl_bin() {
         echo "k3s kubectl"
     else
         return 1
+    fi
+}
+
+run_privileged() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        if [ "$ASSUME_YES" = "true" ]; then
+            sudo -n "$@"
+        else
+            sudo "$@"
+        fi
+    else
+        return 1
+    fi
+}
+
+stop_host_redpanda() {
+    command -v systemctl >/dev/null 2>&1 || {
+        warn "systemctl not found; skipping host redpanda.service cleanup."
+        return 0
+    }
+
+    if ! systemctl list-unit-files redpanda.service --no-legend 2>/dev/null | grep -q '^redpanda\.service'; then
+        return 0
+    fi
+
+    info "Stopping and disabling host redpanda.service..."
+    if run_privileged systemctl stop redpanda.service; then
+        ok "Stopped redpanda.service."
+    else
+        warn "Could not stop redpanda.service; stop it manually if it is still running."
+    fi
+
+    if run_privileged systemctl disable redpanda.service; then
+        ok "Disabled redpanda.service."
+    else
+        warn "Could not disable redpanda.service; disable it manually if needed."
     fi
 }
 
@@ -154,6 +192,8 @@ reset_cluster() {
     else
         warn "helm not found; skipping Helm release/repository cleanup."
     fi
+
+    stop_host_redpanda
 
     info "Deleting application resources from default namespace..."
     $KUBECTL -n default delete deploy,statefulset,daemonset,job,cronjob,pod,replicaset,rc,ingress,networkpolicy,pdb,configmap,secret,pvc,serviceaccount,role,rolebinding \
