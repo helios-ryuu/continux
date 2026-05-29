@@ -27,7 +27,8 @@ Usage:
   bash scripts/k3s-purge.sh [--yes]
       Reset the running cluster to a clean post-K3s-install state.
       Keeps K3s and nodes running, but deletes workloads, app namespaces,
-      Helm releases, PV/PVC objects, ArgoCD apps, and known stack CRDs.
+      Helm releases/repositories, PV/PVC objects, ArgoCD apps, and known
+      stack CRDs.
 
 Options:
   --nuke      Remove K3s traces from the current node.
@@ -144,8 +145,14 @@ reset_cluster() {
             [ -z "${release:-}" ] && continue
             helm uninstall "$release" -n "$namespace" >/dev/null 2>&1 || true
         done < <(helm list -A --no-headers 2>/dev/null | awk '{print $2, $1}')
+
+        info "Removing Helm repositories from local Helm config..."
+        while read -r repo; do
+            [ -z "${repo:-}" ] && continue
+            helm repo remove "$repo" >/dev/null 2>&1 || true
+        done < <(helm repo list 2>/dev/null | awk 'NR > 1 {print $1}')
     else
-        warn "helm not found; skipping Helm uninstall pass."
+        warn "helm not found; skipping Helm release/repository cleanup."
     fi
 
     info "Deleting application resources from default namespace..."
