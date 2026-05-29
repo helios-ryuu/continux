@@ -17,7 +17,6 @@ So với Ursa, Continux không đề xuất engine mới. Giá trị bổ sung l
 \toprule
 \textbf{Giới hạn} & \textbf{Tác động}\\
 \midrule
-Không đối chiếu offset, event key, duplicate và loss & Không xác nhận Exactly-Once end-to-end\\
 Lượt replay chỉ dừng ở \texttt{986} trips & Không suy rộng thành xử lý toàn bộ dữ liệu hoặc throughput tối đa\\
 Không có run ba mức tải & Không báo cáo latency/throughput theo tải\\
 Sink là dependency tạo trước MV swap & Không kết luận Iceberg table chuyển sang green logic\\
@@ -30,10 +29,9 @@ Dataset thô chứa timestamp ngoài tháng \texttt{2026-03} và outlier cực �
 \end{table}
 
 \subsection{Hướng phát triển}
-Các nghiên cứu tiếp theo có thể đi theo bốn hướng bổ sung lẫn nhau:
+Các nghiên cứu tiếp theo có thể đi theo ba hướng bổ sung lẫn nhau:
 
 \begin{itemize}
-\item Gắn \emph{event identity} ổn định, tức một định danh không đổi xuyên suốt từ JSONL gốc đến Iceberg sink, để đối chiếu duplicate hoặc loss qua toàn đường dữ liệu và kiểm chứng Exactly-Once end-to-end bằng phép đo.
 \item Benchmark nhiều mức tải trên một data plane lớn hơn 8\,GB RAM, dùng đúng các kịch bản đã định nghĩa trong repo (\texttt{low}, \texttt{medium}, \texttt{high}) để thu biểu đồ latency/throughput theo tải.
 \item Thiết kế cutover bao gồm cả sink downstream, chẳng hạn tạo sink mới gắn vào green MV trước cutover rồi đổi tên sink, hoặc thực hiện compaction/rewrite snapshot Iceberg theo logic mới.
 \item Mở rộng nguồn dữ liệu sang sự kiện giao thông trực tiếp, ví dụ cảm biến giao thông hoặc dữ liệu GPS xe buýt, thay vì replay bộ dữ liệu có sẵn.

@@ -37,3 +37,4 @@ paper/*.toc
 paper/*.lof
 paper/*.lot
 paper/*.out
+*_artifacts/

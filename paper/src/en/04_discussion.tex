@@ -15,7 +15,6 @@ Relative to Ursa, Continux does not propose a streaming engine. It contributes a
 \toprule
 \textbf{Limitation} & \textbf{Consequence}\\
 \midrule
-No offset, stable-event-key, duplicate, or loss reconciliation & End-to-end exactly-once is not verified\\
 Replay stopped at \texttt{986} trips & No full-dataset or peak-throughput claim\\
 No measured runs for three load levels & No load/latency benchmark is reported\\
 Sink dependency predates MV swap & No Iceberg green-cutover claim\\
@@ -28,10 +27,9 @@ Raw dataset can contain \texttt{pickup\_time} outside the configured month and e
 \end{table}
 
 \subsection{Future work}
-Future research can pursue four complementary directions:
+Future research can pursue three complementary directions:
 
 \begin{itemize}
-\item Attach a stable \emph{event identity} from the source JSONL through to the Iceberg sink, so duplicates and losses can be reconciled across the entire path.
 \item Run measured multi-load benchmarks on a larger data plane, using the repository load profiles (\texttt{low}, \texttt{medium}, \texttt{high}) to produce latency/throughput curves.
 \item Design a cutover that also covers the downstream sink, for instance by creating a new sink bound to the green MV before cutover and then switching the sink.
 \item Extend the source from a recorded dataset to live mobility events, such as traffic sensors or bus GPS telemetry.

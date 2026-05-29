@@ -109,6 +109,18 @@ stop_host_redpanda() {
     fi
 }
 
+delete_project_leftovers_from_kube_system() {
+    local kind obj
+    local project_name_pattern='argocd|cloudflared|grafana|minio|redpanda|risingwave|vector|victoria|vmagent|vmalert|vmsingle'
+
+    info "Deleting known project leftovers from kube-system..."
+    for kind in service endpoints endpointslice configmap secret serviceaccount role rolebinding; do
+        for obj in $($KUBECTL -n kube-system get "$kind" -o name 2>/dev/null | grep -E "/(${project_name_pattern})" || true); do
+            $KUBECTL -n kube-system delete "$obj" --ignore-not-found=true >/dev/null 2>&1 || true
+        done
+    done
+}
+
 purge_current_node() {
     [ "$(id -u)" -ne 0 ] && die "Run with sudo: sudo bash scripts/k3s-purge.sh --nuke"
 
@@ -194,6 +206,7 @@ reset_cluster() {
     fi
 
     stop_host_redpanda
+    delete_project_leftovers_from_kube_system
 
     info "Deleting application resources from default namespace..."
     $KUBECTL -n default delete deploy,statefulset,daemonset,job,cronjob,pod,replicaset,rc,ingress,networkpolicy,pdb,configmap,secret,pvc,serviceaccount,role,rolebinding \

@@ -126,7 +126,7 @@ Query loop trong \path{06-query-loop-during-cutover.txt} ghi các truy vấn th�
 \end{figure}
 
 \subsection{Tính toàn vẹn quan sát được và tài nguyên}
-Dashboard tính toàn vẹn dữ liệu hiển thị public MV có \texttt{69} dòng và checksum mismatch \texttt{1} sau swap. Exporter so public với logic baseline; sau cutover public mang green logic, nên mismatch là kết quả mong đợi của thay đổi định nghĩa, không phải bằng chứng duplicate hoặc loss. Panel \enquote{Iceberg freshness} hiển thị \enquote{56 years}; do metric timestamp chưa hợp lệ trong cấu hình quan sát, giá trị này không được dùng làm kết quả.
+Dashboard tính toàn vẹn dữ liệu hiển thị public MV có \texttt{69} dòng và checksum mismatch \texttt{1} sau swap. Exporter so public với logic baseline; sau cutover public mang green logic, nên mismatch là kết quả mong đợi của thay đổi định nghĩa. Panel \enquote{Iceberg freshness} hiển thị \enquote{56 years}; do metric timestamp chưa hợp lệ trong cấu hình quan sát, giá trị này không được dùng làm kết quả.
 
 \begin{figure}[H]
 \centering
@@ -156,7 +156,6 @@ Query-layer cutover & Runbook duration \texttt{0,145226 s}, lỗi \texttt{0}, re
 Đầu ra lakehouse & Iceberg objects sau replay & Sink đã ghi đầu ra trong replay\\
 Logic difference & Green ít hơn blue \texttt{8} trips & Thay đổi bộ lọc được quan sát\\
 Cluster stability & \texttt{3/3}, \texttt{5/5}, \texttt{23/23} & Đủ chạy kịch bản đã đo\\
-Exactly-Once end-to-end & Không có reconciliation & Không kết luận\\
 Multi-load performance & Không có run results & Không kết luận\\
 \bottomrule
 \end{tabularx}

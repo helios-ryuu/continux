@@ -138,7 +138,7 @@ bash scripts/k3s-purge.sh
 bash scripts/k3s-purge.sh --yes
 ```
 
-Chế độ này xóa Helm releases, Argo CD Applications/finalizers, app namespaces, app resources, PV/PVC objects và CRD thuộc stack dự án.
+Chế độ này xóa Helm releases, Helm repositories local, Argo CD Applications/finalizers, app namespaces, app resources, PV/PVC objects, CRD thuộc stack dự án và các resource dự án còn sót trong `kube-system` như service `victoria-metrics-*`. Nếu `redpanda.service` đang tồn tại trên host chạy script, script sẽ stop và disable service này để không nhiễu baseline; không chạm các dịch vụ ngoài như Docker/Grafana. Image cache không được prune tự động; nếu cần dọn image cũ, chạy thủ công trên từng node bằng `sudo k3s crictl rmi --prune`.
 
 Xóa dấu vết K3s khỏi node hiện tại:
 

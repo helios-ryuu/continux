@@ -51,7 +51,7 @@ Continux bổ sung góc nhìn vận hành:
 | Nhóm chỉ số | Mô tả | Cách đo |
 |-------------|-------|---------|
 | **Cutover & GitOps Deployment** | Đo khả năng đổi logic không gián đoạn, readiness, duration, query errors và restart | `ALTER MATERIALIZED VIEW ... SWAP WITH ...`, query loop liên tục bắt lỗi, exporter ghi duration và timestamp |
-| **Data Integrity & Exactly-Once Semantics** | Đối chiếu row/trip count, rejected records, Iceberg output và mismatch theo logic | SQL count public/blue/green; `continux_records_rejected_total`; MinIO listing Iceberg |
+| **Data Quality & Lakehouse Output** | Đối chiếu row/trip count, rejected records, Iceberg output và mismatch theo logic | SQL count public/blue/green; `continux_records_rejected_total`; MinIO listing Iceberg |
 | **Streaming Performance** | Quan sát replay ingest, processed events, lag, throughput proxy và RisingWave rows/s | Vector logs, Redpanda topic offsets, exporter `continux_events_processed_total`, RisingWave rows/s proxy |
 | **Resource Utilization & Stability** | Theo dõi CPU/RAM/PVC/restart trên cluster tài nguyên giới hạn | Node-exporter + kube-state-metrics qua VictoriaMetrics; `bash scripts/k3s-check.sh overview` |
 

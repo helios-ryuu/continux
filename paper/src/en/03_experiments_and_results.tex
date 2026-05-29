@@ -126,7 +126,7 @@ The query loop in \path{06-query-loop-during-cutover.txt} records successful rea
 \end{figure}
 
 \subsection{Observed integrity and resources}
-The integrity dashboard displays \texttt{69} public MV rows and a checksum mismatch of \texttt{1} after the swap. The exporter compares public output with baseline logic; once public represents green logic, this mismatch is expected and is not evidence of duplicate or lost records. The \enquote{Iceberg freshness} panel displays \enquote{56 years}; because timestamp mapping is invalid in the current observation setup, this value is excluded from the findings.
+The integrity dashboard displays \texttt{69} public MV rows and a checksum mismatch of \texttt{1} after the swap. The exporter compares public output with baseline logic; once public represents green logic, this mismatch is expected from the definition change. The \enquote{Iceberg freshness} panel displays \enquote{56 years}; because timestamp mapping is invalid in the current observation setup, this value is excluded from the findings.
 
 \begin{figure}[H]
 \centering
@@ -156,7 +156,6 @@ Query-layer cutover & Runbook duration \texttt{0.145226 s}, query errors \texttt
 Lakehouse output & Iceberg objects after replay & Sink wrote output during replay\\
 Logic difference & Green has \texttt{8} fewer trips than blue by the filter & Filter change is observable\\
 Cluster stability & \texttt{3/3}, \texttt{5/5}, \texttt{23/23} & Cluster runs measured scenario\\
-End-to-end exactly-once & No reconciliation evidence & Not concluded\\
 Multi-load performance & No completed run results & Not concluded\\
 \bottomrule
 \end{tabularx}

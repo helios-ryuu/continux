@@ -1,7 +1,7 @@
 \section{Conclusion}\label{sec:conclusion}
 Continux successfully implements a real-time data lakehouse artifact on K3s comprising ingestion, event brokering, streaming SQL, Iceberg object storage, GitOps, and observability. From available evidence, one controlled replay produced a public MV and Iceberg output; during a Blue/Green MV swap, the query loop recorded \texttt{0} errors with no RisingWave restart, and the runbook recorded a measured duration of \texttt{0.145226 s}.
 
-Its principal experimental contribution is evidence that public-query logic can be updated without observed interruption during the measured cutover window. The report intentionally refrains from claiming verified end-to-end exactly-once behavior, multi-load benchmarking, or full-path sink cutover without corresponding measurements.
+Its principal experimental contribution is evidence that public-query logic can be updated without observed interruption during the measured cutover window. The report also records observable Iceberg output and stable workload status during the measured run. The conclusions are bounded to the collected evidence.
 
 \setlength\bibitemsep{1pt}
 \setlength\bibhang{1em}

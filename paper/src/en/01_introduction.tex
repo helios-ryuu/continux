@@ -36,7 +36,6 @@ The processed source is the public NYC TLC Yellow Taxi dataset for \texttt{2026-
 RQ1 & Can public analytical logic be switched without observed query errors during the swap window? & Runbook duration \texttt{0.145226 s}; query errors \texttt{0}. & Yes, at query layer in the observed window.\\
 RQ2 & Does the pipeline generate observable lakehouse output? & MinIO lists Parquet data, delete objects, and metadata. & Yes, after replay.\\
 RQ3 & Can the constrained cluster run the designed scenario? & \texttt{3/3} nodes, \texttt{5/5} PVCs, \texttt{23/23} workloads. & Yes, for this scenario.\\
-RQ4 & Has end-to-end exactly-once behavior been verified? & No offset/duplicate/loss reconciliation. & Not established.\\
 \bottomrule
 \end{tabularx}
 \end{table*}

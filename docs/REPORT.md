@@ -332,9 +332,9 @@ Dashboard `resource-util` cho thấy workload vẫn sẵn sàng và PVC còn dư
 
 Mục tiêu cutover đạt. Green MV được tạo song song, query loop không lỗi, swap hoàn tất nhanh và RisingWave không restart; metric được VictoriaMetrics scrape. GitOps đảm bảo manifest triển khai app chính thống nhất với repo.
 
-### 11.2. Data Integrity & Exactly-Once Semantics
+### 11.2. Data Quality & Lakehouse Output
 
-Replay sinh kết quả trong `mv_zone_stats` và Iceberg có object mới. Sau cutover, public MV đổi sang logic lọc dữ liệu âm; sự chênh lệch số trips giữa trước/sau swap là kết quả logic mới, không phải thất thoát bất thường. `continux_query_errors_total` đạt `0` và `continux_records_rejected_total{reason="parse"}` đạt `0`.
+Replay sinh kết quả trong `mv_zone_stats` và Iceberg có object mới. Sau cutover, public MV đổi sang logic lọc dữ liệu âm; sự chênh lệch số trips giữa trước/sau swap là kết quả logic mới. `continux_query_errors_total` đạt `0` và `continux_records_rejected_total{reason="parse"}` đạt `0`.
 
 ### 11.3. Streaming Performance
 

@@ -41,7 +41,7 @@ Nguyên tắc bảo mật:
 
 | Thành phần | Phiên bản |
 |------------|-----------|
-| Continux | `1.2.0` |
+| Continux | `1.2.1` |
 | K3s | `v1.35.5+k3s1` |
 | Helm | `v4.1.4` |
 | Argo CD | app `v3.4.2`, chart `argo-cd` `9.5.14` |
