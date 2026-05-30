@@ -17,7 +17,7 @@ The study has four coordinated objectives that move from design to evaluation:
 
 \begin{itemize}
 \item Design a streaming lakehouse pipeline from NYC TLC data to Apache Iceberg objects on object storage.
-\item Deploy the pipeline on a three-server HA K3s cluster with separate data, control/observability, and quorum-only roles.
+\item Deploy the pipeline on a three-server K3s cluster with control-plane and etcd HA and separate data, control/observability, and quorum-only roles.
 \item Execute a Blue/Green cutover at the public materialized-view query layer while observing duration, query errors, and workload status.
 \item Evaluate the artifact strictly from collected evidence and dashboard captures, without extending conclusions beyond what was measured.
 \end{itemize}

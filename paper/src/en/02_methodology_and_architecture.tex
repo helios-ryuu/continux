@@ -56,6 +56,8 @@ Keeping these paths distinct clarifies the measurement boundary: Iceberg objects
 
 Nodes communicate through \emph{Tailscale} -- a mesh VPN built on the WireGuard protocol that creates an overlay network among hosts that may be in different physical networks, as if they shared a LAN. K3s in HA mode uses \emph{embedded etcd}: \emph{etcd} is a distributed key-value store that holds the Kubernetes cluster state, and ``embedded'' means it runs inside the K3s process rather than separately. The cluster requires a \texttt{2/3} \emph{quorum}: at least two of three etcd members must remain online for write operations to reach consensus, which is why \texttt{helios-pc} is reserved as a quorum-only voter and does not run data workloads. Compute and storage workloads are placed on \texttt{imac} to exploit its local SSD and RAM; \texttt{continux-vps} hosts the control plane and observability stack.
 
+Accordingly, HA in this report refers only to the Kubernetes control-plane and etcd layer. The artifact is not configured as end-to-end pipeline HA: Redpanda runs as a single broker (\texttt{statefulset.replicas=1}), \texttt{nyc-taxi-events} uses \texttt{replicationFactor=1}, and data components use resource-saving laboratory settings.
+
 \clearpage
 \onecolumn
 \subsection{SQL objects and Blue/Green design}

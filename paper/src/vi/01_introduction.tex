@@ -17,7 +17,7 @@ Nghiên cứu hướng tới bốn mục tiêu phối hợp với nhau, đi từ
 
 \begin{itemize}
 \item Thiết kế pipeline streaming lakehouse từ dữ liệu NYC TLC tới đầu ra Apache Iceberg trên object storage.
-\item Triển khai pipeline trên cụm K3s HA ba server, tách rõ data plane, control/observability plane và node quorum-only.
+\item Triển khai pipeline trên cụm K3s ba server có HA ở lớp control plane và etcd, tách rõ data plane, control/observability plane và node quorum-only.
 \item Thực hiện Blue/Green cutover tại lớp public materialized view, đồng thời quan sát thời gian chuyển đổi, lỗi truy vấn và trạng thái workload.
 \item Đánh giá artifact bằng đúng bằng chứng đã thu thập, không mở rộng kết luận vượt quá dữ liệu đo được.
 \end{itemize}

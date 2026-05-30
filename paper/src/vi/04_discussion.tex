@@ -22,7 +22,7 @@ Không có run ba mức tải & Không báo cáo latency/throughput theo tải\\
 Sink là dependency tạo trước MV swap & Không kết luận Iceberg table chuyển sang green logic\\
 Kafka catalog/Iceberg freshness metric chưa đầy đủ & Dựa trên SQL count và MinIO listing cho kết luận hiện hữu\\
 File duration/swap được cập nhật sau log chuyển trạng thái & Báo duration như số đo runbook, không coi là latency tái dựng độc lập\\
-Replication topic là \texttt{1} & Không đánh giá broker fault tolerance khi node lỗi\\
+Redpanda chạy một broker và topic có \texttt{replicationFactor=1} & Không đánh giá khả năng HA hoặc chịu lỗi của broker và data path khi node lỗi\\
 Dataset thô chứa timestamp ngoài tháng \texttt{2026-03} và outlier cực đoan của \texttt{trip\_distance} & Logic green hiện tại chỉ lọc giá trị âm; bộ lọc theo phạm vi thời gian và phạm vi quãng đường chưa được áp dụng\\
 \bottomrule
 \end{tabularx}

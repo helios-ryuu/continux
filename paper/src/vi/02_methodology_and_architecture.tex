@@ -56,6 +56,8 @@ Việc tách ba luồng này làm rõ phạm vi phép đo: đầu ra Iceberg cho
 
 Các node giao tiếp qua \emph{Tailscale}, một mesh VPN xây trên giao thức WireGuard, tạo lớp mạng riêng overlay giữa các máy ở các mạng khác nhau như thể chúng nằm trong cùng một mạng LAN. K3s ở chế độ HA dùng \emph{embedded etcd}: etcd là cơ sở dữ liệu key-value phân tán giữ trạng thái cụm Kubernetes, và ``embedded'' nghĩa là etcd chạy bên trong tiến trình K3s thay vì tách rời. Cụm yêu cầu \emph{quorum} \texttt{2/3}, tức cần ít nhất hai trên ba node etcd còn hoạt động để các thao tác ghi đạt đồng thuận; vì vậy node \texttt{helios-pc} chỉ giữ vai trò quorum (bỏ phiếu) mà không nhận workload dữ liệu. Workload tính toán và lưu trữ được đặt trên \texttt{imac} để tận dụng SSD và RAM cục bộ; \texttt{continux-vps} đảm nhiệm control plane và observability.
 
+Vì vậy, thuật ngữ HA trong báo cáo chỉ nói về lớp Kubernetes control plane và etcd. Artifact không được cấu hình như một pipeline HA từ đầu đến cuối: Redpanda chạy một broker (\texttt{statefulset.replicas=1}), topic \texttt{nyc-taxi-events} có \texttt{replicationFactor=1}, và các thành phần dữ liệu dùng cấu hình lab tiết kiệm tài nguyên.
+
 \clearpage
 \onecolumn
 \subsection{Đối tượng SQL và Blue/Green design}

@@ -20,7 +20,7 @@ No measured runs for three load levels & No load/latency benchmark is reported\\
 Sink dependency predates MV swap & No Iceberg green-cutover claim\\
 Incomplete Kafka catalog/Iceberg freshness metrics & Findings rely on SQL counts and MinIO listings\\
 Duration/swap files updated after the transition log & Duration is reported as a runbook measure, not independently reconstructed latency\\
-Topic replication factor is \texttt{1} & Broker node-failure tolerance is not evaluated\\
+Redpanda runs one broker and the topic uses \texttt{replicationFactor=1} & Broker and data-path HA or node-failure tolerance is not evaluated\\
 Raw dataset can contain \texttt{pickup\_time} outside the configured month and extreme \texttt{trip\_distance} outliers & Current green logic filters only negative values; time-range and distance-range filters are not applied\\
 \bottomrule
 \end{tabularx}
