@@ -346,7 +346,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Bản ghi bị loại theo lý do; kỳ vọng bằng 0 trong lượt thực nghiệm sạch.",
+      "description": "Guardrail dự phòng cho lỗi parse; exporter hiện xuất 0 cho tới khi bổ sung validation parser.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -608,14 +608,14 @@
           "type": "prometheus",
           "uid": "${DS_VICTORIAMETRICS}"
         },
-        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_namespace=\"kafka\"}, redpanda_topic)",
         "hide": 0,
         "includeAll": false,
         "label": "Topic",
         "multi": false,
         "name": "topic",
         "query": {
-          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_namespace=\"kafka\"}, redpanda_topic)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

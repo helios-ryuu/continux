@@ -25,7 +25,8 @@ spec:
   namespaceSelector:
     matchNames: [redpanda]
   endpoints:
-    - port: prometheus
+    - port: admin
+      path: /public_metrics
       interval: 15s
 ---
 apiVersion: operator.victoriametrics.com/v1beta1

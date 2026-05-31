@@ -414,7 +414,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "",
+      "description": "Lag source Kafka theo catalog RisingWave trong cửa sổ cutover; 0 là kết quả tốt khi consumer bắt kịp.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -456,8 +456,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(redpanda_kafka_consumer_group_lag{namespace=\"redpanda\",topic=~\"$topic\"}) by (group, topic) or vector(0)",
-          "legendFormat": "{{group}}/{{topic}}",
+          "expr": "max(continux_kafka_lag) or vector(0)",
+          "legendFormat": "RisingWave proxy",
           "range": true,
           "refId": "A"
         }
@@ -609,14 +609,14 @@
           "type": "prometheus",
           "uid": "${DS_VICTORIAMETRICS}"
         },
-        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_namespace=\"kafka\"}, redpanda_topic)",
         "hide": 0,
         "includeAll": false,
         "label": "Topic",
         "multi": false,
         "name": "topic",
         "query": {
-          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_namespace=\"kafka\"}, redpanda_topic)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

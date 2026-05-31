@@ -83,6 +83,17 @@ data:
       kafka_processed_offsets="$(scalar "SELECT COALESCE(SUM(CASE WHEN latest_offset IS NULL THEN 0 ELSE GREATEST(latest_offset, 0) + 1 END), 0) FROM rw_catalog.rw_kafka_source_metrics;")"
       kafka_lag="$(scalar "SELECT COALESCE(SUM(lag), 0) FROM rw_catalog.rw_kafka_job_lag;")"
       iceberg_last_commit="$(scalar "SELECT COALESCE(CAST(EXTRACT(EPOCH FROM MAX(timestamp_ms)) AS BIGINT), 0) FROM rw_catalog.rw_iceberg_snapshots;")"
+      if [ -s "${STATE_DIR}/iceberg-last-commit" ]; then
+        iceberg_observed="$(tr -d '[:space:]' < "${STATE_DIR}/iceberg-last-commit")"
+        case "${iceberg_observed}" in
+          *[!0-9]*|'') ;;
+          *)
+            if [ "${iceberg_observed}" -gt "${iceberg_last_commit}" ]; then
+              iceberg_last_commit="${iceberg_observed}"
+            fi
+            ;;
+        esac
+      fi
 
       green_ready=0
       if [ "${green_rows}" != "0" ]; then
@@ -132,7 +143,7 @@ data:
         printf '# HELP continux_records_rejected_total Bản ghi bị loại theo lý do. Mặc định là 0 cho tới khi bổ sung validation parser.\n'
         printf '# TYPE continux_records_rejected_total counter\n'
         printf 'continux_records_rejected_total{reason="parse"} 0\n'
-        printf '# HELP continux_iceberg_last_commit_timestamp_seconds Mốc thời gian snapshot Iceberg gần nhất RisingWave quan sát được.\n'
+        printf '# HELP continux_iceberg_last_commit_timestamp_seconds Mốc thời gian Iceberg gần nhất từ catalog hoặc lúc runner quan sát Parquet.\n'
         printf '# TYPE continux_iceberg_last_commit_timestamp_seconds gauge\n'
         printf 'continux_iceberg_last_commit_timestamp_seconds %s\n' "${iceberg_last_commit}"
 

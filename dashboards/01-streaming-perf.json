@@ -195,7 +195,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Lag Kafka theo consumer group nếu Redpanda cung cấp metric này; 0 nghĩa là không lag hoặc chưa có metric.",
+      "description": "Lag source Kafka theo catalog RisingWave; 0 nghĩa là consumer đã bắt kịp producer hoặc catalog chưa phản ánh thêm lag.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -249,8 +249,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(redpanda_kafka_consumer_group_lag{namespace=\"redpanda\",topic=~\"$topic\"}) or vector(0)",
-          "legendFormat": "lag",
+          "expr": "max(continux_kafka_lag) or vector(0)",
+          "legendFormat": "RisingWave proxy",
           "range": false,
           "refId": "A",
           "instant": true
@@ -369,15 +369,15 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(redpanda_kafka_request_bytes_total{namespace=\"redpanda\"}[$__rate_interval])) or sum(rate(redpanda_rpc_received_bytes{namespace=\"redpanda\"}[$__rate_interval])) or vector(0)",
-          "legendFormat": "request bytes",
+          "expr": "sum(rate(redpanda_kafka_request_bytes_total{namespace=\"redpanda\",redpanda_topic=~\"$topic\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kafka request bytes",
           "range": true,
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "sum(rate(redpanda_storage_log_written_bytes_total{namespace=\"redpanda\"}[$__rate_interval])) or vector(0)",
-          "legendFormat": "log written bytes",
+          "expr": "sum(rate(redpanda_rpc_received_bytes{namespace=\"redpanda\",redpanda_server=\"kafka\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kafka RPC received bytes",
           "range": true,
           "refId": "B"
         }
@@ -432,8 +432,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(redpanda_kafka_max_offset{namespace=\"redpanda\",topic=~\"$topic\"}) by (topic, partition) or vector(0)",
-          "legendFormat": "{{topic}} p{{partition}}",
+          "expr": "max(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_topic=~\"$topic\"}) by (redpanda_topic, redpanda_partition) or vector(0)",
+          "legendFormat": "{{redpanda_topic}} p{{redpanda_partition}}",
           "range": true,
           "refId": "A"
         }
@@ -552,7 +552,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(meta_barrier_latency_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or histogram_quantile(0.95, sum(rate(risingwave_meta_barrier_latency_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or histogram_quantile(0.95, sum(rate(risingwave_latency_seconds_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or vector(0)",
+          "expr": "histogram_quantile(0.95, sum(rate(meta_barrier_duration_seconds_bucket{namespace=\"risingwave\"}[$__rate_interval])) by (le)) or vector(0)",
           "legendFormat": "p95",
           "range": true,
           "refId": "A"
@@ -652,14 +652,14 @@
           "type": "prometheus",
           "uid": "${DS_VICTORIAMETRICS}"
         },
-        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+        "definition": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_namespace=\"kafka\"}, redpanda_topic)",
         "hide": 0,
         "includeAll": false,
         "label": "Topic",
         "multi": false,
         "name": "topic",
         "query": {
-          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\"}, topic)",
+          "query": "label_values(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_namespace=\"kafka\"}, redpanda_topic)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -668,6 +668,7 @@
       }
     ]
   },
+  "refresh": "5s",
   "time": {
     "from": "now-6h",
     "to": "now"

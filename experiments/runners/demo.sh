@@ -301,7 +301,8 @@ reset_runtime() {
     sync_app redpanda-topics
     mc rm --recursive --force local/iceberg-data/nyc/zone_stats/ |
         tee "${EVIDENCE_DIR}/${prefix}-clear-iceberg.txt"
-    kubectl -n pipeline exec deploy/continux-metrics -- rm -f /state/cutover.prom
+    kubectl -n pipeline exec deploy/continux-metrics -- \
+        rm -f /state/cutover.prom /state/iceberg-last-commit
 
     if [ "${target_state}" = "baseline-blue" ]; then
         sync_app pipeline
@@ -341,6 +342,7 @@ baseline() {
 }
 
 replay() {
+    local iceberg_observed_timestamp
     load_state
     assert_local_port 4567
     assert_local_port 9000
@@ -372,6 +374,13 @@ replay() {
         tee "${EVIDENCE_DIR}/04-mv-final.txt"
     mc ls --recursive local/iceberg-data/nyc/zone_stats/ |
         sed -n '1,50p' | tee "${EVIDENCE_DIR}/04-iceberg-final.txt"
+    grep -q '\.parquet$' "${EVIDENCE_DIR}/04-iceberg-final.txt" ||
+        die "Iceberg chưa có tệp Parquet sau replay."
+    iceberg_observed_timestamp="$(date +%s)"
+    printf '%s\n' "${iceberg_observed_timestamp}" |
+        tee "${EVIDENCE_DIR}/04-iceberg-last-commit-timestamp.txt" |
+        kubectl -n pipeline exec -i deploy/continux-metrics -- \
+            sh -c 'cat > /state/iceberg-last-commit'
     bash "${REPO_ROOT}/scripts/k3s-check.sh" overview |
         tee "${EVIDENCE_DIR}/04-health-after-replay.txt"
 

@@ -51,9 +51,9 @@ Dashboard này chứng minh pipeline ingest và xử lý luồng.
 |-------|---------|-----------|
 | `Scrape target health` | Tỷ lệ target được VictoriaMetrics scrape thành công | Sau khi exporter chạy, target health đạt mức quan sát được; kỳ vọng `100%` cho các target chính |
 | `Pipeline pods ready` | Pod chính trong pipeline/redpanda/risingwave Ready | Có thể thấp hơn `100%` nếu Vector đã dừng sau replay, đây là chủ đích |
-| `Consumer lag` | Lag Kafka trong cửa sổ đo | Kỳ vọng `0` khi consumer (RisingWave) bắt kịp producer (Vector) |
+| `Consumer lag` | Proxy lag source Kafka từ catalog RisingWave | Kỳ vọng `0` khi consumer bắt kịp producer; catalog có thể không phản ánh dao động ngắn |
 | `Vector and Redpanda network bytes/s` | Proxy traffic Vector -> Redpanda | Tăng khi Vector replay, giảm khi dừng Vector |
-| `Topic offsets` | Offset topic theo partition | Có tín hiệu khi ingest; panel có thể phẳng sau khi dừng |
+| `Topic offsets` | Offset topic Redpanda theo partition | Có tín hiệu khi ingest; panel có thể phẳng sau khi dừng |
 | `RisingWave rows/s` | Proxy tốc độ xử lý của RisingWave | Tăng trong replay, về thấp khi đã dừng |
 | `Application events/s` | `continux_events_processed_total` và metric liên quan | Dùng kèm SQL count vì Kafka catalog metrics còn hạn chế |
 
@@ -87,8 +87,8 @@ Dashboard này phục vụ kịch bản Blue/Green cutover.
 | `Thời gian cutover gần nhất` | `continux_cutover_duration_seconds` | Thời gian của lần swap gần nhất |
 | `Seconds since last swap` | Tuổi lần swap gần nhất | Hiện `N/A` khi chưa có lần swap; dựa trên `continux_last_swap_timestamp_seconds` |
 | `Serving availability` | Target RisingWave còn được scrape | Không tụt trong lúc swap |
-| `Lỗi truy vấn trong lúc cutover` | `continux_query_errors_total` | Kỳ vọng `0` |
-| `Consumer lag during swap` | Lag Kafka trong cửa sổ cutover | Kỳ vọng `0` khi consumer bắt kịp |
+| `Lỗi truy vấn trong lúc cutover` | `continux_query_errors_total` | Guardrail zero-downtime; kỳ vọng luôn `0` |
+| `Consumer lag during swap` | Proxy lag source Kafka từ catalog RisingWave | Kỳ vọng `0` khi consumer bắt kịp |
 | `RisingWave khởi động lại trong khoảng đã chọn` | Số lần compactor/compute/frontend/meta khởi động lại | Kỳ vọng `0` |
 | `Blue vs green row count` | Public/blue/green rows | Public chuyển sang logic green sau swap |
 
@@ -102,10 +102,10 @@ Dashboard này đọc tính toàn vẹn dữ liệu và đầu ra lakehouse.
 |-------|---------|-----------|
 | `Public MV rows` | Số dòng `mv_zone_stats` | Số nhóm zone của lượt replay |
 | `Checksum mismatch` | Cờ lệch checksum giữa các view | `0` khi so cùng logic; `1` sau cutover là kết quả dự kiến nếu so logic mới với logic cũ |
-| `Iceberg freshness` | Tuổi commit Iceberg gần nhất | Hiện `N/A` khi catalog chưa có snapshot; đối chiếu thêm bằng MinIO listing |
+| `Iceberg freshness` | Tuổi commit Iceberg gần nhất | Hiện `N/A` trước replay; dùng catalog hoặc mốc runner quan sát Parquet |
 | `MinIO PVC used` | Dung lượng PVC MinIO đã dùng | Tăng nhẹ khi Iceberg sinh Parquet |
 | `Blue/green/public row count` | So sánh row count các view | Sau swap public và green-name có thể bằng nhau hoặc chênh tùy logic |
-| `Bản ghi bị loại/s` | Bản ghi lỗi parse | Kỳ vọng `0` |
+| `Bản ghi bị loại/s` | Guardrail lỗi parse | Exporter hiện xuất `0` cho tới khi bổ sung validation parser |
 | `RisingWave sink rows/s` | Proxy dòng source/sink | Có tín hiệu trong replay, về thấp sau khi dừng |
 | `MinIO storage growth` | Tăng trưởng object store | Tăng khi Iceberg sinh Parquet |
 | `Data path target health` | Target scrape theo service | Dùng để phân biệt lỗi metric với lỗi service |
@@ -126,7 +126,7 @@ Sau cutover, public MV mang logic green, còn view giữ tên `mv_zone_stats_gre
 | `continux_cutover_duration_seconds` | Ghi bởi runbook cutover | Thời gian swap |
 | `continux_last_swap_timestamp_seconds` | Ghi bởi runbook cutover | Tuổi lần swap |
 | `continux_query_errors_total` | Ghi bởi query loop/cutover | Zero-downtime |
-| `continux_iceberg_last_commit_timestamp_seconds` | RisingWave Iceberg catalog nếu có | Freshness |
+| `continux_iceberg_last_commit_timestamp_seconds` | RisingWave Iceberg catalog hoặc runner quan sát Parquet | Freshness |
 
 Verify nhanh:
 
