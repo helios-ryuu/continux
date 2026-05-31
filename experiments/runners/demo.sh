@@ -148,6 +148,11 @@ preflight_cluster() {
     kubectl cluster-info >/dev/null
     kubectl -n pipeline get deploy/vector >/dev/null
     kubectl -n redpanda get pod/redpanda-0 >/dev/null
+    assert_local_port 8080
+    assert_local_port 4567
+    assert_local_port 9000
+    assert_local_port 9108
+    assert_local_port 8428
     info "Kiểm tra trước khi chạy trên cluster đã thành công."
 }
 
@@ -387,6 +392,23 @@ query_loop() {
     done
 }
 
+wait_for_vm_value() {
+    local metric="$1"
+    local expected="$2"
+
+    for _ in $(seq 1 8); do
+        if curl -fsSG --retry 2 --retry-all-errors --retry-delay 1 \
+            'http://127.0.0.1:8428/api/v1/query' \
+            --data-urlencode "query=${metric} == ${expected}" |
+            grep -Fq '"result":[{'; then
+            return
+        fi
+        sleep 5
+    done
+
+    die "VictoriaMetrics chưa quan sát được ${metric}=${expected}."
+}
+
 cutover() {
     load_state
     assert_local_port 4567
@@ -395,8 +417,7 @@ cutover() {
     local query_log="${EVIDENCE_DIR}/05-query-loop-during-cutover.txt"
     local query_pid cutover_start_ns cutover_end_ns cutover_duration swap_timestamp query_errors
 
-    psql -h localhost -p 4567 -d dev -U root <<'SQL' |
-        tee "${EVIDENCE_DIR}/05-create-green.txt"
+    psql -h localhost -p 4567 -d dev -U root <<'SQL' | tee "${EVIDENCE_DIR}/05-create-green.txt"
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats_green AS
 SELECT
     z.borough,
@@ -461,13 +482,17 @@ continux_query_errors_total ${query_errors}
 EOF
 
     sleep 20
-    curl -fsS http://127.0.0.1:9108/metrics |
+    wait_for_vm_value continux_cutover_duration_seconds "${cutover_duration}"
+    wait_for_vm_value continux_query_errors_total "${query_errors}"
+    curl -fsS --retry 3 --retry-all-errors --retry-delay 2 http://127.0.0.1:9108/metrics |
         grep -E '^continux_(cutover|last_swap|query_errors|green_ready|mv_rows|mv_trips|checksum)' |
         tee "${EVIDENCE_DIR}/05-exporter-cutover.txt"
-    curl -fsSG 'http://127.0.0.1:8428/api/v1/query' \
+    curl -fsSG --retry 3 --retry-all-errors --retry-delay 2 \
+        'http://127.0.0.1:8428/api/v1/query' \
         --data-urlencode 'query=continux_cutover_duration_seconds' |
         tee "${EVIDENCE_DIR}/05-vm-duration.json"
-    curl -fsSG 'http://127.0.0.1:8428/api/v1/query' \
+    curl -fsSG --retry 3 --retry-all-errors --retry-delay 2 \
+        'http://127.0.0.1:8428/api/v1/query' \
         --data-urlencode 'query=continux_query_errors_total' |
         tee "${EVIDENCE_DIR}/05-vm-query-errors.json"
 }
