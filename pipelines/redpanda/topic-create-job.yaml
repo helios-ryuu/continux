@@ -18,7 +18,7 @@ spec:
         role: data-plane
       containers:
         - name: rpk
-          image: redpandadata/redpanda:v26.1.8
+          image: redpandadata/redpanda:v26.1.9
           envFrom:
             - configMapRef:
                 name: redpanda-topic-config
@@ -29,11 +29,11 @@ spec:
           args:
             - |
               set -eu
-              echo "Checking Redpanda topic ${TOPIC_NAME} on ${BROKERS}"
+              echo "Đang kiểm tra topic Redpanda ${TOPIC_NAME} trên ${BROKERS}"
               if rpk topic list --brokers "${BROKERS}" | grep -F "${TOPIC_NAME}"; then
-                echo "Topic ${TOPIC_NAME} already exists"
+                echo "Topic ${TOPIC_NAME} đã tồn tại"
               else
-                echo "Creating topic ${TOPIC_NAME}"
+                echo "Đang tạo topic ${TOPIC_NAME}"
                 rpk topic create "${TOPIC_NAME}" \
                   --brokers "${BROKERS}" \
                   --partitions "${TOPIC_PARTITIONS}" \
@@ -42,5 +42,5 @@ spec:
                   --topic-config "cleanup.policy=${TOPIC_CLEANUP_POLICY}"
               fi
 
-              echo "Topic details:"
+              echo "Chi tiết topic:"
               rpk topic describe "${TOPIC_NAME}" --brokers "${BROKERS}"

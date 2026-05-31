@@ -78,7 +78,7 @@
           "instant": true
         }
       ],
-      "title": "Public MV rows",
+      "title": "Số dòng MV public",
       "type": "stat"
     },
     {
@@ -143,7 +143,7 @@
           "instant": true
         }
       ],
-      "title": "Checksum mismatch",
+      "title": "Lệch checksum",
       "type": "stat"
     },
     {
@@ -212,7 +212,7 @@
           "instant": true
         }
       ],
-      "title": "Iceberg freshness",
+      "title": "Độ mới của Iceberg",
       "type": "stat"
     },
     {
@@ -220,7 +220,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Proxy dung lượng object store đang tăng khi Iceberg ghi file.",
+      "description": "Chỉ dấu đại diện cho dung lượng lưu trữ đối tượng đang tăng khi Iceberg ghi file.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -281,7 +281,7 @@
           "instant": true
         }
       ],
-      "title": "MinIO PVC used",
+      "title": "Dung lượng PVC MinIO đã dùng",
       "type": "stat"
     },
     {
@@ -337,7 +337,7 @@
           "refId": "A"
         }
       ],
-      "title": "Blue/green/public row count",
+      "title": "Số dòng Blue, Green và public",
       "type": "timeseries"
     },
     {
@@ -345,7 +345,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Bản ghi bị loại theo lý do; kỳ vọng bằng 0 trong demo sạch.",
+      "description": "Bản ghi bị loại theo lý do; kỳ vọng bằng 0 trong lượt thực nghiệm sạch.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -397,7 +397,7 @@
           "refId": "A"
         }
       ],
-      "title": "Rejected records/s",
+      "title": "Bản ghi bị loại/s",
       "type": "timeseries"
     },
     {
@@ -405,7 +405,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Proxy dòng vào source/sink trong RisingWave nếu metric tương ứng tồn tại.",
+      "description": "Chỉ dấu đại diện cho dòng vào source/sink trong RisingWave nếu metric tương ứng tồn tại.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -460,7 +460,7 @@
           "refId": "B"
         }
       ],
-      "title": "RisingWave sink rows/s",
+      "title": "Dòng sink RisingWave/s",
       "type": "timeseries"
     },
     {
@@ -516,7 +516,7 @@
           "refId": "A"
         }
       ],
-      "title": "MinIO storage growth",
+      "title": "Mức tăng dung lượng MinIO",
       "type": "timeseries"
     },
     {
@@ -524,7 +524,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Bảng target scrape để đối chiếu nhanh khi panel integrity bằng 0 vì thiếu metric hoặc service down.",
+      "description": "Bảng target scrape để đối chiếu nhanh khi panel toàn vẹn bằng 0 vì thiếu metric hoặc service ngừng hoạt động.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -576,7 +576,7 @@
           "format": "table"
         }
       ],
-      "title": "Data path target health",
+      "title": "Sức khỏe target đường dữ liệu",
       "type": "table"
     }
   ],
@@ -629,7 +629,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "data-integrity",
+  "title": "Tính toàn vẹn dữ liệu",
   "uid": "data-integrity",
   "version": 2
 }

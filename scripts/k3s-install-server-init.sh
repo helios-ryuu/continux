@@ -1,12 +1,12 @@
 #!/bin/bash
 # =================================================================
-# k3s-install-server-init.sh - Initialize K3s server #1 with --cluster-init.
-# Run on: imac.
-# Purpose: create the embedded-etcd K3s cluster over Tailscale.
+# Khởi tạo K3s server số 1 với --cluster-init.
+# Chạy trên: imac.
+# Mục đích: tạo cụm K3s embedded etcd qua Tailscale.
 # =================================================================
 set -euo pipefail
 
-# ======================== COLORS ========================
+# ======================== MÀU HIỂN THỊ ========================
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
@@ -17,10 +17,10 @@ die()   { echo -e "${RED}[FAIL]${NC}  $*" >&2; exit 1; }
 
 usage() {
     cat <<'EOF'
-Usage:
+Cú pháp:
   sudo bash scripts/k3s-install-server-init.sh
 
-Initialize K3s server #1 on imac with embedded etcd over Tailscale.
+Khởi tạo K3s server số 1 trên imac với embedded etcd qua Tailscale.
 EOF
 }
 
@@ -50,7 +50,7 @@ NODE_NAME="imac"
 echo -e "\n${BOLD}=== K3s Server Init — ${NODE_NAME} ===${NC}"
 info "Tailscale IP : ${TAILSCALE_IP}"
 info "Node name    : ${NODE_NAME}"
-info "K3s channel  : stable"
+info "Kênh K3s     : stable"
 echo ""
 read -r -p "$(echo -e "${YELLOW}Tiếp tục cài đặt? [y/N]${NC} ")" confirm
 [[ "${confirm,,}" == "y" ]] || { info "Đã huỷ."; exit 0; }
@@ -58,7 +58,7 @@ read -r -p "$(echo -e "${YELLOW}Tiếp tục cài đặt? [y/N]${NC} ")" confirm
 # ======================== CÀI K3S ========================
 info "Đang tải và cài K3s (stable)..."
 
-curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable INSTALL_K3S_SYMLINK=force sh -s - server \
     --cluster-init \
     --write-kubeconfig-mode=644 \
     --disable=traefik \
@@ -91,12 +91,12 @@ NODE_TOKEN=$(cat /var/lib/rancher/k3s/server/node-token)
 echo ""
 echo -e "${BOLD}=================================================${NC}"
 ok "Cài đặt hoàn tất!"
-echo -e "${YELLOW}Node join token (copy để dùng ở bước tiếp theo):${NC}"
+echo -e "${YELLOW}Token join node (dùng ở bước tiếp theo):${NC}"
 echo -e "${CYAN}${NODE_TOKEN}${NC}"
 echo ""
-echo -e "${YELLOW}Join server #2 on continux-vps:${NC}"
+echo -e "${YELLOW}Join server số 2 trên continux-vps:${NC}"
 echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> continux-vps edge"
-echo -e "${YELLOW}Join server #3 on helios-pc:${NC}"
+echo -e "${YELLOW}Join server số 3 trên helios-pc:${NC}"
 echo -e "  sudo bash scripts/k3s-install-server.sh ${TAILSCALE_IP} <token> helios-pc quorum"
 echo -e "${BOLD}=================================================${NC}"
 

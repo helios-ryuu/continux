@@ -20,7 +20,7 @@
 
 Đồ án xây dựng và kiểm chứng một kiến trúc Data Lakehouse thời gian thực trên cụm Kubernetes nhẹ K3s. Hệ thống dùng dữ liệu NYC TLC Yellow Taxi, chuyển đổi Parquet sang JSONL, phát luồng sự kiện bằng Vector, truyền qua Redpanda, xử lý streaming SQL bằng RisingWave, ghi kết quả xuống Apache Iceberg trên MinIO và quan sát bằng VictoriaMetrics/Grafana.
 
-Hệ thống chứng minh được cụm K3s 3 server hoạt động ổn định, pipeline end-to-end sinh được materialized view và Iceberg object, và kịch bản Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...` hoàn tất mà không gây lỗi truy vấn ở lớp SQL. Số đo cụ thể của từng lượt thực nghiệm được lưu trong `evidence/` ngoài repo.
+Hệ thống chứng minh được cụm K3s 3 server hoạt động ổn định, pipeline xuyên suốt sinh được materialized view và Iceberg object, và kịch bản Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...` hoàn tất mà không gây lỗi truy vấn ở lớp SQL. Số đo cụ thể của từng lượt thực nghiệm được lưu trong `~/continux-demo-evidence/<RUN_ID>/` ngoài repo.
 
 ## 3. Mở Đầu
 
@@ -44,7 +44,7 @@ Vấn đề chính của đề tài là: làm thế nào để triển khai mộ
 - Quan sát hệ thống bằng VictoriaMetrics và Grafana.
 - Chạy replay ingest có kiểm soát trên dataset NYC TLC.
 - Thực nghiệm Blue/Green cutover ở lớp RisingWave materialized view.
-- Ghi lại evidence có thể kiểm chứng bằng lệnh, output và dashboard.
+- Ghi lại bằng chứng có thể kiểm chứng bằng lệnh, đầu ra và dashboard.
 
 ## 4. Cơ Sở Lý Thuyết Và Bài Báo Nền Tảng Ursa
 
@@ -117,7 +117,7 @@ Thao tác swap đổi tên hai materialized view, giúp public name `mv_zone_sta
 
 ## 6. Môi Trường Triển Khai
 
-### 6.1. Topology Cụm
+### 6.1. Bố Trí Cụm
 
 | Node | Cấu hình | Vai trò |
 |------|----------|---------|
@@ -139,15 +139,15 @@ Tailscale IP:
 | Thành phần | Phiên bản |
 |------------|-----------|
 | K3s | `v1.35.5+k3s1` |
-| Helm | `v4.1.4` |
-| Argo CD | `v3.4.2` |
+| Helm | `v4.2.0` |
+| Argo CD | `v3.4.3` |
 | Tailscale | `v1.98.2` |
-| Redpanda | `v26.1.8` |
-| RisingWave | `v2.8.3` |
+| Redpanda | `v26.1.9` |
+| RisingWave | `v2.8.4` |
 | Vector | `0.55.0-alpine` |
-| VictoriaMetrics | `v1.143.0` |
+| VictoriaMetrics | `v1.144.0` |
 | Grafana | `v13.0.1+security-01` |
-| cloudflared | `2026.5.0` |
+| cloudflared | `2026.5.2` |
 
 ## 7. Quy Trình Triển Khai
 
@@ -159,16 +159,18 @@ Quy trình triển khai chi tiết được chia thành [SETUP.md](./runbook/SET
 4. Gán label/taint để phân tách data plane, control plane và quorum node.
 5. Cài CLI quản trị: Helm, Argo CD CLI, rpk, mc, psql.
 6. Cài Argo CD, Cloudflare Tunnel, đăng ký repo và sync root app.
-7. Deploy MinIO, Redpanda, RisingWave.
-8. Deploy VictoriaMetrics, Grafana và dashboard.
+7. Triển khai MinIO, Redpanda, RisingWave.
+8. Triển khai VictoriaMetrics, Grafana và dashboard.
 9. Tải dataset, convert JSONL, upload Taxi Zone lookup.
-10. Sync Vector ở `replicas=0`, apply SQL, chạy runner theo pha và verify end-to-end.
+10. Sync Vector ở `replicas=0`, apply SQL, chạy runner theo pha và xác minh xuyên suốt.
 
 ### 7.1. Đóng Gói Paper
 
-Từ release `1.2.0`, bản paper nộp kèm được quản lý trong `paper/` thay vì nhồi toàn bộ nội dung vào một file TeX dài. Hai wrapper `paper/main_vi.tex` và `paper/main_en.tex` dùng layout `article` hai cột, còn nội dung từng phần nằm trong `paper/src/vi/` và `paper/src/en/`.
+Bản paper nộp kèm được quản lý theo module trong `paper/`. Hai wrapper
+`paper/main_vi.tex` và `paper/main_en.tex` dùng layout `article` hai cột, còn
+nội dung từng phần nằm trong `paper/src/vi/` và `paper/src/en/`.
 
-PDF cuối được commit là `paper/main_vi.pdf` và `paper/main_en.pdf`. `docs/REPORT.md` tiếp tục đóng vai trò báo cáo/evidence companion, dùng để tra cứu nhanh quy trình, kết quả và lệnh kiểm chứng.
+PDF cuối được commit là `paper/main_vi.pdf` và `paper/main_en.pdf`. `docs/REPORT.md` tiếp tục đóng vai trò báo cáo đi kèm bằng chứng, dùng để tra cứu nhanh quy trình, kết quả và lệnh kiểm chứng.
 
 ## 8. Thiết Kế Pipeline Dữ Liệu
 
@@ -217,7 +219,7 @@ RisingWave ghi Iceberg vào prefix:
 iceberg-data/nyc/zone_stats/
 ```
 
-Sau replay, MinIO có data Parquet, equality-delete Parquet và position-delete Parquet, chứng minh sink đã ghi output lakehouse.
+Sau replay, MinIO có data Parquet, equality-delete Parquet và position-delete Parquet, chứng minh sink đã ghi đầu ra lakehouse.
 
 ## 9. Thiết Kế Quan Sát Và Thực Nghiệm
 
@@ -244,14 +246,14 @@ Hệ thống có 4 nhóm dashboard:
 | `continux_events_processed_total` | Proxy event đã xử lý |
 | `continux_green_ready` | Green MV sẵn sàng |
 | `continux_cutover_duration_seconds` | Thời gian swap |
-| `continux_last_swap_timestamp_seconds` | Timestamp swap |
+| `continux_last_swap_timestamp_seconds` | Mốc thời gian swap |
 | `continux_query_errors_total` | Lỗi query trong cutover |
 | `continux_checksum_mismatch_total` | Cờ mismatch khi so cùng logic |
 | `continux_records_rejected_total` | Bản ghi bị loại |
 
-### 9.3. Evidence
+### 9.3. Bằng Chứng
 
-Evidence của mỗi lượt thực nghiệm được lưu tại:
+Bằng chứng của mỗi lượt thực nghiệm được lưu tại:
 
 ```text
 ~/continux-demo-evidence/<RUN_ID>/
@@ -261,8 +263,8 @@ Trong đó `<RUN_ID>` được tạo bằng `date +%Y%m%d-%H%M%S` ở đầu lư
 
 | File | Nội dung |
 |------|----------|
-| `00-run-id.txt` | RUN_ID, evidence dir và Vector profile |
-| `03-clean-baseline-counts.txt` | Baseline Blue sạch |
+| `00-run-id.txt` | RUN_ID, thư mục bằng chứng và profile Vector |
+| `03-clean-baseline-counts.txt` | Trạng thái nền Blue sạch |
 | `04-replay-start.txt` | Epoch bắt đầu replay |
 | `04-vector-startup-logs.txt` | Vector startup |
 | `04-mv-final.txt` | MV count cuối replay |
@@ -314,28 +316,28 @@ Số liệu chi tiết của mỗi lượt nằm trong `~/continux-demo-evidence
 - Green MV được tạo song song với cùng schema, thêm điều kiện lọc `fare_amount >= 0 AND trip_distance >= 0`.
 - Query loop liên tục chạy `SELECT COUNT(*), SUM(trip_count) FROM mv_zone_stats` mỗi `0.5s` trong lúc swap.
 - `ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green` hoàn tất, sau đó public MV mang logic green.
-- Query loop ghi nhận `0` lỗi và RisingWave không restart trong cửa sổ swap.
+- Query loop ghi nhận `0` lỗi và RisingWave không khởi động lại trong cửa sổ swap.
 - Exporter và VictoriaMetrics ghi nhận `continux_cutover_duration_seconds`, `continux_last_swap_timestamp_seconds` và `continux_query_errors_total`.
 
 Đây là bằng chứng chính cho mục tiêu không gián đoạn truy vấn ở lớp SQL.
 
 ### 10.5. Dashboard
 
-Dashboard `resource-util` cho thấy workload vẫn sẵn sàng và PVC còn dư địa. Dashboard `cutover` hiển thị green readiness, duration, query errors và restart. Dashboard `data-integrity` sau cutover có thể hiển thị `Checksum mismatch = 1` vì public view đã chuyển sang logic green, còn view giữ tên `mv_zone_stats_green` đang chứa logic cũ. Đây là lệch có chủ đích do thay đổi logic, không phải mất dữ liệu.
+Dashboard `resource-util` cho thấy workload vẫn sẵn sàng và PVC còn dư địa. Dashboard `cutover` hiển thị mức sẵn sàng Green, thời lượng, lỗi truy vấn và số lần khởi động lại. Dashboard `data-integrity` sau cutover có thể hiển thị `Checksum mismatch = 1` vì public view đã chuyển sang logic Green, còn view giữ tên `mv_zone_stats_green` đang chứa logic cũ. Đây là lệch có chủ đích do thay đổi logic, không phải mất dữ liệu.
 
 ## 11. Đánh Giá Theo 4 Nhóm Chỉ Số
 
-### 11.1. Cutover & GitOps Deployment
+### 11.1. Cutover Và Triển Khai GitOps
 
-Mục tiêu cutover đạt. Green MV được tạo song song, query loop không lỗi, swap hoàn tất nhanh và RisingWave không restart; metric được VictoriaMetrics scrape. GitOps đảm bảo manifest triển khai app chính thống nhất với repo.
+Mục tiêu cutover đạt. Green MV được tạo song song, query loop không lỗi, swap hoàn tất nhanh và RisingWave không khởi động lại; metric được VictoriaMetrics scrape. GitOps đảm bảo manifest triển khai app chính thống nhất với repo.
 
-### 11.2. Data Quality & Lakehouse Output
+### 11.2. Chất Lượng Dữ Liệu Và Đầu Ra Lakehouse
 
 Replay sinh kết quả trong `mv_zone_stats` và Iceberg có object mới. Sau cutover, public MV đổi sang logic lọc dữ liệu âm; sự chênh lệch số trips giữa trước/sau swap là kết quả logic mới. `continux_query_errors_total` đạt `0` và `continux_records_rejected_total{reason="parse"}` đạt `0`.
 
 ### 11.3. Streaming Performance
 
-Vector replay từ file JSONL thật, Redpanda topic tồn tại, RisingWave MV tăng trong lúc replay và MinIO có object Iceberg mới. Do giới hạn catalog Kafka metrics của RisingWave trong cấu hình này, một số metric Kafka như `continux_events_ingested_total` và `continux_kafka_lag` không phản ánh đầy đủ; báo cáo dùng thêm `continux_events_processed_total`, MV count, Redpanda topic output và dashboard proxy.
+Vector replay từ file JSONL thật, Redpanda topic tồn tại, RisingWave MV tăng trong lúc replay và MinIO có object Iceberg mới. Do giới hạn catalog Kafka metric của RisingWave trong cấu hình này, một số metric Kafka như `continux_events_ingested_total` và `continux_kafka_lag` không phản ánh đầy đủ; báo cáo dùng thêm `continux_events_processed_total`, số dòng MV, đầu ra topic Redpanda và dashboard đại diện.
 
 ### 11.4. Resource Utilization & Stability
 
@@ -346,7 +348,7 @@ Cụm chạy trên phần cứng nhỏ nhưng ổn định: tất cả nodes `Re
 ### 12.1. Hạn Chế
 
 - Data plane chính chỉ có 8 GB RAM, nên throughput được kiểm soát bằng rate limit thay vì đẩy tải tối đa.
-- `helios-pc` là WSL, phù hợp quorum demo nhưng không lý tưởng cho production.
+- `helios-pc` là WSL, phù hợp quorum demo nhưng không lý tưởng cho môi trường thật.
 - Một số metric Kafka catalog trong RisingWave chưa cung cấp số liệu đủ dùng ở cấu hình này.
 - Iceberg freshness từ exporter còn cần hoàn thiện nếu muốn đọc sâu metadata snapshot.
 - Cutover mới chứng minh ở lớp materialized view, chưa mở rộng sang nhiều sink phụ thuộc phức tạp.
@@ -362,7 +364,7 @@ Cụm chạy trên phần cứng nhỏ nhưng ổn định: tất cả nodes `Re
 
 ## 13. Kết Luận
 
-Continux đã hoàn thành mục tiêu xây dựng Data Lakehouse thời gian thực trên Kubernetes. Hệ thống chứng minh được pipeline end-to-end từ dataset NYC TLC đến Iceberg, có GitOps, có dashboard quan sát và có kịch bản Blue/Green cutover không gây lỗi truy vấn. Kết quả cho thấy hướng cập nhật logic phân tích bằng materialized view song song là khả thi trong môi trường K3s tài nguyên giới hạn.
+Continux đã hoàn thành mục tiêu xây dựng Data Lakehouse thời gian thực trên Kubernetes. Hệ thống chứng minh được pipeline xuyên suốt từ bộ dữ liệu NYC TLC đến Iceberg, có GitOps, có dashboard quan sát và có kịch bản Blue/Green cutover không gây lỗi truy vấn. Kết quả cho thấy hướng cập nhật logic phân tích bằng materialized view song song là khả thi trong môi trường K3s tài nguyên giới hạn.
 
 ## 14. Tài Liệu Tham Khảo
 
@@ -377,9 +379,9 @@ Continux đã hoàn thành mục tiêu xây dựng Data Lakehouse thời gian th
 9. Grafana Documentation. <https://grafana.com/docs/>
 10. Vector Documentation. <https://vector.dev/docs/>
 
-## 15. Phụ Lục Evidence Và Lệnh Kiểm Chứng
+## 15. Phụ Lục Bằng Chứng Và Lệnh Kiểm Chứng
 
-### 15.1. Baseline Cluster
+### 15.1. Trạng Thái Nền Của Cluster
 
 ```bash
 cd ~/continux
@@ -394,7 +396,7 @@ kubectl get pods -A -o wide
 kubectl get pvc -A
 ```
 
-Evidence:
+Bằng chứng:
 
 ```text
 ~/continux-demo-evidence/<RUN_ID>/00-k3s-check.txt
@@ -413,7 +415,7 @@ psql -h localhost -p 4567 -d dev -U root -c \
   "SELECT COUNT(*) AS tlc_zone_rows FROM tlc_zone;"
 ```
 
-Evidence:
+Bằng chứng:
 
 ```text
 ~/continux-demo-evidence/<RUN_ID>/02-risingwave-show-cluster.txt
@@ -432,7 +434,7 @@ psql -h localhost -p 4567 -d dev -U root -c \
 kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
 ```
 
-Evidence:
+Bằng chứng:
 
 ```text
 ~/continux-demo-evidence/<RUN_ID>/04-replay-start.txt
@@ -454,7 +456,7 @@ curl -G 'http://127.0.0.1:8428/api/v1/query' \
   --data-urlencode 'query=continux_query_errors_total'
 ```
 
-Evidence:
+Bằng chứng:
 
 ```text
 ~/continux-demo-evidence/<RUN_ID>/05-create-green.txt

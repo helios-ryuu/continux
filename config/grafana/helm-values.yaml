@@ -1,6 +1,6 @@
 adminUser: admin
-# adminPassword intentionally omitted. The Grafana Helm chart generates it
-# into secret/grafana key admin-password; see docs/runbook/SETUP.md §2.7.2.
+# Cố ý không đặt adminPassword. Helm chart Grafana tự sinh giá trị vào
+# secret/grafana, key admin-password; xem docs/runbook/SETUP.md §2.7.2.
 
 image:
   tag: 13.0.1-security-01

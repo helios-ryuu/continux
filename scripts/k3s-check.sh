@@ -1,9 +1,9 @@
 #!/bin/bash
 # =================================================================
-# k3s-check.sh — K3s Cluster Check
+# k3s-check.sh — Kiểm tra cluster K3s
 # Chạy trên : imac (node quản trị cluster)
 # Mục đích  : Kiểm tra tổng thể cụm K3s: node, pod, PVC, workload,
-#             image, Helm release/repo, secrets, tài nguyên hệ thống
+#             image, Helm release/repo, secret, tài nguyên hệ thống
 # Cú pháp   : bash k3s-check.sh [-e|--explain] [section] [args]
 # =================================================================
 
@@ -269,7 +269,7 @@ load_cache() {
         fi
     done
     wait
-    # Collect results from temp files
+    # Thu kết quả từ file tạm
     for node in $SORTED_NODES; do
         if [ -z "${PING_CACHE[$node]}" ]; then
             PING_CACHE["$node"]=$(cat "/tmp/k3s_check_ping_${node}" 2>/dev/null || echo "timeout")
@@ -289,7 +289,7 @@ get_ts_ip() {
         fi
     done
 
-    # Fallback: use hostname→IP map (no extra tailscale status call)
+    # Dự phòng: dùng ánh xạ hostname→IP, không gọi thêm tailscale status
     local ts_ip="${TS_HOST_IPS[$node]}"
     [ -n "$ts_ip" ] && echo "$ts_ip" && return
 
@@ -300,7 +300,7 @@ get_ts_ip() {
 section_overview() {
     load_cache
     section_header "1/8" "OVERVIEW: SỨC KHỎE CỤM"
-    explain "Section này đặt các tín hiệu hay xem nhất lên đầu: node Ready, pod lỗi, PVC bound, workload available và tài nguyên local node."
+    explain "Phần này đặt các tín hiệu hay xem nhất lên đầu: node Ready, pod lỗi, PVC bound, workload available và tài nguyên cục bộ của node."
 
     local nodes_total nodes_ready pods_total pods_healthy pods_problem pod_restarts
     local pvc_total pvc_bound workloads_total workloads_ready
@@ -336,7 +336,7 @@ section_overview() {
 
     echo -e "  ${YELLOW}>> HEALTH SUMMARY${NC}"
     metric_ratio "Nodes Ready" "$nodes_ready" "$nodes_total" "Ready"
-    metric_ratio "Pods Healthy" "$pods_healthy" "$pods_total" "Running/Succeeded"
+    metric_ratio "Pod khỏe" "$pods_healthy" "$pods_total" "Running/Succeeded"
     metric_ratio "PVC Bound" "$pvc_bound" "$pvc_total" "Bound"
     metric_ratio "Workloads Ready" "$workloads_ready" "$workloads_total" "Available"
 
@@ -345,9 +345,9 @@ section_overview() {
     local restart_color="$GREEN"
     [ "$pod_restarts" -gt 0 ] && restart_color="$ORANGE"
     printf "  ${CYAN}%-18s${NC} %b%d%b pod cần xem\n" "Pod Problems" "$problem_color" "$pods_problem" "$NC"
-    printf "  ${CYAN}%-18s${NC} %b%d%b container restart\n" "Restarts" "$restart_color" "$pod_restarts" "$NC"
+    printf "  ${CYAN}%-18s${NC} %b%d%b lần khởi động lại container\n" "Khởi động lại" "$restart_color" "$pod_restarts" "$NC"
 
-    echo -e "\n  ${YELLOW}>> LOCAL NODE QUICK GRAPH${NC}"
+    echo -e "\n  ${YELLOW}>> BIỂU ĐỒ NHANH CỦA NODE LOCAL${NC}"
     local ram_used ram_total ram_pct disk_used_pct disk_used disk_total
     if command -v free >/dev/null 2>&1; then
         read -r ram_used ram_total ram_pct < <(free -m | awk 'NR==2{printf "%d %d %d", $3, $2, ($3*100/$2)}')
@@ -356,7 +356,7 @@ section_overview() {
         printf "  ${CYAN}%-18s${NC} ${ORANGE}unavailable${NC}\n" "RAM"
     fi
     read -r disk_used disk_total disk_used_pct < <(df -hP / | awk 'NR==2{pct=$(NF-1); gsub("%","",pct); print $(NF-3), $(NF-4), pct}')
-    printf "  ${CYAN}%-18s${NC} %b  %s/%s\n" "Disk /" "$(bar_pct "$disk_used_pct" 22)" "$disk_used" "$disk_total"
+    printf "  ${CYAN}%-18s${NC} %b  %s/%s\n" "Ổ đĩa /" "$(bar_pct "$disk_used_pct" 22)" "$disk_used" "$disk_total"
 
     echo -e "\n  ${YELLOW}>> POD DENSITY BY NODE${NC}"
     local max_pods
@@ -371,7 +371,7 @@ section_overview() {
     local hot_list
     hot_list=$(echo "$ALL_PODS" | awk -F'\t' '($5!="Running" && $5!="Succeeded") || ($6+0>0) {print $2"\t"$3"\t"$1"\t"$4"\t"$5"\t"$6"\t"$7}' | sort -k1,1 -k2,2 | head -12)
     if [ -z "$hot_list" ]; then
-        echo -e "     ${GREEN}Không có pod lỗi hoặc restart.${NC}"
+        echo -e "     ${GREEN}Không có pod lỗi hoặc khởi động lại.${NC}"
     else
         print_ns_grouped_table "$hot_list" "POD\tNODE\tREADY\tSTATUS\tRESTARTS\tAGE" | awk '
         />> /{print; next}
@@ -388,8 +388,8 @@ section_overview() {
 }
 
 section_sys() {
-    section_header "5/8" "LOCAL NODE: CPU, RAM, DISK"
-    explain "Đọc tài nguyên ngay trên node đang chạy script. Dùng phần này khi cluster chậm, Vector/Redpanda OOM, hoặc disk MinIO gần đầy."
+    section_header "5/8" "NODE LOCAL: CPU, RAM, DISK"
+    explain "Đọc tài nguyên ngay trên node đang chạy script. Dùng phần này khi cluster chậm, Vector/Redpanda OOM, hoặc ổ đĩa MinIO gần đầy."
 
     printf "${CYAN}%-14s${NC} %s" "Hostname:" "$(hostname)"; explain_suffix "Tên Linux host hiện tại"; echo
     printf "${CYAN}%-14s${NC} %s" "Kernel:" "$(uname -r)"; explain_suffix "Phiên bản Linux kernel"; echo
@@ -426,7 +426,7 @@ section_sys() {
     fi
 
     read -r disk_used disk_total disk_pct < <(df -hP / | awk 'NR==2{pct=$(NF-1); gsub("%","",pct); print $(NF-3), $(NF-4), pct}')
-    printf "${CYAN}%-14s${NC} %b  %s/%s\n" "Disk /:" "$(bar_pct "$disk_pct" 24)" "$disk_used" "$disk_total"
+    printf "${CYAN}%-14s${NC} %b  %s/%s\n" "Ổ đĩa /:" "$(bar_pct "$disk_pct" 24)" "$disk_used" "$disk_total"
 
     echo -e "\n  ${YELLOW}>> TOP RAM PROCESSES${NC}"
     local top_rss
@@ -452,7 +452,7 @@ section_node() {
     section_header "2/8" "TOPOLOGY, NODES & PODS"
     explain "Tóm tắt node, phiên bản K3s, IP Tailscale, độ trễ ping và namespace đang có pod trên từng node."
 
-    # --- Collect raw data ---
+    # --- Thu dữ liệu thô ---
     local -a _NODE _STATUS _ROLE _VER _IP _LAT _NS
     local idx=0
 
@@ -489,7 +489,7 @@ section_node() {
         ((idx++))
     done
 
-    # --- Compute column widths (plain text only) ---
+    # --- Tính độ rộng cột từ plain text ---
     local w_node=4 w_status=6 w_role=4 w_ver=7 w_ip=2 w_lat=4
     for ((i=0; i<idx; i++)); do
         (( ${#_NODE[$i]}   > w_node   )) && w_node=${#_NODE[$i]}
@@ -500,27 +500,27 @@ section_node() {
         (( ${#_LAT[$i]}    > w_lat    )) && w_lat=${#_LAT[$i]}
     done
 
-    # --- Print header ---
+    # --- In header ---
     printf "${YELLOW}%-${w_node}s  %-${w_status}s  %-${w_role}s  %-${w_ver}s  %-${w_ip}s  %-${w_lat}s  %s${NC}\n" \
         NODE STATUS ROLE VERSION IP PING NAMESPACES
 
-    # --- Print rows with color, preserving alignment ---
+    # --- In từng dòng có màu và giữ căn lề ---
     for ((i=0; i<idx; i++)); do
-        # Status color + right-pad to column width
+        # Tô màu trạng thái và đệm phải theo độ rộng cột
         if [ "${_STATUS[$i]}" = "Ready" ]; then
             s_col="${GREEN}${_STATUS[$i]}${NC}$(printf '%*s' $((w_status - ${#_STATUS[$i]})) '')"
         else
             s_col="${RED}${_STATUS[$i]}${NC}$(printf '%*s' $((w_status - ${#_STATUS[$i]})) '')"
         fi
 
-        # Role color + right-pad
+        # Tô màu vai trò và đệm phải
         if [ "${_ROLE[$i]}" = "master" ]; then
             r_col="${PURPLE}${_ROLE[$i]}${NC}$(printf '%*s' $((w_role - ${#_ROLE[$i]})) '')"
         else
             r_col="${ORANGE}${_ROLE[$i]}${NC}$(printf '%*s' $((w_role - ${#_ROLE[$i]})) '')"
         fi
 
-        # Ping color + right-pad
+        # Tô màu ping và đệm phải
         lat="${_LAT[$i]}"
         case "$lat" in
             localhost) lat_col="${CYAN}${lat}${NC}" ;;
@@ -568,7 +568,7 @@ section_node() {
                     else sub(frac, "'"${YELLOW}"'" frac "'"${NC}"'", line);
                 }
 
-                # 2) Color restart count (field 5) — before status coloring injects ANSI codes
+                # 2) Tô màu số lần khởi động lại (cột 5) trước khi mã ANSI làm đổi nội dung trạng thái.
                 n=split(line, fields, /  +/);
                 for (i=1; i<=n; i++) {
                     if (fields[i]+0 > 0 && fields[i] ~ /^[1-9][0-9]*$/) {
@@ -597,7 +597,7 @@ section_node() {
 section_secrets() {
     load_cache
     section_header "8/8" "SECRETS (TÊN, TYPE, KEYS)"
-    explain "Chỉ in tên Secret, type và key; không in giá trị secret để tránh lộ credential trong terminal/report."
+    explain "Chỉ in tên Secret, type và key; không in giá trị secret để tránh lộ thông tin xác thực trong terminal hoặc báo cáo."
     local ns_list=$(echo "$RAW_SECRETS_JSON" | jq -r '
         .items[] | select(.type != "kubernetes.io/service-account-token" and .metadata.namespace != "kube-system") |
         .metadata.namespace
@@ -640,7 +640,7 @@ section_pvc() {
         NODE_PVC=""
         while IFS=$'\t' read -r pvc_ns pvc_name pvc_size; do
             [ -z "$pvc_name" ] && continue
-            # Use pre-computed PVC→node map for O(1) lookup
+            # Dùng ánh xạ PVC→node đã tính trước để tra cứu O(1)
             local node_for_pvc="${PVC_TO_NODE["${pvc_ns}/${pvc_name}"]}"
             if [ "$node_for_pvc" = "$node" ]; then
                 NODE_PVC+="${pvc_ns}\t${pvc_name}\t${pvc_size}\n"
@@ -772,8 +772,8 @@ section_res() {
 
 section_img() {
     load_cache
-    section_header "6/8" "CUSTOM IMAGES & USAGE"
-    explain "Hiển thị image không thuộc nhóm system image. [In-Use] nghĩa đang được pod dùng; [Unused] có thể là cache cũ."
+    section_header "6/8" "IMAGE TÙY CHỈNH VÀ MỨC SỬ DỤNG"
+    explain "Hiển thị image không thuộc nhóm image hệ thống. [Đang dùng] nghĩa đang được pod dùng; [Không dùng] có thể là cache cũ."
     POD_DATA=$(echo "$RAW_PODS_JSON" | jq -r '.items[] | .spec.nodeName as $node | .metadata.name as $pod | (.spec.containers[], (.spec.initContainers[]? // empty)) | [$node, (.image | split("/") | last | split(":") | first | split("@") | first), $pod] | @tsv' | sort -u)
     SYS_IMAGES="rancher|k8s\.io|gcr\.io|klipper|pause|coredns|traefik|metrics|local-path"
 
@@ -794,11 +794,11 @@ section_img() {
 
                 if [ -n "$using_pods" ]; then
                     sort_key="1_inuse"
-                    tag="${GREEN}[In-Use]${NC}"
+                    tag="${GREEN}[Đang dùng]${NC}"
                     info="${CYAN}(Pod: $using_pods)${NC}"
                 else
                     sort_key="2_unused"
-                    tag="${ORANGE}[Unused]${NC}"
+                    tag="${ORANGE}[Không dùng]${NC}"
                     info=""
                 fi
                 printf "%s\t-\t%s\t|\t%s GB\t|\t%b\t%b\n" "$sort_key" "$short_img" "$size_gb" "$tag" "$info"
@@ -1016,16 +1016,16 @@ print_legend() {
 
     echo -e "  ${YELLOW}>> HEALTH SUMMARY${NC}"
     legend_item "Nodes Ready" "Số node có condition Ready=True trên tổng số node."
-    legend_item "Pods Healthy" "Pod có phase Running hoặc Succeeded trên tổng số pod."
+    legend_item "Pod khỏe" "Pod có phase Running hoặc Succeeded trên tổng số pod."
     legend_item "PVC Bound" "PVC đã bind được volume trên tổng số PVC."
     legend_item "Workloads Ready" "Workload ngoài kube-system có số replica sẵn sàng đạt mong muốn."
     legend_item "Pod Problems" "Pod không Running/Succeeded, đang terminating, hoặc có container waiting/error."
-    legend_item "Restarts" "Tổng restart count của container trong toàn cluster."
+    legend_item "Khởi động lại" "Tổng số lần container khởi động lại trong toàn cluster."
     legend_item "Pod Density" "Số pod đang chạy trên từng node, giúp thấy workload phân bố lệch hay đều."
 
     echo ""
-    echo -e "  ${YELLOW}>> CLUSTER & OBJECTS${NC}"
-    legend_item "NS" "Kubernetes namespace. Trong report này namespace được gom thành header '>> <namespace>' thay cho cột NS lặp lại."
+    echo -e "  ${YELLOW}>> CLUSTER VÀ OBJECT${NC}"
+    legend_item "NS" "Kubernetes namespace. Trong báo cáo này namespace được gom thành tiêu đề '>> <namespace>' thay cho cột NS lặp lại."
     legend_item "NODE" "Máy tham gia cluster Kubernetes/K3s; pod được scheduler đặt chạy trên node."
     legend_item "ROLE" "Vai trò node. master/control-plane giữ API/etcd; worker chủ yếu chạy workload."
     legend_item "IP" "Địa chỉ node dùng để liên lạc trong cluster, ở đây thường là Tailscale IP."
@@ -1034,7 +1034,7 @@ print_legend() {
     legend_item "POD" "Đơn vị chạy container nhỏ nhất trong Kubernetes."
     legend_item "READY" "Với pod: số container ready/tổng container. Với workload: số replica ready."
     legend_item "STATUS" "Trạng thái hiện tại, ví dụ Running, Succeeded, Pending, Failed, CrashLoopBackOff."
-    legend_item "RESTARTS" "Tổng số lần container trong pod bị restart."
+    legend_item "RESTARTS" "Tổng số lần container trong pod khởi động lại."
     legend_item "AGE" "Tuổi object tính từ thời điểm được tạo."
     legend_item "PVC" "PersistentVolumeClaim, yêu cầu lưu trữ bền vững cho pod."
     legend_item "SIZE" "Dung lượng PVC hoặc image."
@@ -1056,26 +1056,26 @@ print_legend() {
     legend_item "CLUSTER-IP" "IP nội bộ của Service trong Kubernetes cluster; None nghĩa headless service."
     legend_item "PORTS" "Danh sách port/protocol Service expose."
     legend_item "IMAGE" "Container image đang có trên node."
-    legend_item "[In-Use]" "Image đang được ít nhất một pod dùng."
-    legend_item "[Unused]" "Image còn trong cache node nhưng không thấy pod hiện tại dùng."
+    legend_item "[Đang dùng]" "Image đang được ít nhất một pod dùng."
+    legend_item "[Không dùng]" "Image còn trong cache node nhưng không thấy pod hiện tại dùng."
     legend_item "HELM RELEASE" "Một lần cài đặt Helm chart vào cluster."
     legend_item "REVISION" "Số phiên bản release sau mỗi lần helm install/upgrade/rollback."
     legend_item "UPDATED" "Thời điểm Helm release được cập nhật gần nhất."
     legend_item "CHART" "Tên và phiên bản Helm chart."
     legend_item "APP_VERSION" "Phiên bản app mà chart khai báo."
     legend_item "REPOSITORY" "Nguồn Helm chart cấu hình trên máy đang chạy script."
-    legend_item "SECRET" "Object chứa dữ liệu nhạy cảm, thường được lưu dạng base64; report chỉ in tên/key, không in giá trị."
+    legend_item "SECRET" "Object chứa dữ liệu nhạy cảm, thường được lưu dạng base64; báo cáo chỉ in tên/key, không in giá trị."
     legend_item "KEYS" "Tên các key có trong Secret."
 
     echo -e "\n  ${YELLOW}>> COLORS & BARS${NC}"
-    legend_item "Health bar" "Dùng cho Nodes/Pods/PVC/Workloads: xanh lá là tỷ lệ tốt cao, vàng/cam/đỏ là cần chú ý."
+    legend_item "Thanh sức khỏe" "Dùng cho Node/Pod/PVC/Workload: xanh lá là tỷ lệ tốt cao, vàng/cam/đỏ là cần chú ý."
     legend_item "Resource bar" "Dùng cho CPU/RAM/Disk/load/process: xanh lá là dùng thấp, vàng/cam/đỏ là dùng cao."
     legend_item "Load avg" "Tải CPU trung bình 1/5/15 phút; so với số core để ước lượng mức bận."
-    legend_item "RAM/Disk/Swap" "Tài nguyên local của node đang chạy script."
+    legend_item "RAM/Ổ đĩa/Swap" "Tài nguyên cục bộ của node đang chạy script."
 }
 
 generate_full_report() {
-    echo "K3s Cluster Check — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "Kiểm tra cluster K3s — $(date '+%Y-%m-%d %H:%M:%S')"
     echo "================================================="
 
     local tmp_dir left_report right_report
@@ -1155,23 +1155,23 @@ set -- "${POSITIONAL_ARGS[@]}"
 
 case "${1:-}" in
     -h|--help)
-        echo "K3s Cluster Check"
+        echo "Kiểm tra cluster K3s"
         echo ""
         echo "Cú pháp: bash k3s-check.sh [-e|--explain] [section] [args]"
         echo ""
         echo "Options:"
         echo "  -e, --explain  Hiển thị thêm giải thích ngắn cho từng section/cột chính"
         echo ""
-        echo "Sections:"
-        echo "  overview  Tóm tắt sức khỏe cụm, hot list, graph nhanh"
-        echo "  node      Topology, nodes, pod layout"
+        echo "Các phần:"
+        echo "  overview  Tóm tắt sức khỏe cụm, danh sách cần chú ý, biểu đồ nhanh"
+        echo "  node      Bố trí, node và phân bố pod"
         echo "  res [ns]  Workloads, HPA, Services (filter by namespace)"
         echo "  pvc       Persistent Volume Claims"
-        echo "  sys       Local node CPU, RAM, Disk"
-        echo "  img       Container images & usage"
-        echo "  helm      Helm releases và repositories"
-        echo "  secrets   Secrets theo namespace, không in giá trị"
-        echo "  export    Xuất report ra file (scripts/k3s-check/)"
+        echo "  sys       CPU, RAM và ổ đĩa của node cục bộ"
+        echo "  img       Image container và mức sử dụng"
+        echo "  helm      Helm release và repository"
+        echo "  secrets   Secret theo namespace, không in giá trị"
+        echo "  export    Xuất báo cáo ra file (scripts/k3s-check/)"
         echo ""
         echo "Không có argument = chạy tất cả sections"
         echo "Ví dụ: bash k3s-check.sh -e | bash k3s-check.sh overview | bash k3s-check.sh res argocd -e"

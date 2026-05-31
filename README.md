@@ -7,24 +7,24 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v1.2.1-0A7CC7?style=flat-square" alt="Version v1.2.1">
+  <img src="https://img.shields.io/badge/version-v2.0.0-0A7CC7?style=flat-square" alt="Phiên bản v2.0.0">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/K3s-v1.35.5-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="K3s">
-  <img src="https://img.shields.io/badge/Helm-v4.1.4-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
-  <img src="https://img.shields.io/badge/ArgoCD-v3.4.2-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="Argo CD">
+  <img src="https://img.shields.io/badge/Helm-v4.2.0-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm">
+  <img src="https://img.shields.io/badge/ArgoCD-v3.4.3-EF7B4D?style=flat-square&logo=argo&logoColor=white" alt="Argo CD">
   <img src="https://img.shields.io/badge/Tailscale-v1.98.2-242424?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale">
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Vector-v0.55.0-10E7FF?style=flat-square&logoColor=white" alt="Vector">
-  <img src="https://img.shields.io/badge/Redpanda-v26.1.8-E3402B?style=flat-square&logo=redpanda&logoColor=white" alt="Redpanda">
-  <img src="https://img.shields.io/badge/RisingWave-v2.8.3-5B7FFF?style=flat-square&logoColor=white" alt="RisingWave">
+  <img src="https://img.shields.io/badge/Redpanda-v26.1.9-E3402B?style=flat-square&logo=redpanda&logoColor=white" alt="Redpanda">
+  <img src="https://img.shields.io/badge/RisingWave-v2.8.4-5B7FFF?style=flat-square&logoColor=white" alt="RisingWave">
   <img src="https://img.shields.io/badge/Apache_Iceberg-v2-3E5F8A?style=flat-square&logo=apache&logoColor=white" alt="Apache Iceberg">
   <img src="https://img.shields.io/badge/MinIO-self--hosted-C72E49?style=flat-square&logo=minio&logoColor=white" alt="MinIO">
-  <img src="https://img.shields.io/badge/VictoriaMetrics-v1.143.0-621773?style=flat-square&logoColor=white" alt="VictoriaMetrics">
+  <img src="https://img.shields.io/badge/VictoriaMetrics-v1.144.0-621773?style=flat-square&logoColor=white" alt="VictoriaMetrics">
   <img src="https://img.shields.io/badge/Grafana-v13.0.1%2Bsecurity--01-F46800?style=flat-square&logo=grafana&logoColor=white" alt="Grafana">
 </p>
 
@@ -67,7 +67,7 @@ Continux triển khai một kiến trúc **Data Lakehouse thời gian thực** t
 - Argo CD quản lý các app chính bằng App-of-Apps: `cloudflared`, `grafana-dashboards`, `redpanda-topics`, `pipeline`, `vector`, `victoria-scrapes`, `metrics-exporter`.
 - MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana được triển khai bằng Helm.
 - Dataset NYC TLC Yellow Taxi (Parquet) được convert sang JSONL trước khi replay; Taxi Zone lookup CSV được upload lên MinIO trước khi RisingWave nạp vào bảng `tlc_zone`.
-- Pipeline có runner theo pha cho replay end-to-end và Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; số đo cụ thể của mỗi lượt được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo.
+- Pipeline có runner theo pha cho replay xuyên suốt và Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; số đo cụ thể của mỗi lượt được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo.
 - Bốn nhóm dashboard Grafana (`streaming-perf`, `resource-util`, `cutover`, `data-integrity`) đọc metric `continux_*` và metric hạ tầng từ VictoriaMetrics.
 
 ## Hạ Tầng Triển Khai
@@ -103,9 +103,9 @@ NYC TLC Parquet
 
 Quy trình triển khai chuẩn:
 
-1. Theo [SETUP.md](./docs/runbook/SETUP.md) để dựng hệ thống từ máy sạch, [DEMO.md](./docs/runbook/DEMO.md) để chạy replay + Blue/Green cutover và [CLEANUP.md](./docs/runbook/CLEANUP.md) để dọn state trước lượt kế tiếp.
+1. Theo [SETUP.md](./docs/runbook/SETUP.md) để dựng hệ thống từ máy sạch, [DEMO.md](./docs/runbook/DEMO.md) để chạy replay + Blue/Green cutover và [CLEANUP.md](./docs/runbook/CLEANUP.md) để dọn trạng thái trước lượt kế tiếp.
 2. Đọc kết quả dashboard theo [docs/DASHBOARDS.md](./docs/DASHBOARDS.md).
-3. Dùng [paper/main_vi.pdf](./paper/main_vi.pdf) và [paper/main_en.pdf](./paper/main_en.pdf) làm bản paper LaTeX cuối; [docs/REPORT.md](./docs/REPORT.md) là báo cáo/evidence companion.
+3. Dùng [paper/main_vi.pdf](./paper/main_vi.pdf) và [paper/main_en.pdf](./paper/main_en.pdf) làm bản paper LaTeX cuối; [docs/REPORT.md](./docs/REPORT.md) là báo cáo đi kèm bằng chứng.
 
 Runner chuẩn sau khi hạ tầng đã sẵn sàng:
 
@@ -144,11 +144,11 @@ bash experiments/runners/demo.sh cleanup-local
 | Ingest | **[Vector](https://vector.dev/docs/)** | Công cụ thu thập, biến đổi và chuyển tiếp dữ liệu hiệu năng cao. | Đọc JSONL từ dataset, phát event có kiểm soát vào Redpanda để replay dòng chuyến xe. |
 | Message broker | **[Redpanda](https://docs.redpanda.com/)** | Broker streaming tương thích Kafka API. | Lưu topic `nyc-taxi-events`, tách producer Vector khỏi consumer RisingWave. |
 | Streaming SQL | **[RisingWave](https://docs.risingwave.com/)** | Cơ sở dữ liệu streaming dùng SQL và materialized view. | Join event với Taxi Zone lookup, tổng hợp thống kê, duy trì Blue/Green MV và ghi sink. |
-| Table format | **[Apache Iceberg](https://iceberg.apache.org/docs/latest/)** | Định dạng bảng cho object storage, quản lý metadata và thay đổi dữ liệu. | Biến output streaming thành dữ liệu lakehouse có thể kiểm chứng bằng object Parquet/metadata. |
-| Object storage | **[MinIO](https://min.io/)** | Hệ lưu trữ đối tượng tương thích S3, tự host. | Lưu Taxi Zone CSV, checkpoint/state của RisingWave và Iceberg output. |
+| Định dạng bảng | **[Apache Iceberg](https://iceberg.apache.org/docs/latest/)** | Định dạng bảng cho lưu trữ đối tượng, quản lý metadata và thay đổi dữ liệu. | Biến đầu ra streaming thành dữ liệu lakehouse có thể kiểm chứng bằng object Parquet/metadata. |
+| Lưu trữ đối tượng | **[MinIO](https://min.io/)** | Hệ lưu trữ đối tượng tương thích S3, tự vận hành. | Lưu Taxi Zone CSV, checkpoint/trạng thái của RisingWave và đầu ra Iceberg. |
 | Metrics storage | **[VictoriaMetrics](https://docs.victoriametrics.com/)** | Cơ sở dữ liệu chuỗi thời gian tương thích Prometheus. | Thu metric Kubernetes, workload và `continux_*` để truy vấn kết quả thực nghiệm. |
 | Visualization | **[Grafana](https://grafana.com/docs/grafana/latest/)** | Công cụ xây dashboard từ datasource quan sát. | Trình bày bốn nhóm chỉ số: streaming, resource, cutover và data integrity. |
 | Metric ứng dụng | **[metrics-exporter `continux_*`](./config/metrics-exporter/)** | Exporter tùy biến truy vấn RisingWave rồi xuất Prometheus metrics. | Cung cấp số dòng MV, readiness green, thời gian cutover và số lỗi query cho dashboard. |
 | Dữ liệu | **[NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)** | Bộ dữ liệu mở về các chuyến taxi New York. | Cung cấp nguồn sự kiện Yellow Taxi và Taxi Zone lookup để minh họa bài toán giao thông. |
 
-Thông tin chi tiết về quy trình dữ liệu, triển khai và thực nghiệm được chia theo ba pha tại [docs/RUNBOOK.md](./docs/RUNBOOK.md).
+Thông tin chi tiết được chia theo ba pha vận hành: [SETUP.md](./docs/runbook/SETUP.md), [DEMO.md](./docs/runbook/DEMO.md) và [CLEANUP.md](./docs/runbook/CLEANUP.md).

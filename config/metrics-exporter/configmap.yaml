@@ -95,57 +95,57 @@ data:
       fi
 
       {
-        printf '# HELP continux_exporter_up Whether the Continux metrics exporter rendered metrics successfully.\n'
+        printf '# HELP continux_exporter_up Exporter metric Continux đã sinh metric thành công hay chưa.\n'
         printf '# TYPE continux_exporter_up gauge\n'
         printf 'continux_exporter_up 1\n'
-        printf '# HELP continux_exporter_sql_query_errors_total SQL query errors seen by the metrics exporter.\n'
+        printf '# HELP continux_exporter_sql_query_errors_total Tổng số lỗi truy vấn SQL exporter metric ghi nhận.\n'
         printf '# TYPE continux_exporter_sql_query_errors_total counter\n'
         printf 'continux_exporter_sql_query_errors_total %s\n' "${QUERY_ERRORS}"
 
-        printf '# HELP continux_mv_rows Row count for public, blue and green materialized views.\n'
+        printf '# HELP continux_mv_rows Số dòng của materialized view public, blue và green.\n'
         printf '# TYPE continux_mv_rows gauge\n'
-        printf '# HELP continux_mv_trips Sum of trip_count for public, blue and green materialized views.\n'
+        printf '# HELP continux_mv_trips Tổng trip_count của materialized view public, blue và green.\n'
         printf '# TYPE continux_mv_trips gauge\n'
         emit_mv_metric mv_zone_stats
         emit_mv_metric mv_zone_stats_blue
         emit_mv_metric mv_zone_stats_green
 
-        printf '# HELP continux_events_ingested_total Approximate input events available in Kafka as seen by RisingWave source metrics.\n'
+        printf '# HELP continux_events_ingested_total Số event đầu vào xấp xỉ trong Kafka theo metric source của RisingWave.\n'
         printf '# TYPE continux_events_ingested_total counter\n'
         printf 'continux_events_ingested_total %s\n' "${kafka_ingested}"
-        printf '# HELP continux_events_processed_total Trips currently represented in the public materialized view.\n'
+        printf '# HELP continux_events_processed_total Số chuyến đi hiện được phản ánh trong materialized view public.\n'
         printf '# TYPE continux_events_processed_total counter\n'
         printf 'continux_events_processed_total %s\n' "${public_trips}"
-        printf '# HELP continux_kafka_processed_offsets_total Approximate source offsets processed by RisingWave.\n'
+        printf '# HELP continux_kafka_processed_offsets_total Tổng offset source xấp xỉ đã được RisingWave xử lý.\n'
         printf '# TYPE continux_kafka_processed_offsets_total counter\n'
         printf 'continux_kafka_processed_offsets_total %s\n' "${kafka_processed_offsets}"
-        printf '# HELP continux_kafka_lag Current Kafka lag reported by RisingWave rw_kafka_job_lag.\n'
+        printf '# HELP continux_kafka_lag Kafka lag hiện tại do RisingWave rw_kafka_job_lag báo cáo.\n'
         printf '# TYPE continux_kafka_lag gauge\n'
         printf 'continux_kafka_lag %s\n' "${kafka_lag}"
 
-        printf '# HELP continux_green_ready Whether the green MV exists and has rows.\n'
+        printf '# HELP continux_green_ready MV green đã tồn tại và có dữ liệu hay chưa.\n'
         printf '# TYPE continux_green_ready gauge\n'
         printf 'continux_green_ready %s\n' "${green_ready}"
-        printf '# HELP continux_checksum_mismatch_total Integrity mismatch flag between public and blue views.\n'
+        printf '# HELP continux_checksum_mismatch_total Cờ lệch tính toàn vẹn giữa view public và blue.\n'
         printf '# TYPE continux_checksum_mismatch_total gauge\n'
         printf 'continux_checksum_mismatch_total %s\n' "${checksum_mismatch}"
-        printf '# HELP continux_records_rejected_total Rejected records by reason. Defaults to 0 until parser validation is added.\n'
+        printf '# HELP continux_records_rejected_total Bản ghi bị loại theo lý do. Mặc định là 0 cho tới khi bổ sung validation parser.\n'
         printf '# TYPE continux_records_rejected_total counter\n'
         printf 'continux_records_rejected_total{reason="parse"} 0\n'
-        printf '# HELP continux_iceberg_last_commit_timestamp_seconds Last Iceberg snapshot timestamp observed by RisingWave.\n'
+        printf '# HELP continux_iceberg_last_commit_timestamp_seconds Mốc thời gian snapshot Iceberg gần nhất RisingWave quan sát được.\n'
         printf '# TYPE continux_iceberg_last_commit_timestamp_seconds gauge\n'
         printf 'continux_iceberg_last_commit_timestamp_seconds %s\n' "${iceberg_last_commit}"
 
         if [ -f "${STATE_DIR}/cutover.prom" ]; then
           cat "${STATE_DIR}/cutover.prom"
         else
-          printf '# HELP continux_cutover_duration_seconds Latest measured blue/green swap duration.\n'
+          printf '# HELP continux_cutover_duration_seconds Thời gian swap Blue/Green đo được gần nhất.\n'
           printf '# TYPE continux_cutover_duration_seconds gauge\n'
           printf 'continux_cutover_duration_seconds 0\n'
-          printf '# HELP continux_last_swap_timestamp_seconds Unix timestamp of the last blue/green swap.\n'
+          printf '# HELP continux_last_swap_timestamp_seconds Unix timestamp của lần swap Blue/Green gần nhất.\n'
           printf '# TYPE continux_last_swap_timestamp_seconds gauge\n'
           printf 'continux_last_swap_timestamp_seconds 0\n'
-          printf '# HELP continux_query_errors_total Query errors observed during cutover.\n'
+          printf '# HELP continux_query_errors_total Số lỗi truy vấn ghi nhận trong lúc cutover.\n'
           printf '# TYPE continux_query_errors_total counter\n'
           printf 'continux_query_errors_total 0\n'
         fi

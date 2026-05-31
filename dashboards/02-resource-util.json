@@ -86,7 +86,7 @@
           "instant": true
         }
       ],
-      "title": "Workload availability",
+      "title": "Mức sẵn sàng workload",
       "type": "stat"
     },
     {
@@ -142,7 +142,7 @@
           "refId": "A"
         }
       ],
-      "title": "CPU by namespace",
+      "title": "CPU theo namespace",
       "type": "timeseries"
     },
     {
@@ -198,7 +198,7 @@
           "refId": "A"
         }
       ],
-      "title": "Memory by namespace",
+      "title": "Bộ nhớ theo namespace",
       "type": "timeseries"
     },
     {
@@ -254,7 +254,7 @@
           "refId": "A"
         }
       ],
-      "title": "Top pod CPU",
+      "title": "Pod dùng CPU cao nhất",
       "type": "timeseries"
     },
     {
@@ -310,7 +310,7 @@
           "refId": "A"
         }
       ],
-      "title": "Top pod memory",
+      "title": "Pod dùng bộ nhớ cao nhất",
       "type": "timeseries"
     },
     {
@@ -318,7 +318,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Container restart trong khoảng thời gian đang chọn.",
+      "description": "Số lần container khởi động lại trong khoảng thời gian đang chọn.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -370,7 +370,7 @@
           "format": "table"
         }
       ],
-      "title": "Pod restarts in selected range",
+      "title": "Pod khởi động lại trong khoảng đã chọn",
       "type": "table"
     },
     {
@@ -442,7 +442,7 @@
           "instant": true
         }
       ],
-      "title": "PVC used percent",
+      "title": "Phần trăm PVC đã dùng",
       "type": "bargauge"
     },
     {
@@ -502,7 +502,7 @@
           "format": "table"
         }
       ],
-      "title": "PVC free bytes",
+      "title": "Dung lượng PVC còn trống",
       "type": "table"
     }
   ],
@@ -532,7 +532,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "resource-util",
+  "title": "Tài nguyên hệ thống",
   "uid": "resource-util",
   "version": 2
 }

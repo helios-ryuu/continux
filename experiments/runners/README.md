@@ -1,8 +1,8 @@
-# Experiment Runners
+# Runner Thực Nghiệm
 
-Use `demo.sh` to run the replay and Blue/Green cutover workflow one phase at a
-time. The runner keeps evidence outside the repository and requires explicit
-confirmation before destructive cleanup.
+Dùng `demo.sh` để chạy replay và Blue/Green cutover theo từng pha. Runner giữ
+bằng chứng ngoài repository và yêu cầu xác nhận rõ ràng trước thao tác dọn dẹp có
+tính phá hủy.
 
 ```bash
 bash experiments/runners/demo.sh help

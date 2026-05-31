@@ -1,15 +1,15 @@
 flowchart LR
     dataset["NYC TLC Parquet"] --> converter["scripts/partojsonl.py"]
     converter --> vector["Vector replay"]
-    vector --> redpanda["Redpanda<br/>nyc-taxi-events"]
+    vector --> redpanda["Redpanda<br/>topic nyc-taxi-events"]
     redpanda --> risingwave["RisingWave<br/>source + lookup + MV"]
-    risingwave --> iceberg["Apache Iceberg<br/>on MinIO"]
-    metrics["metrics-exporter"] --> victoria["VictoriaMetrics"]
+    risingwave --> iceberg["Apache Iceberg<br/>trên MinIO"]
+    metrics["exporter metric"] --> victoria["VictoriaMetrics"]
     risingwave --> metrics
     vector --> victoria
     redpanda --> victoria
-    victoria --> grafana["Grafana dashboards"]
-    github["GitHub repository"] --> argocd["Argo CD"]
+    victoria --> grafana["Dashboard Grafana"]
+    github["Repository GitHub"] --> argocd["Argo CD"]
     argocd --> vector
     argocd --> redpanda
     argocd --> risingwave

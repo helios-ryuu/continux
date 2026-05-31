@@ -69,7 +69,7 @@ Nghĩa là: xem chi tiết Pod `vector-abc123` trong namespace `pipeline`, đặ
 | `kubectl top nodes` | Khi nghi thiếu CPU/RAM | Node nào gần cạn tài nguyên; cần metrics-server |
 | `kubectl top pods -A` | Khi pod OOM hoặc chậm | Pod nào ăn CPU/RAM bất thường; cần metrics-server |
 
-### 1.3. Debug Pod lỗi nhanh
+### 1.3. Gỡ Lỗi Pod Nhanh
 
 | Mục tiêu | Lệnh | Cách hiểu |
 |----------|------|-----------|
@@ -80,7 +80,7 @@ Nghĩa là: xem chi tiết Pod `vector-abc123` trong namespace `pipeline`, đặ
 | Vào shell trong pod | `kubectl exec -it <pod> -n <ns> -- sh` | Kiểm tra file, env, DNS, network từ trong pod |
 | Xem manifest thực tế | `kubectl get pod <pod> -n <ns> -o yaml` | So sánh spec thực tế với Git/Helm values |
 
-### 1.4. Deploy và rollback an toàn
+### 1.4. Triển Khai Và Quay Lui An Toàn
 
 | Mục tiêu | Lệnh | Cách hiểu |
 |----------|------|-----------|
@@ -89,7 +89,7 @@ Nghĩa là: xem chi tiết Pod `vector-abc123` trong namespace `pipeline`, đặ
 | Apply manifest | `kubectl apply -f <file.yaml>` | Tạo/cập nhật tài nguyên khai báo |
 | Chờ rollout | `kubectl rollout status deploy/<deploy> -n <ns>` | Chỉ xong khi Deployment Available |
 | Xem lịch sử rollout | `kubectl rollout history deploy/<deploy> -n <ns>` | Biết các revision |
-| Rollback | `kubectl rollout undo deploy/<deploy> -n <ns>` | Quay về revision trước |
+| Quay lui | `kubectl rollout undo deploy/<deploy> -n <ns>` | Quay về revision trước |
 | Scale thủ công | `kubectl scale deploy/<deploy> -n <ns> --replicas=<n>` | Hữu ích cho Vector hoặc workload test |
 
 ### 1.5. Lệnh rất dễ gây mất dữ liệu
@@ -343,7 +343,7 @@ kubectl port-forward deploy/<deploy> -n <ns> 8080:80
 kubectl port-forward -n <ns> svc/<svc> 127.0.0.1:8080:80
 ```
 
-### 6.7. Xóa và restart Pod
+### 6.7. Xóa Và Khởi Động Lại Pod
 
 ```bash
 kubectl delete pod <pod> -n <ns>
@@ -569,7 +569,7 @@ $value = kubectl get secret <secret> -n <ns> -o jsonpath="{.data.password}"
 
 ---
 
-## 14. Storage: PV, PVC và StorageClass
+## 14. Lưu Trữ: PV, PVC Và StorageClass
 
 ### 14.1. Xem storage
 
@@ -609,7 +609,7 @@ kubectl delete pv/<pv>
 
 ---
 
-## 15. Node operations
+## 15. Thao Tác Node
 
 ### 15.1. Xem node và Pod trên node
 
@@ -681,7 +681,7 @@ kubectl describe limitrange/<limitrange> -n <ns>
 
 ---
 
-## 18. Debug và troubleshooting
+## 18. Gỡ Lỗi Và Xử Lý Sự Cố
 
 ### 18.1. Quy trình debug Pod lỗi
 
@@ -694,7 +694,7 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 kubectl get pod <pod> -n <ns> -o yaml
 ```
 
-### 18.2. Debug bằng ephemeral container
+### 18.2. Gỡ Lỗi Bằng Ephemeral Container
 
 ```bash
 kubectl debug -it pod/<pod> -n <ns> --image=busybox:1.36 --target=<container>
@@ -709,7 +709,7 @@ kubectl run curl -n <ns> --image=curlimages/curl:8.20.0 -it --rm -- sh
 kubectl run busybox -n <ns> --image=busybox:1.36 -it --rm -- sh
 ```
 
-### 18.4. Debug DNS
+### 18.4. Gỡ Lỗi DNS
 
 ```bash
 kubectl run dns-test -n <ns> --image=busybox:1.36 -it --rm -- nslookup kubernetes.default
@@ -718,7 +718,7 @@ kubectl get pods -n kube-system -l k8s-app=kube-dns
 kubectl logs -n kube-system -l k8s-app=kube-dns
 ```
 
-### 18.5. Debug network
+### 18.5. Gỡ Lỗi Mạng
 
 ```bash
 kubectl run netshoot -n <ns> --image=nicolaka/netshoot -it --rm -- bash
@@ -759,7 +759,7 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 
 ---
 
-## 19. Events
+## 19. Sự Kiện
 
 ```bash
 kubectl get events -A
@@ -924,7 +924,7 @@ helm pull <repo>/<chart>
 helm pull <repo>/<chart> --untar
 ```
 
-### 27.2. Install, upgrade và rollback
+### 27.2. Cài Đặt, Nâng Cấp Và Quay Lui
 
 ```bash
 helm install <release> <repo>/<chart> -n <ns> --create-namespace
@@ -996,7 +996,7 @@ sudo k3s crictl inspect <container-id>
 
 ---
 
-## 29. Backup và restore liên quan Kubernetes
+## 29. Sao Lưu Và Khôi Phục Liên Quan Kubernetes
 
 ### 29.1. Export nhanh resource
 
@@ -1016,7 +1016,7 @@ Trước khi commit manifest export từ cluster, nên loại bỏ các field ru
 - `metadata.managedFields`
 - `status`
 
-### 29.2. Backup etcd/K3s
+### 29.2. Sao Lưu etcd/K3s
 
 Nếu K3s dùng embedded etcd:
 
@@ -1025,11 +1025,11 @@ sudo k3s etcd-snapshot save
 sudo k3s etcd-snapshot ls
 ```
 
-Kiểm tra cấu hình backup thực tế trong tài liệu SETUP của dự án trước khi restore.
+Kiểm tra cấu hình sao lưu thực tế trong tài liệu SETUP của dự án trước khi khôi phục.
 
 ---
 
-## 30. Lệnh xóa cần thận trọng trong production
+## 30. Lệnh Xóa Cần Thận Trọng Trong Môi Trường Thật
 
 Các lệnh sau có thể gây downtime hoặc mất dữ liệu:
 
@@ -1049,7 +1049,7 @@ Checklist trước khi chạy:
 3. `kubectl get all -n <ns>`
 4. `kubectl get pvc -n <ns>`
 5. `kubectl get pdb -A`
-6. Có backup nếu thao tác liên quan storage.
+6. Có bản sao lưu nếu thao tác liên quan lưu trữ.
 
 ---
 
@@ -1145,9 +1145,9 @@ function kdf { kubectl delete -f @args }
 
 ---
 
-## 33. Checklist trước và sau khi deploy
+## 33. Checklist Trước Và Sau Khi Triển Khai
 
-Trước deploy:
+Trước khi triển khai:
 
 ```bash
 kubectl config current-context
@@ -1155,14 +1155,14 @@ kubectl diff -f <file.yaml>
 kubectl apply -f <file.yaml> --dry-run=server
 ```
 
-Deploy:
+Triển khai:
 
 ```bash
 kubectl apply -f <file.yaml>
 kubectl rollout status deploy/<deploy> -n <ns>
 ```
 
-Sau deploy:
+Sau khi triển khai:
 
 ```bash
 kubectl get pods -n <ns> -o wide

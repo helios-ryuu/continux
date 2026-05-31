@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert NYC TLC Yellow Taxi Parquet rows into JSONL for Vector."""
+"""Chuyển dữ liệu NYC TLC Yellow Taxi từ Parquet sang JSONL cho Vector."""
 
 from __future__ import annotations
 
@@ -56,16 +56,16 @@ def convert(input_path: Path, output_path: Path, batch_size: int, limit: int | N
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convert NYC TLC Yellow Taxi Parquet to JSONL for Vector."
+        description="Chuyển NYC TLC Yellow Taxi Parquet sang JSONL cho Vector."
     )
-    parser.add_argument("input", type=Path, help="Input yellow_tripdata_YYYY-MM.parquet")
-    parser.add_argument("output", type=Path, help="Output JSONL file read by Vector")
+    parser.add_argument("input", type=Path, help="File đầu vào yellow_tripdata_YYYY-MM.parquet")
+    parser.add_argument("output", type=Path, help="File JSONL đầu ra để Vector đọc")
     parser.add_argument("--batch-size", type=int, default=65536)
-    parser.add_argument("--limit", type=int, default=None, help="Optional max rows for a smoke run")
+    parser.add_argument("--limit", type=int, default=None, help="Số dòng tối đa tùy chọn cho smoke run")
     args = parser.parse_args()
 
     written = convert(args.input, args.output, args.batch_size, args.limit)
-    print(f"Wrote {written} rows to {args.output}")
+    print(f"Đã ghi {written} dòng vào {args.output}")
 
 
 if __name__ == "__main__":

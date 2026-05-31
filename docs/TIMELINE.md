@@ -1,10 +1,10 @@
 # TIMELINE
 
-Timeline này ghi lại các mốc triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối: cluster K3s 3 server Ready, pipeline end-to-end chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công, dashboard có dữ liệu, evidence được thu cho từng lượt thực nghiệm và paper LaTeX song ngữ được đóng gói.
+Dòng thời gian này ghi lại các mốc triển khai Continux từ chuẩn bị hạ tầng đến báo cáo cuối: cluster K3s 3 server Ready, pipeline xuyên suốt chạy được, replay ingest sinh dữ liệu thật, Blue/Green cutover thành công, dashboard có dữ liệu, bằng chứng được thu cho từng lượt thực nghiệm và paper LaTeX song ngữ được đóng gói.
 
 ## 1. Mục Tiêu
 
-Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC end-to-end, thu bằng chứng thực nghiệm và đóng gói báo cáo trước hạn nộp.
+Hoàn tất cụm K3s 3 máy, triển khai stack lakehouse, chạy pipeline NYC TLC xuyên suốt, thu bằng chứng thực nghiệm và đóng gói báo cáo trước hạn nộp.
 
 ## 2. Mốc Hoàn Tất
 
@@ -12,12 +12,12 @@ Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC en
 |------|----------|---------|
 | 20/05/2026 | Chuẩn bị repo, docs, scripts, config | Repo có cấu trúc GitOps, script K3s, dashboard và SQL |
 | 21/05/2026 | Chuẩn bị OS, Tailscale, K3s | `imac`, `continux-vps`, `helios-pc` join cụm K3s HA, đủ node `Ready` |
-| 21/05/2026 | Deploy stack nền | Argo CD, MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana triển khai thành công |
+| 21/05/2026 | Triển khai stack nền | Argo CD, MinIO, Redpanda, RisingWave, VictoriaMetrics, Grafana triển khai thành công |
 | 22/05/2026 | Dataset và pipeline SQL | JSONL convert thành công, `tlc_zone` có dữ liệu, `mv_zone_stats` có dữ liệu, Iceberg sinh object |
 | 22/05/2026 | Metrics exporter | `continux_exporter_up=1`, VictoriaMetrics scrape được metric `continux_*` |
-| 22/05/2026 | Replay ingest | Replay end-to-end sinh MV và Iceberg object |
+| 22/05/2026 | Replay ingest | Replay xuyên suốt sinh MV và Iceberg object |
 | 22/05/2026 | Blue/Green cutover | Public MV chuyển sang logic green, query loop không lỗi |
-| 22/05/2026 | Chuẩn hóa tài liệu | Docs/runbook/report đồng bộ với evidence cuối |
+| 22/05/2026 | Chuẩn hóa tài liệu | Tài liệu, runbook và báo cáo đồng bộ với bằng chứng cuối |
 | 26/05/2026 | Chuẩn hóa paper LaTeX | Tách paper tiếng Việt/Anh thành module trong `paper/src/`, wrapper hai cột và build lại PDF |
 
 ## 3. Trạng Thái Hệ Thống Ở Mốc Chốt
@@ -32,7 +32,7 @@ Hoàn tất cụm K3s 3 máy, deploy stack lakehouse, chạy pipeline NYC TLC en
 | RisingWave | meta, compute, compactor, frontend `Running` |
 | MinIO/Iceberg | Có data Parquet, equality-delete và position-delete Parquet |
 | Grafana | Dashboard streaming/resource/cutover/integrity có dữ liệu |
-| Cutover | Query loop ghi nhận `0` lỗi, RisingWave không restart |
+| Cutover | Query loop ghi nhận `0` lỗi, RisingWave không khởi động lại |
 
 ## 4. Gantt Hoàn Tất
 
@@ -70,7 +70,7 @@ Paper LaTeX song ngữ module           ◆
 7. Metrics exporter expose `continux_*` và VictoriaMetrics scrape được.
 8. Replay ingest sinh MV và Iceberg object.
 9. Green MV được tạo, query loop không lỗi, swap public MV thành công.
-10. Báo cáo và tài liệu dùng cùng một bộ số liệu evidence (số đo cụ thể nằm trong `evidence/` ngoài repo).
+10. Báo cáo và tài liệu dùng cùng một bộ bằng chứng (số đo cụ thể nằm trong `~/continux-demo-evidence/<RUN_ID>/` ngoài repo).
 
 ## 6. Phân Công
 
@@ -111,12 +111,12 @@ Paper LaTeX song ngữ module           ◆
 | Secret runtime lộ trong Git | Tạo bằng Kubernetes Secret, không commit secret |
 | RisingWave meta-command psql không tương thích | Verify bằng `rw_catalog` thay vì `\dt public.*` |
 | Argo hook Job biến mất sau khi thành công | Dùng Argo app status và RisingWave catalog làm bằng chứng |
-| Dashboard checksum mismatch sau cutover | Giải thích là expected khi so logic mới với logic cũ |
+| Dashboard checksum mismatch sau cutover | Giải thích là kết quả dự kiến khi so logic mới với logic cũ |
 
 ## 9. Definition Of Done
 
-- Bộ `runbook/SETUP.md`, `runbook/DEMO.md`, `runbook/CLEANUP.md` dựng được hệ thống từ máy sạch đến end-to-end và dọn dẹp để chạy lại từ đầu.
-- `REPORT.md` là bản báo cáo/evidence companion cho đồ án.
+- Bộ `runbook/SETUP.md`, `runbook/DEMO.md`, `runbook/CLEANUP.md` dựng được hệ thống từ máy sạch đến luồng xuyên suốt và dọn dẹp để chạy lại từ đầu.
+- `REPORT.md` là bản báo cáo đi kèm bằng chứng cho đồ án.
 - `paper/main_vi.pdf` và `paper/main_en.pdf` là bản paper LaTeX cuối, build từ source module trong `paper/src/`.
-- Không commit dataset, evidence, screenshot lớn hoặc secret.
+- Không commit bộ dữ liệu, bằng chứng, ảnh chụp màn hình lớn hoặc secret.
 - Phiên bản hệ thống được phản ánh trong `VERSION` và badge ở `README.md`.

@@ -19,7 +19,7 @@ spec:
         role: data-plane
       containers:
         - name: exporter
-          image: postgres:16-alpine
+          image: postgres:18.4-alpine
           command: ["/bin/sh", "/scripts/exporter.sh"]
           ports:
             - name: metrics

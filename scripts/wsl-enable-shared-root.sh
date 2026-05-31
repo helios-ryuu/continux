@@ -1,9 +1,9 @@
 #!/bin/bash
 # =================================================================
-# wsl-enable-shared-root.sh - Enable shared root mount propagation on WSL.
-# Run on: helios-pc WSL node.
-# Purpose: allow Kubernetes hostPath mounts with HostToContainer propagation,
-#          such as prometheus-node-exporter mounting / as /host/root.
+# Bật shared root mount propagation trên WSL.
+# Chạy trên: node WSL helios-pc.
+# Mục đích: cho phép volume hostPath của Kubernetes dùng HostToContainer,
+#          ví dụ prometheus-node-exporter mount / thành /host/root.
 # =================================================================
 set -euo pipefail
 
@@ -60,7 +60,7 @@ After=wsl-shared-root.service
 EOF
     systemctl daemon-reload
     systemctl restart k3s
-    ok "k3s đã restart sau khi root mount được chuyển sang rshared."
+    ok "k3s đã khởi động lại sau khi root mount được chuyển sang rshared."
 else
     warn "Chưa thấy k3s.service. Hãy chạy lại script này sau khi cài K3s, hoặc tự thêm drop-in ordering."
 fi

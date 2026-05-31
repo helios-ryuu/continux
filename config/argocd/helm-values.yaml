@@ -1,10 +1,10 @@
-# Helm chart: argo/argo-cd 9.5.14
-# App version: Argo CD v3.4.2
-# Profile: single-node lightweight install for continux-vps.
+# Helm chart: argo/argo-cd 9.5.17
+# Phiên bản ứng dụng: Argo CD v3.4.3
+# Cấu hình gọn nhẹ chạy một bản sao trên continux-vps.
 
 global:
   image:
-    tag: v3.4.2
+    tag: v3.4.3
   nodeSelector: { role: control-plane }
   tolerations:
     - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }

@@ -1,7 +1,8 @@
-# Local Experiment State
+# Trạng Thái Cục Bộ Của Thực Nghiệm
 
-The phased demo runner writes its current state and per-run local metadata here.
-All generated entries are ignored by Git and removed by `cleanup-local`.
+Runner dùng thư mục này để lưu trạng thái cục bộ tạm thời của lượt thực nghiệm đang chạy.
+Git chỉ theo dõi file README này; toàn bộ trạng thái sinh ra khi chạy được bỏ qua và
+sẽ bị xóa bởi `bash experiments/runners/demo.sh cleanup-local`.
 
-Evidence intended for retention is stored outside the checkout at
+Bằng chứng cần giữ lâu dài nằm ngoài repository tại
 `~/continux-demo-evidence/<RUN_ID>/`.

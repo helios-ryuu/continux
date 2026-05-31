@@ -25,7 +25,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Proxy sẵn sàng của các pod tham gia cutover; không thay thế metric blue/green thật.",
+      "description": "Chỉ dấu đại diện cho mức sẵn sàng của các pod tham gia cutover; không thay thế metric Blue/Green thật.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -86,7 +86,7 @@
           "instant": true
         }
       ],
-      "title": "Cutover readiness proxy",
+      "title": "Tín hiệu sẵn sàng cutover",
       "type": "stat"
     },
     {
@@ -163,7 +163,7 @@
           "instant": true
         }
       ],
-      "title": "Green readiness",
+      "title": "Mức sẵn sàng Green",
       "type": "stat"
     },
     {
@@ -232,7 +232,7 @@
           "instant": true
         }
       ],
-      "title": "Latest cutover duration",
+      "title": "Thời gian cutover gần nhất",
       "type": "stat"
     },
     {
@@ -293,7 +293,7 @@
           "instant": true
         }
       ],
-      "title": "Seconds since last swap",
+      "title": "Số giây từ lần swap gần nhất",
       "type": "stat"
     },
     {
@@ -301,7 +301,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Mục tiêu zero-downtime: các endpoint RisingWave vẫn scrape được trong lúc swap.",
+      "description": "Mục tiêu không gián đoạn: các endpoint RisingWave vẫn scrape được trong lúc swap.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -349,7 +349,7 @@
           "refId": "A"
         }
       ],
-      "title": "Serving availability",
+      "title": "Mức sẵn sàng phục vụ",
       "type": "timeseries"
     },
     {
@@ -405,7 +405,7 @@
           "refId": "A"
         }
       ],
-      "title": "Query errors during cutover",
+      "title": "Lỗi truy vấn trong lúc cutover",
       "type": "timeseries"
     },
     {
@@ -461,7 +461,7 @@
           "refId": "A"
         }
       ],
-      "title": "Consumer lag during swap",
+      "title": "Độ trễ consumer trong lúc swap",
       "type": "timeseries"
     },
     {
@@ -469,7 +469,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Nếu có restart trong lúc swap thì cần xem lại tính zero-downtime.",
+      "description": "Nếu có lần khởi động lại trong lúc swap thì cần xem lại khả năng không gián đoạn.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -521,7 +521,7 @@
           "format": "table"
         }
       ],
-      "title": "RisingWave restarts in selected range",
+      "title": "RisingWave khởi động lại trong khoảng đã chọn",
       "type": "table"
     },
     {
@@ -577,7 +577,7 @@
           "refId": "A"
         }
       ],
-      "title": "Blue vs green row count",
+      "title": "So sánh số dòng Blue và Green",
       "type": "timeseries"
     }
   ],
@@ -630,7 +630,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "cutover",
+  "title": "Chuyển đổi Blue/Green",
   "uid": "cutover",
   "version": 2
 }

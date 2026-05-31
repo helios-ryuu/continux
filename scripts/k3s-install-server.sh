@@ -1,9 +1,9 @@
 #!/bin/bash
 # =================================================================
-# k3s-install-server.sh - Join a K3s server to the existing cluster.
-# Run on: continux-vps or helios-pc.
-# Purpose: create a 3-server embedded-etcd cluster: imac + continux-vps + helios-pc.
-# Usage: sudo bash k3s-install-server.sh <tailscale-ip-imac> <token> [node-name] [profile]
+# Join một K3s server vào cụm hiện có.
+# Chạy trên: continux-vps hoặc helios-pc.
+# Mục đích: tạo cụm embedded etcd ba server: imac + continux-vps + helios-pc.
+# Cú pháp: sudo bash k3s-install-server.sh <tailscale-ip-imac> <token> [node-name] [profile]
 # Profile: edge | quorum
 # =================================================================
 set -euo pipefail
@@ -17,12 +17,12 @@ die()   { echo -e "${RED}[FAIL]${NC}  $*" >&2; exit 1; }
 
 usage() {
     cat <<'EOF'
-Usage:
+Cú pháp:
   sudo bash scripts/k3s-install-server.sh <imac-ts-ip> <k3s-token> [node-name] [profile]
 
-Profiles:
-  edge    Join continux-vps as control/observability node.
-  quorum  Join helios-pc as quorum-only node.
+Profile:
+  edge    Join continux-vps làm node control/observability.
+  quorum  Join helios-pc làm node chỉ giữ quorum.
 EOF
 }
 
@@ -80,7 +80,7 @@ TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
 K3S_URL="https://${IMAC_IP}:6443"
 
 echo -e "\n${BOLD}=== K3s Server Join — ${NODE_NAME} ===${NC}"
-info "Tailscale IP local  : ${TAILSCALE_IP}"
+info "Tailscale IP cục bộ : ${TAILSCALE_IP}"
 info "Tailscale IP iMac   : ${IMAC_IP}"
 info "K3s URL             : ${K3S_URL}"
 info "Node name           : ${NODE_NAME}"
@@ -97,7 +97,7 @@ ok "Ping OK"
 # ======================== CÀI K3S ========================
 info "Đang tải và cài K3s (stable)..."
 
-curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - server \
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable INSTALL_K3S_SYMLINK=force sh -s - server \
     --server="${K3S_URL}" \
     --token="${K3S_TOKEN}" \
     --write-kubeconfig-mode=644 \

@@ -1,7 +1,8 @@
-# Taxi Zone Staging
+# Khu Vực Staging Taxi Zone
 
-`experiments/runners/demo.sh prepare-data` downloads the NYC TLC Taxi Zone
-lookup into this directory and creates the RisingWave-compatible CSV beside it.
+Lệnh `bash experiments/runners/demo.sh prepare-data` tải file Taxi Zone lookup
+vào thư mục này và tạo thêm bản CSV tương thích với RisingWave.
 
-The generated CSV files are local runtime inputs and are ignored by Git. Run
-`bash experiments/runners/demo.sh cleanup-local` after a demo to remove them.
+Hai file CSV sinh ra chỉ là đầu vào cục bộ khi chạy và đã được Git bỏ qua. Sau khi
+thực nghiệm kết thúc, chạy `bash experiments/runners/demo.sh cleanup-local` để xóa
+chúng.

@@ -102,7 +102,7 @@
           "instant": true
         }
       ],
-      "title": "Scrape target health",
+      "title": "Sức khỏe scrape target",
       "type": "stat"
     },
     {
@@ -187,7 +187,7 @@
           "instant": true
         }
       ],
-      "title": "Pipeline pods ready",
+      "title": "Pod pipeline sẵn sàng",
       "type": "stat"
     },
     {
@@ -195,7 +195,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Lag Kafka theo consumer group nếu Redpanda expose metric này; 0 nghĩa là không lag hoặc chưa có metric.",
+      "description": "Lag Kafka theo consumer group nếu Redpanda cung cấp metric này; 0 nghĩa là không lag hoặc chưa có metric.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -256,7 +256,7 @@
           "instant": true
         }
       ],
-      "title": "Consumer lag",
+      "title": "Độ trễ consumer",
       "type": "stat"
     },
     {
@@ -264,7 +264,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Proxy thực tế cho luồng Vector ghi vào Redpanda qua network container.",
+      "description": "Chỉ dấu đại diện cho luồng Vector ghi vào Redpanda qua mạng container.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -319,7 +319,7 @@
           "refId": "B"
         }
       ],
-      "title": "Vector and Redpanda network bytes/s",
+      "title": "Lưu lượng mạng Vector và Redpanda (byte/s)",
       "type": "timeseries"
     },
     {
@@ -327,7 +327,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Throughput Redpanda từ metric Kafka/RPC/storage nếu có trong scrape.",
+      "description": "Lưu lượng Redpanda từ metric Kafka/RPC/lưu trữ nếu có trong scrape.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -382,7 +382,7 @@
           "refId": "B"
         }
       ],
-      "title": "Redpanda bytes/s",
+      "title": "Lưu lượng Redpanda (byte/s)",
       "type": "timeseries"
     },
     {
@@ -438,7 +438,7 @@
           "refId": "A"
         }
       ],
-      "title": "Topic offsets",
+      "title": "Offset topic",
       "type": "timeseries"
     },
     {
@@ -494,7 +494,7 @@
           "refId": "A"
         }
       ],
-      "title": "RisingWave rows/s",
+      "title": "Dòng RisingWave/s",
       "type": "timeseries"
     },
     {
@@ -502,7 +502,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Latency p95 của barrier/processing nếu RisingWave expose histogram tương ứng.",
+      "description": "Độ trễ p95 của barrier/xử lý nếu RisingWave cung cấp histogram tương ứng.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -558,7 +558,7 @@
           "refId": "A"
         }
       ],
-      "title": "RisingWave barrier latency p95",
+      "title": "Độ trễ barrier RisingWave p95",
       "type": "timeseries"
     },
     {
@@ -566,7 +566,7 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Metric thực nghiệm do exporter Continux sinh ra; hiện là lớp mở rộng để báo cáo throughput ứng dụng.",
+      "description": "Metric thực nghiệm do exporter Continux sinh ra; hiện là lớp mở rộng để báo cáo lưu lượng ứng dụng.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -621,7 +621,7 @@
           "refId": "B"
         }
       ],
-      "title": "Application events/s",
+      "title": "Event ứng dụng/s",
       "type": "timeseries"
     }
   ],
@@ -674,7 +674,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "streaming-perf",
+  "title": "Hiệu năng streaming",
   "uid": "streaming-perf",
   "version": 2
 }

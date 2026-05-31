@@ -18,7 +18,7 @@ spec:
         role: data-plane
       containers:
         - name: psql
-          image: postgres:16-alpine
+          image: postgres:18.4-alpine
           resources:
             requests: { cpu: 25m, memory: 64Mi }
             limits:   { cpu: 200m, memory: 128Mi }
@@ -38,7 +38,7 @@ spec:
             - |
               set -eu
               for file in /sql/*.sql; do
-                echo ">>> applying ${file}"
+                echo ">>> đang áp dụng ${file}"
                 psql -v ON_ERROR_STOP=1 -f "${file}"
               done
           volumeMounts:

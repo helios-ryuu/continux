@@ -1,14 +1,14 @@
 # CLEANUP
 
-Dọn toàn bộ state sinh bởi một lượt demo và đưa hệ thống về trạng thái sau [SETUP.md](./SETUP.md), trước [DEMO.md](./DEMO.md): chưa tải dataset local, chưa upload lookup CSV, không còn SQL object demo, topic sạch, Iceberg output sạch và Vector ở profile an toàn.
+Dọn toàn bộ trạng thái sinh bởi một lượt thực nghiệm và đưa hệ thống về trạng thái sau [SETUP.md](./SETUP.md), trước [DEMO.md](./DEMO.md): chưa tải bộ dữ liệu cục bộ, chưa upload lookup CSV, không còn object SQL thực nghiệm, topic sạch, đầu ra Iceberg sạch và Vector ở profile an toàn.
 
-Mục đích: dọn state của lượt vừa chạy mà không phá hạ tầng, để lượt tiếp theo
-bắt đầu lại từ bước tải dataset trong [DEMO.md](./DEMO.md). Hành động cleanup
+Mục đích: dọn trạng thái của lượt vừa chạy mà không phá hạ tầng, để lượt tiếp theo
+bắt đầu lại từ bước tải bộ dữ liệu trong [DEMO.md](./DEMO.md). Hành động dọn dẹp
 nằm trong cluster (Redpanda topic, RisingWave object SQL, Iceberg prefix,
-metric cutover, lookup CSV) và trên máy local (`data/raw/`, `.venv/`, file
+metric cutover, lookup CSV) và trên máy cục bộ (`data/raw/`, `.venv/`, file
 tạm).
 
-> Cảnh báo: phần này xóa kết quả replay và cutover của lượt vừa chạy. Hãy chắc chắn evidence đã đủ trước khi dọn. Tài liệu này **không** xóa K3s cluster, Helm release, PVC, bucket MinIO, hoặc secret.
+> Cảnh báo: phần này xóa kết quả replay và cutover của lượt vừa chạy. Hãy chắc chắn bằng chứng đã đủ trước khi dọn. Tài liệu này **không** xóa K3s cluster, Helm release, PVC, bucket MinIO, hoặc secret.
 
 Luồng chuẩn dùng runner:
 
@@ -19,11 +19,11 @@ bash experiments/runners/demo.sh cleanup-runtime
 bash experiments/runners/demo.sh cleanup-local
 ```
 
-Evidence vẫn được giữ ngoài repo cho tới khi chạy rõ ràng
+Bằng chứng vẫn được giữ ngoài repo cho tới khi chạy rõ ràng
 `bash experiments/runners/demo.sh purge-evidence <RUN_ID>`. Các mục phía dưới
 giữ lệnh thủ công tương ứng để debug.
 
-## 1. Thu Evidence Cuối Trước Cleanup
+## 1. Thu Bằng Chứng Cuối Trước Khi Dọn Dẹp
 
 ```bash
 cd ~/continux
@@ -71,7 +71,7 @@ kubectl -n pipeline get deploy/vector \
   | tee "${EVIDENCE_DIR}/06-vector-stopped.txt"
 ```
 
-## 3. Xóa State Của Lượt Demo
+## 3. Xóa Trạng Thái Của Lượt Thực Nghiệm
 
 ```bash
 cd ~/continux
@@ -114,7 +114,7 @@ kubectl -n pipeline exec deploy/continux-metrics -- \
 } | tee "${EVIDENCE_DIR}/06-clear-taxi-zone.txt"
 ```
 
-## 4. Xác Nhận Trạng Thái Sau Setup
+## 4. Xác Nhận Trạng Thái Sau Khi Thiết Lập
 
 ```bash
 cd ~/continux
@@ -153,26 +153,26 @@ curl -fsS http://127.0.0.1:9108/metrics \
   | tee "${EVIDENCE_DIR}/06-post-setup-metrics.txt"
 
 if mc ls --recursive local/iceberg-data/nyc/zone_stats/ | grep -q '\.parquet$'; then
-  echo "FAIL: cleanup vẫn còn file Parquet Iceberg." | tee "${EVIDENCE_DIR}/06-post-setup-iceberg.txt"
+  echo "FAIL: bước dọn dẹp vẫn còn file Parquet Iceberg." | tee "${EVIDENCE_DIR}/06-post-setup-iceberg.txt"
   exit 1
 else
-  echo "OK: cleanup đã loại bỏ tệp Parquet của lượt demo." | tee "${EVIDENCE_DIR}/06-post-setup-iceberg.txt"
+  echo "OK: bước dọn dẹp đã loại bỏ tệp Parquet của lượt thực nghiệm." | tee "${EVIDENCE_DIR}/06-post-setup-iceberg.txt"
 fi
 
 if mc stat local/tlc-zone/taxi_zone_lookup.csv >/dev/null 2>&1; then
-  echo "FAIL: cleanup vẫn còn Taxi Zone lookup." | tee "${EVIDENCE_DIR}/06-post-setup-taxi-zone.txt"
+  echo "FAIL: bước dọn dẹp vẫn còn Taxi Zone lookup." | tee "${EVIDENCE_DIR}/06-post-setup-taxi-zone.txt"
   exit 1
 else
   echo "OK: Taxi Zone lookup đã được dọn." | tee "${EVIDENCE_DIR}/06-post-setup-taxi-zone.txt"
 fi
 ```
 
-## 5. Xóa File Local Sinh Trong Lượt Chạy
+## 5. Xóa File Cục Bộ Sinh Trong Lượt Chạy
 
-Đưa checkout `~/continux` về hình dạng ban đầu của một repo vừa clone: không có dataset tải về và không có `.venv`. Evidence không mất vì đã được lưu ở `~/continux-demo-evidence/<RUN_ID>` ngoài repo.
+Đưa checkout `~/continux` về hình dạng ban đầu của một repo vừa clone: không có bộ dữ liệu tải về và không có `.venv`. Bằng chứng không mất vì đã được lưu ở `~/continux-demo-evidence/<RUN_ID>` ngoài repo.
 
-Runner cleanup chuẩn dọn `data/raw/`, hai CSV staging trong `data/zone/`,
-`.venv/`, state trong `experiments/results/`, `/tmp/continux-demo-env.sh`,
+Runner dọn dẹp chuẩn xóa `data/raw/`, hai CSV staging trong `data/zone/`,
+`.venv/`, trạng thái trong `experiments/results/`, `/tmp/continux-demo-env.sh`,
 log export `scripts/k3s-check/`, `scripts/__pycache__/` và screenshot export:
 
 ```bash
@@ -180,13 +180,13 @@ cd ~/continux
 bash experiments/runners/demo.sh cleanup-local
 ```
 
-Evidence chỉ bị xóa bằng lệnh riêng có xác nhận:
+Bằng chứng chỉ bị xóa bằng lệnh riêng có xác nhận:
 
 ```bash
 bash experiments/runners/demo.sh purge-evidence <RUN_ID>
 ```
 
-> Cảnh báo: lệnh dưới đây xóa dataset local và virtual environment tạo tại [DEMO.md](./DEMO.md) §2. Chỉ chạy sau khi Vector đã dừng và evidence cần giữ đã nằm ngoài repo.
+> Cảnh báo: lệnh dưới đây xóa bộ dữ liệu cục bộ và môi trường ảo tạo tại [DEMO.md](./DEMO.md) §2. Chỉ chạy sau khi Vector đã dừng và bằng chứng cần giữ đã nằm ngoài repo.
 
 ```bash
 cd ~/continux
@@ -202,7 +202,7 @@ test "${VECTOR_REPLICAS}" = "0"
 
 test -z "$(git ls-files -- data/raw .venv)"
 
-read -r -p "Nhập CLEAN-LOCAL để xóa data/raw và .venv do demo tạo: " CONFIRM
+read -r -p "Nhập CLEAN-LOCAL để xóa data/raw và .venv do lượt thực nghiệm tạo: " CONFIRM
 test "${CONFIRM}" = "CLEAN-LOCAL"
 
 deactivate 2>/dev/null || true
@@ -251,21 +251,21 @@ test -z "${GIT_STATUS}"
 | 2 | Vector | `0 desired` |
 | 3 | Redpanda topic | `nyc-taxi-events` tồn tại với `3` partition, `1` replica |
 | 4 | Lookup CSV trên MinIO | Không còn `tlc-zone/taxi_zone_lookup.csv` |
-| 5 | SQL demo | Không còn `tlc_zone`, source, public/blue/green MV hoặc sink |
+| 5 | SQL thực nghiệm | Không còn `tlc_zone`, source, public/blue/green MV hoặc sink |
 | 6 | Metric cutover hiện thời | Duration, timestamp, query errors và green readiness bằng `0` hoặc không tồn tại |
-| 7 | Đầu ra Iceberg | Không có tệp dữ liệu Parquet của lượt demo vừa dọn |
-| 8 | Checkout local | Không có `data/raw/`, `.venv/`, hai CSV taxi zone tạm, state/log/screenshot export tạm; `git status` rỗng |
+| 7 | Đầu ra Iceberg | Không có tệp dữ liệu Parquet của lượt thực nghiệm vừa dọn |
+| 8 | Checkout cục bộ | Không có `data/raw/`, `.venv/`, hai CSV taxi zone tạm, trạng thái/log/ảnh chụp màn hình xuất ra tạm; `git status` rỗng |
 
-Khi toàn bộ checklist đạt, trạng thái đã trở lại sau setup, trước demo. Lịch sử
+Khi toàn bộ checklist đạt, trạng thái đã trở lại sau thiết lập, trước thực nghiệm. Lịch sử
 metric cũ vẫn có thể xuất hiện trong Grafana do VictoriaMetrics lưu lịch sử
 bảy ngày; chọn khoảng thời gian của lượt mới để tránh nhầm lẫn.
 
 Từ trạng thái này, lượt thực nghiệm tiếp theo bắt đầu lại từ
-[DEMO.md](./DEMO.md) §1 (khai báo `RUN_ID` mới và terminal layout), rồi tải lại
+[DEMO.md](./DEMO.md) §1 (khai báo `RUN_ID` mới và bố trí terminal), rồi tải lại
 dataset tại §2. Không cần lặp lại [SETUP.md](./SETUP.md) vì hạ tầng chưa thay
 đổi.
 
-## 7. Troubleshooting
+## 7. Xử Lý Sự Cố
 
 ### 7.1. Vector Làm Máy Nóng Hoặc Replay Quá Nặng
 
@@ -281,7 +281,7 @@ Sau đó dùng profile `smoke`, hoặc giảm `rate_limit_num` / `max_events` tr
 
 ### 7.2. Pod `redpanda-configuration-*` Có Một Bản `Failed`
 
-Nếu Redpanda StatefulSet Ready, console Ready và có một pod configuration mới `Succeeded`, pod configuration cũ `Failed` chỉ là dấu vết lịch sử của hook/configuration. Không dùng nó làm baseline lỗi chính.
+Nếu Redpanda StatefulSet Ready, console Ready và có một pod configuration mới `Succeeded`, pod configuration cũ `Failed` chỉ là dấu vết lịch sử của hook/configuration. Không dùng nó làm dấu hiệu lỗi chính của trạng thái nền.
 
 ```bash
 kubectl -n redpanda get sts/redpanda deploy/redpanda-console
@@ -340,14 +340,14 @@ kubectl -n observability get vmservicescrape continux-metrics -o yaml
 
 ### 7.7. Không Reset Được Topic Hoặc Iceberg
 
-Dừng demo ở trạng thái an toàn:
+Dừng thực nghiệm ở trạng thái an toàn:
 
 ```bash
 kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
 kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s || true
 ```
 
-Không bắt đầu replay nếu topic cũ hoặc đầu ra Iceberg cũ chưa được xử lý theo mục tiêu của lượt demo sạch.
+Không bắt đầu replay nếu topic cũ hoặc đầu ra Iceberg cũ chưa được xử lý theo mục tiêu của lượt thực nghiệm sạch.
 
 ### 7.8. Cần Phá Môi Trường
 

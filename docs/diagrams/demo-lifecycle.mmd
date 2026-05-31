@@ -1,9 +1,9 @@
-flowchart TD
-    init["init<br/>create RUN_ID and evidence dir"] --> prepare["prepare-data<br/>download, convert, upload lookup"]
-    prepare --> baseline["baseline<br/>reset to clean Blue state"]
-    baseline --> replay["replay<br/>apply selected profile, ingest, stop Vector"]
-    replay --> cutover["cutover<br/>create Green, query loop, swap"]
-    cutover --> runtime["cleanup-runtime<br/>restore clean Blue state"]
-    runtime --> local["cleanup-local<br/>remove local generated files"]
-    local --> keep["keep evidence by default"]
-    keep --> purge["purge-evidence RUN_ID<br/>explicit confirmation only"]
+flowchart LR
+    init["init<br/>tạo RUN_ID và thư mục bằng chứng"] --> prepare["prepare-data<br/>tải, chuyển đổi, upload lookup"]
+    prepare --> baseline["baseline<br/>dựng trạng thái Blue sạch"]
+    baseline --> replay["replay<br/>áp dụng profile, ingest, dừng Vector"]
+    replay --> cutover["cutover<br/>tạo Green, chạy vòng lặp query, swap"]
+    cutover --> runtime["cleanup-runtime<br/>trở về trạng thái sau thiết lập"]
+    runtime --> local["cleanup-local<br/>xóa file cục bộ sinh ra"]
+    local --> keep["mặc định giữ bằng chứng"]
+    keep --> purge["purge-evidence RUN_ID<br/>chỉ xóa sau khi xác nhận rõ"]

@@ -1,8 +1,6 @@
-# Experiment Scenarios
+# Scenario Thực Nghiệm
 
-`demo.env` contains the non-secret defaults consumed by
-`experiments/runners/demo.sh`: dataset month, public download URLs, broker
-address and observation windows.
+Thư mục này chứa biến cấu hình không nhạy cảm cho runner thực nghiệm. Luồng thực thi
+đầy đủ được mô tả trong [DEMO.md](../../docs/runbook/DEMO.md).
 
-Keep credentials out of scenario files. Export runtime secrets in the shell as
-described in `docs/runbook/DEMO.md`.
+Không đặt token, password hoặc secret vào file scenario.

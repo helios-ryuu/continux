@@ -1,10 +1,10 @@
-# Normalize line endings: all text files use LF in repo
+# Chuẩn hóa ký tự xuống dòng: mọi file văn bản trong repo dùng LF.
 * text=auto eol=lf
 
-# Shell scripts must always be LF — never CRLF
+# Script shell luôn dùng LF, không dùng CRLF.
 *.sh text eol=lf
 
-# Windows-only files keep CRLF
+# File chỉ chạy trên Windows giữ CRLF.
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf

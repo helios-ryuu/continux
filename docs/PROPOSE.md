@@ -34,7 +34,7 @@ Phân tách dữ liệu:
 - **Luồng dữ liệu động:** Vector đọc JSONL và phát event vào Redpanda topic `nyc-taxi-events`.
 - **Dữ liệu tham chiếu tĩnh:** Taxi Zone CSV được upload lên MinIO bucket `tlc-zone`.
 - **Xử lý luồng:** RisingWave join stream với lookup table và duy trì materialized views.
-- **Lakehouse output:** RisingWave sink ghi kết quả xuống Apache Iceberg trên MinIO.
+- **Đầu ra lakehouse:** RisingWave sink ghi kết quả xuống Apache Iceberg trên MinIO.
 
 ## 5. Lý Do Chọn Bài Báo Và Khoảng Trống Bổ Sung
 
@@ -42,18 +42,18 @@ Bài báo **Ursa** phù hợp vì tập trung vào hướng lakehouse-native str
 
 Continux bổ sung góc nhìn vận hành:
 
-1. **State offloading:** RisingWave lưu state/checkpoint trên MinIO, tách compute khỏi storage để giảm rủi ro mất trạng thái khi workload thay đổi.
-2. **In-engine Blue/Green:** logic SQL mới được triển khai thành materialized view song song, kiểm tra readiness rồi swap tên view bằng thao tác nguyên tử.
-3. **GitOps + Observability:** Argo CD quản lý manifest, VictoriaMetrics/Grafana ghi lại readiness, resource, cutover và integrity.
+1. **Tách kho trạng thái:** RisingWave lưu trạng thái/checkpoint trên MinIO, tách compute khỏi storage để giảm rủi ro mất trạng thái khi workload thay đổi.
+2. **Blue/Green trong engine:** logic SQL mới được triển khai thành materialized view song song, kiểm tra mức sẵn sàng rồi swap tên view bằng thao tác nguyên tử.
+3. **GitOps + quan sát hệ thống:** Argo CD quản lý manifest, VictoriaMetrics/Grafana ghi lại mức sẵn sàng, tài nguyên, cutover và tính toàn vẹn.
 
 ## 6. Chỉ Số Và Tiêu Chí Đánh Giá
 
 | Nhóm chỉ số | Mô tả | Cách đo |
 |-------------|-------|---------|
-| **Cutover & GitOps Deployment** | Đo khả năng đổi logic không gián đoạn, readiness, duration, query errors và restart | `ALTER MATERIALIZED VIEW ... SWAP WITH ...`, query loop liên tục bắt lỗi, exporter ghi duration và timestamp |
-| **Data Quality & Lakehouse Output** | Đối chiếu row/trip count, rejected records, Iceberg output và mismatch theo logic | SQL count public/blue/green; `continux_records_rejected_total`; MinIO listing Iceberg |
-| **Streaming Performance** | Quan sát replay ingest, processed events, lag, throughput proxy và RisingWave rows/s | Vector logs, Redpanda topic offsets, exporter `continux_events_processed_total`, RisingWave rows/s proxy |
-| **Resource Utilization & Stability** | Theo dõi CPU/RAM/PVC/restart trên cluster tài nguyên giới hạn | Node-exporter + kube-state-metrics qua VictoriaMetrics; `bash scripts/k3s-check.sh overview` |
+| **Cutover Và Triển Khai GitOps** | Đo khả năng đổi logic không gián đoạn, mức sẵn sàng, thời lượng, lỗi truy vấn và số lần khởi động lại | `ALTER MATERIALIZED VIEW ... SWAP WITH ...`, query loop liên tục bắt lỗi, exporter ghi thời lượng và mốc thời gian |
+| **Chất Lượng Dữ Liệu Và Đầu Ra Lakehouse** | Đối chiếu số dòng/chuyến đi, bản ghi bị loại, đầu ra Iceberg và độ lệch theo logic | SQL đếm public/blue/green; `continux_records_rejected_total`; danh sách object Iceberg trên MinIO |
+| **Hiệu Năng Streaming** | Quan sát replay ingest, event đã xử lý, lag, throughput đại diện và số dòng RisingWave/s | Log Vector, offset topic Redpanda, exporter `continux_events_processed_total`, số dòng RisingWave/s đại diện |
+| **Mức Dùng Tài Nguyên Và Độ Ổn Định** | Theo dõi CPU/RAM/PVC/số lần khởi động lại trên cluster tài nguyên giới hạn | Node-exporter + kube-state-metrics qua VictoriaMetrics; `bash scripts/k3s-check.sh overview` |
 
 Số đo cụ thể của mỗi lượt thực nghiệm được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo.
 
@@ -66,8 +66,9 @@ Số đo cụ thể của mỗi lượt thực nghiệm được lưu tại `~/c
 3. Bộ dashboard Grafana cho 4 nhóm chỉ số:
    streaming performance, resource utilization, cutover, data integrity.
 4. Runbook triển khai và thực nghiệm:
-   [RUNBOOK.md](./RUNBOOK.md), với ba pha chi tiết trong thư mục `runbook/`.
-5. Báo cáo/evidence companion:
+   [SETUP.md](./runbook/SETUP.md), [DEMO.md](./runbook/DEMO.md) và
+   [CLEANUP.md](./runbook/CLEANUP.md).
+5. Báo cáo đi kèm bằng chứng:
    [REPORT.md](./REPORT.md).
 6. Paper LaTeX song ngữ:
    `paper/main_vi.pdf`, `paper/main_en.pdf`, build từ source module trong `paper/src/`.

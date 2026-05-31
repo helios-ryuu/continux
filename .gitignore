@@ -15,8 +15,6 @@ experiments/results/*
 # Grafana screenshot export
 dashboards/exports/
 
-# Local finalize evidence/log bundle
-evidence/
 scripts/k3s-check/
 
 # Build artifacts

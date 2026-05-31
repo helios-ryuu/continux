@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================
-# k3s-token.sh - Print the K3s server join token.
-# Run on: imac after server #1 is initialized.
+# In token dùng để join K3s server.
+# Chạy trên: imac sau khi khởi tạo server số 1.
 # =================================================================
 set -euo pipefail
 
@@ -9,11 +9,11 @@ TOKEN_FILE="/var/lib/rancher/k3s/server/node-token"
 
 usage() {
     cat <<'EOF'
-Usage:
+Cú pháp:
   bash scripts/k3s-token.sh
 
-Print the K3s server join token from /var/lib/rancher/k3s/server/node-token.
-Run on imac after K3s server #1 is initialized.
+In token join K3s server từ /var/lib/rancher/k3s/server/node-token.
+Chạy trên imac sau khi khởi tạo server số 1.
 EOF
 }
 
@@ -25,7 +25,7 @@ case "${1:-}" in
     "")
         ;;
     *)
-        echo "Unknown option: $1" >&2
+        echo "Tham số không hợp lệ: $1" >&2
         usage >&2
         exit 1
         ;;
@@ -43,5 +43,5 @@ if command -v sudo >/dev/null 2>&1; then
     exit 0
 fi
 
-echo "Cannot read ${TOKEN_FILE}. Run with sudo on a K3s server." >&2
+echo "Không đọc được ${TOKEN_FILE}. Hãy chạy bằng sudo trên K3s server." >&2
 exit 1

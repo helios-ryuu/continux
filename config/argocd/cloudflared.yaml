@@ -16,7 +16,7 @@ spec:
         - { key: dedicated, operator: Equal, value: edge, effect: NoSchedule }
       containers:
         - name: cloudflared
-          image: cloudflare/cloudflared:2026.5.0
+          image: cloudflare/cloudflared:2026.5.2
           args:
             - tunnel
             - --no-autoupdate

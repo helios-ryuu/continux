@@ -11,11 +11,11 @@ Stack chính:
 - **K3s + Tailscale:** cụm Kubernetes HA qua mesh VPN.
 - **Argo CD + Helm:** GitOps và quản lý release.
 - **Vector + Redpanda:** giả lập stream JSONL và broker Kafka-compatible.
-- **RisingWave + Apache Iceberg + MinIO:** xử lý luồng, state store và lakehouse sink.
+- **RisingWave + Apache Iceberg + MinIO:** xử lý luồng, kho trạng thái và lakehouse sink.
 - **VictoriaMetrics + Grafana + metrics-exporter:** quan sát hạ tầng và metric thực nghiệm `continux_*`.
 - **Cloudflare Tunnel:** expose UI Argo CD/Grafana qua domain có kiểm soát.
 
-## 2. Topology
+## 2. Bố Trí Hạ Tầng
 
 | Node | Tài nguyên | Vai trò |
 |------|------------|---------|
@@ -35,7 +35,7 @@ Tailscale inventory:
 Placement chuẩn:
 
 ```yaml
-# Stateful/data workload
+# Workload có trạng thái và dữ liệu
 nodeSelector:
   role: data-plane
 
@@ -83,7 +83,7 @@ Các bước chính:
 7. `metrics-exporter` đọc RisingWave catalog/MV và expose `continux_*`.
 8. VictoriaMetrics scrape metrics; Grafana hiển thị dashboard resource, streaming, cutover và integrity.
 
-## 4. GitOps Layout
+## 4. Bố Trí GitOps
 
 | Path | Nội dung |
 |------|----------|
@@ -94,11 +94,11 @@ Các bước chính:
 | `config/metrics-exporter/` | Exporter metric thực nghiệm và VMServiceScrape |
 | `config/victoria-metrics/` | VictoriaMetrics values và scrape config |
 | `gitops/apps/` | App-of-Apps cho Argo CD |
-| `pipelines/vector/` | Vector TOML, profile rate, PVC và Deployment |
+| `pipelines/vector/` | Vector TOML, profile tốc độ, PVC và Deployment |
 | `pipelines/redpanda/` | Topic bootstrap Job |
 | `sql/` | Source, table, MV, sink SQL và apply Job |
-| `dashboards/` | Dashboard JSON và ConfigMap provisioning cho Grafana |
-| `experiments/` | Scenario, runner theo pha và state local đã ignore |
+| `dashboards/` | Dashboard JSON và ConfigMap cấp phát cho Grafana |
+| `experiments/` | Kịch bản, runner theo pha và trạng thái cục bộ đã bỏ qua |
 
 ## 5. Blue/Green Cutover
 
@@ -113,7 +113,7 @@ Cutover được thực hiện ở lớp RisingWave materialized view:
 ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green;
 ```
 
-Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần đổi query phía người dùng; view giữ tên `mv_zone_stats_green` chứa logic cũ. Số đo cụ thể (duration, query errors, row counts trước/sau) của từng lượt thực nghiệm được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo. Lệch checksum sau swap là expected nếu dashboard so logic mới với logic cũ.
+Sau swap, tên public `mv_zone_stats` phục vụ logic mới mà không cần đổi query phía người dùng; view giữ tên `mv_zone_stats_green` chứa logic cũ. Số đo cụ thể (thời lượng, lỗi truy vấn, số dòng trước/sau) của từng lượt thực nghiệm được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo. Lệch checksum sau swap là kết quả dự kiến nếu dashboard so logic mới với logic cũ.
 
 ## 6. Yêu Cầu Và Tiêu Chí
 
@@ -122,19 +122,19 @@ Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần �
 | FR-01 | Ingest NYC TLC Trip Record Data | Vector phát được JSON vào `nyc-taxi-events` |
 | FR-02 | Streaming SQL | RisingWave query được source, table, MV |
 | FR-03 | Lakehouse sink | MinIO bucket `iceberg-data` có Iceberg metadata/data |
-| FR-04 | GitOps deployment | Argo CD quản lý các app từ repo |
+| FR-04 | Triển khai GitOps | Argo CD quản lý các app từ repo |
 | FR-05 | Observability | Grafana đọc VictoriaMetrics và metric `continux_*` |
 | NFR-01 | HA control plane | 3 K3s server Ready, quorum `2/3` |
 | NFR-02 | Resource safety | Vector mặc định `replicas=0`, profile `smoke=2 events/s`; benchmark phải opt-in |
-| NFR-03 | Reproducible setup | `runbook/SETUP.md` đi từ máy sạch đến trạng thái sẵn sàng demo |
-| NFR-04 | Demo replay | `runbook/DEMO.md` và `runbook/CLEANUP.md` có replay sạch và dọn dẹp để chạy lại từ đầu |
+| NFR-03 | Thiết lập có thể tái lập | `runbook/SETUP.md` đi từ máy sạch đến trạng thái sẵn sàng thực nghiệm |
+| NFR-04 | Replay thực nghiệm | `runbook/DEMO.md` và `runbook/CLEANUP.md` có replay sạch và dọn dẹp để chạy lại từ đầu |
 
 ## 7. Vận Hành
 
 - `imac` là node quản trị chính, giữ clone repo `~/continux`.
-- Vector luôn giữ `replicas=0` khi không demo ingest.
+- Vector luôn giữ `replicas=0` khi không chạy ingest thực nghiệm.
 - `experiments/runners/demo.sh` điều phối từng pha và trả Vector về profile `smoke` sau replay.
 - Secrets tạo runtime bằng Kubernetes Secret, không lưu trong Git.
 - Dataset lớn nằm trong `data/raw/` và không commit.
-- Evidence, screenshot và log lớn nộp riêng, không commit vào repo.
+- Bằng chứng, ảnh chụp màn hình và log lớn nộp riêng, không commit vào repo.
 - Công cụ reset/phá hủy nằm trong `scripts/k3s-purge.sh` và chỉ dùng theo [SCRIPTS.md](./SCRIPTS.md).

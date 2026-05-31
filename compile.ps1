@@ -1,6 +1,6 @@
-# Usage:
+# Cú pháp:
 #   .\compile.ps1 .\paper\main_vi.tex
-# Builds the PDF next to the .tex file and moves LaTeX artifacts to <basename>_artifacts.
+# Build PDF cạnh file .tex và chuyển artifact LaTeX vào <basename>_artifacts.
 
 param(
     [Parameter(Mandatory = $true, Position = 0)]
@@ -69,19 +69,19 @@ function Move-LatexArtifacts {
 try {
     $resolvedTexPath = (Resolve-Path -LiteralPath $TexPath -ErrorAction Stop).ProviderPath
 } catch {
-    Stop-WithMessage -Message "TeX file not found: $TexPath" -ExitCode 1
+    Stop-WithMessage -Message "Không tìm thấy file TeX: $TexPath" -ExitCode 1
 }
 
 if (-not (Test-Path -LiteralPath $resolvedTexPath -PathType Leaf)) {
-    Stop-WithMessage -Message "Path is not a file: $resolvedTexPath" -ExitCode 1
+    Stop-WithMessage -Message "Đường dẫn không phải file: $resolvedTexPath" -ExitCode 1
 }
 
 if ([System.IO.Path]::GetExtension($resolvedTexPath) -ine '.tex') {
-    Stop-WithMessage -Message "Input must be a .tex file: $resolvedTexPath" -ExitCode 1
+    Stop-WithMessage -Message "Input phải là file .tex: $resolvedTexPath" -ExitCode 1
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Stop-WithMessage -Message "Docker is required but was not found in PATH." -ExitCode 1
+    Stop-WithMessage -Message "Không tìm thấy Docker trong PATH." -ExitCode 1
 }
 
 $texDirectory = Split-Path -Parent $resolvedTexPath
@@ -116,17 +116,17 @@ try {
         -DestinationDirectory $artifactDirectory `
         -Extensions $artifactExtensions
 } catch {
-    Stop-WithMessage -Message "Failed to move LaTeX artifacts: $($_.Exception.Message)" -ExitCode 1
+    Stop-WithMessage -Message "Không chuyển được artifact LaTeX: $($_.Exception.Message)" -ExitCode 1
 }
 
 if ($buildExitCode -ne 0) {
-    Stop-WithMessage -Message "LaTeX build failed with exit code $buildExitCode. Artifacts are in: $artifactDirectory" -ExitCode $buildExitCode
+    Stop-WithMessage -Message "Build LaTeX lỗi với exit code $buildExitCode. Artifact nằm tại: $artifactDirectory" -ExitCode $buildExitCode
 }
 
 if (-not (Test-Path -LiteralPath $pdfPath -PathType Leaf)) {
-    Stop-WithMessage -Message "LaTeX build finished but PDF was not found: $pdfPath" -ExitCode 1
+    Stop-WithMessage -Message "Build LaTeX hoàn tất nhưng không tìm thấy PDF: $pdfPath" -ExitCode 1
 }
 
 Write-Host "PDF: $pdfPath"
-Write-Host "Artifacts: $artifactDirectory"
+Write-Host "Artifact: $artifactDirectory"
 exit 0

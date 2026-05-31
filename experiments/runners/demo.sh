@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the Continux replay and Blue/Green cutover workflow in explicit phases.
+# Chạy quy trình replay và Blue/Green cutover của Continux theo từng pha rõ ràng.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +23,7 @@ info() {
 
 usage() {
     cat <<'EOF'
-Usage:
+Cú pháp:
   bash experiments/runners/demo.sh help
   bash experiments/runners/demo.sh preflight [--local-only]
   bash experiments/runners/demo.sh init [smoke|benchmark-low|benchmark-medium|benchmark-high]
@@ -35,14 +35,14 @@ Usage:
   bash experiments/runners/demo.sh cleanup-local
   bash experiments/runners/demo.sh purge-evidence <RUN_ID>
 
-Profiles:
-  smoke             2 events/s; default safe profile
-  benchmark-low     1000 events/s; opt-in benchmark
-  benchmark-medium  5000 events/s; opt-in benchmark
-  benchmark-high    10000 events/s; opt-in benchmark
+Profile:
+  smoke             2 events/s; profile an toàn mặc định
+  benchmark-low     1000 events/s; chỉ dùng khi chủ động benchmark
+  benchmark-medium  5000 events/s; chỉ dùng khi chủ động benchmark
+  benchmark-high    10000 events/s; chỉ dùng khi chủ động benchmark
 
-Set CONTINUX_ASSUME_YES=1 only for a controlled non-interactive cleanup.
-Evidence is retained by default under ~/continux-demo-evidence/<RUN_ID>/.
+Chỉ đặt CONTINUX_ASSUME_YES=1 khi bước dọn dẹp không tương tác đã được kiểm soát.
+Bằng chứng mặc định được giữ tại ~/continux-demo-evidence/<RUN_ID>/.
 EOF
 }
 
@@ -50,13 +50,13 @@ require_commands() {
     local command_name
     for command_name in "$@"; do
         command -v "${command_name}" >/dev/null 2>&1 ||
-            die "Required command not found: ${command_name}"
+            die "Không tìm thấy lệnh bắt buộc: ${command_name}"
     done
 }
 
 validate_run_id() {
     [[ "$1" =~ ^[0-9]{8}-[0-9]{6}$ ]] ||
-        die "Invalid RUN_ID: $1"
+        die "RUN_ID không hợp lệ: $1"
 }
 
 confirm() {
@@ -65,13 +65,13 @@ confirm() {
     local answer
 
     if [ "${CONTINUX_ASSUME_YES:-0}" = "1" ]; then
-        info "Skipping confirmation because CONTINUX_ASSUME_YES=1."
+        info "Bỏ qua xác nhận vì CONTINUX_ASSUME_YES=1."
         return
     fi
 
-    printf '%s Type %s to continue: ' "${prompt}" "${expected}"
+    printf '%s Nhập %s để tiếp tục: ' "${prompt}" "${expected}"
     read -r answer
-    [ "${answer}" = "${expected}" ] || die "Confirmation mismatch. Aborted."
+    [ "${answer}" = "${expected}" ] || die "Nội dung xác nhận không khớp. Đã hủy."
 }
 
 assert_git_clean() {
@@ -79,14 +79,14 @@ assert_git_clean() {
     status="$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all)"
     if [ -n "${status}" ] && [ "${CONTINUX_ALLOW_DIRTY:-0}" != "1" ]; then
         printf '%s\n' "${status}" >&2
-        die "Tracked checkout is not clean. Commit or stash changes before a demo."
+        die "Checkout Git chưa sạch. Hãy commit hoặc stash thay đổi trước khi chạy thực nghiệm."
     fi
 }
 
 assert_local_port() {
     local port="$1"
     (echo >/dev/tcp/127.0.0.1/"${port}") >/dev/null 2>&1 ||
-        die "localhost:${port} is not reachable. Start the required port-forward from docs/runbook/DEMO.md."
+        die "Không kết nối được localhost:${port}. Hãy mở port-forward theo docs/runbook/DEMO.md."
 }
 
 profile_file() {
@@ -95,7 +95,7 @@ profile_file() {
         benchmark-low) printf '%s\n' "${REPO_ROOT}/pipelines/vector/rates/low.env" ;;
         benchmark-medium) printf '%s\n' "${REPO_ROOT}/pipelines/vector/rates/medium.env" ;;
         benchmark-high) printf '%s\n' "${REPO_ROOT}/pipelines/vector/rates/high.env" ;;
-        *) die "Unknown profile: $1" ;;
+        *) die "Profile không hợp lệ: $1" ;;
     esac
 }
 
@@ -128,7 +128,7 @@ write_state() {
 
 load_state() {
     [ -f "${CURRENT_STATE}" ] ||
-        die "No active run. Start with: bash experiments/runners/demo.sh init [profile]"
+        die "Chưa có lượt chạy đang hoạt động. Bắt đầu bằng: bash experiments/runners/demo.sh init [profile]"
     # shellcheck disable=SC1090
     source "${CURRENT_STATE}"
     validate_run_id "${RUN_ID}"
@@ -137,9 +137,9 @@ load_state() {
 
 preflight_local() {
     require_commands bash git sed python3
-    [ -f "${SCENARIO_FILE}" ] || die "Missing scenario: ${SCENARIO_FILE}"
-    [ -f "$(profile_file smoke)" ] || die "Missing smoke profile."
-    info "Local preflight passed. Default profile: smoke ($(profile_rate smoke) events/s)."
+    [ -f "${SCENARIO_FILE}" ] || die "Thiếu scenario: ${SCENARIO_FILE}"
+    [ -f "$(profile_file smoke)" ] || die "Thiếu profile smoke."
+    info "Kiểm tra trước khi chạy trên máy cục bộ đã thành công. Profile mặc định: smoke ($(profile_rate smoke) events/s)."
 }
 
 preflight_cluster() {
@@ -148,7 +148,7 @@ preflight_cluster() {
     kubectl cluster-info >/dev/null
     kubectl -n pipeline get deploy/vector >/dev/null
     kubectl -n redpanda get pod/redpanda-0 >/dev/null
-    info "Cluster preflight passed."
+    info "Kiểm tra trước khi chạy trên cluster đã thành công."
 }
 
 sync_app() {
@@ -161,7 +161,7 @@ apply_rate_profile() {
     local selected="$1"
     local selected_file
     selected_file="$(profile_file "${selected}")"
-    info "Applying Vector profile ${selected} ($(profile_rate "${selected}") events/s)."
+    info "Đang áp dụng profile Vector ${selected} ($(profile_rate "${selected}") events/s)."
     kubectl -n pipeline create configmap vector-rate-profile \
         --from-env-file="${selected_file}" \
         --dry-run=client -o yaml |
@@ -174,7 +174,7 @@ stop_vector() {
 }
 
 restore_smoke_profile() {
-    info "Restoring the safe Vector smoke profile."
+    info "Đang khôi phục profile Vector smoke an toàn."
     stop_vector
     apply_rate_profile smoke
     sync_app vector
@@ -190,7 +190,7 @@ ensure_mc_alias() {
         mc alias set local http://127.0.0.1:9000 adminuser "${MINIO_ROOT_PASSWORD}" >/dev/null
     else
         mc ls local >/dev/null 2>&1 ||
-            die "MinIO alias local is unavailable. Export MINIO_ROOT_PASSWORD."
+            die "Alias MinIO cục bộ chưa dùng được. Hãy export MINIO_ROOT_PASSWORD."
     fi
 }
 
@@ -209,9 +209,9 @@ init_run() {
     ZONE_CSV="${REPO_ROOT}/data/zone/taxi_zone_lookup.csv"
     ZONE_RW_CSV="${REPO_ROOT}/data/zone/taxi_zone_lookup_risingwave.csv"
 
-    [ ! -e "${CURRENT_STATE}" ] || die "An active run already exists. Run cleanup-local first."
-    [ ! -e "${DATA_DIR}" ] || die "${DATA_DIR} already exists. Run cleanup-local first."
-    [ ! -e "${REPO_ROOT}/.venv" ] || die "${REPO_ROOT}/.venv already exists. Run cleanup-local first."
+    [ ! -e "${CURRENT_STATE}" ] || die "Đã có lượt chạy đang hoạt động. Hãy chạy cleanup-local trước."
+    [ ! -e "${DATA_DIR}" ] || die "${DATA_DIR} đã tồn tại. Hãy chạy cleanup-local trước."
+    [ ! -e "${REPO_ROOT}/.venv" ] || die "${REPO_ROOT}/.venv đã tồn tại. Hãy chạy cleanup-local trước."
     mkdir -p "${EVIDENCE_DIR}"
     write_state
     {
@@ -226,7 +226,7 @@ prepare_data() {
     load_state
     require_commands wget python3 mc
     assert_local_port 9000
-    [ ! -e "${DATA_DIR}" ] || die "${DATA_DIR} already exists. Run cleanup-local first."
+    [ ! -e "${DATA_DIR}" ] || die "${DATA_DIR} đã tồn tại. Hãy chạy cleanup-local trước."
 
     mkdir -p "${DATA_DIR}"
     wget -c -O "${DATA_PARQUET}" \
@@ -277,7 +277,7 @@ reset_runtime() {
     assert_local_port 4567
     assert_local_port 9000
     ensure_mc_alias
-    confirm "${token}" "This removes replay, SQL, Iceberg and cutover state."
+    confirm "${token}" "Thao tác này xóa trạng thái replay, SQL, Iceberg và cutover."
 
     stop_vector | tee "${EVIDENCE_DIR}/${prefix}-vector-stopped.txt"
     apply_rate_profile smoke
@@ -289,7 +289,7 @@ reset_runtime() {
             kubectl -n redpanda exec redpanda-0 -c redpanda -- \
                 rpk topic delete nyc-taxi-events --brokers "${BROKERS}"
         else
-            echo "Topic nyc-taxi-events is already absent."
+            echo "Topic nyc-taxi-events đã không tồn tại."
         fi
     } | tee "${EVIDENCE_DIR}/${prefix}-topic-delete.txt"
     sync_app redpanda-topics
@@ -313,7 +313,7 @@ reset_runtime() {
     if mc stat local/tlc-zone/taxi_zone_lookup.csv >/dev/null 2>&1; then
         mc rm --force local/tlc-zone/taxi_zone_lookup.csv
     else
-        echo "Taxi Zone lookup is already absent."
+        echo "Taxi Zone lookup đã không tồn tại."
     fi | tee "${EVIDENCE_DIR}/${prefix}-clear-taxi-zone.txt"
 
     psql -h localhost -p 4567 -d dev -U root -c \
@@ -339,7 +339,7 @@ replay() {
     assert_local_port 4567
     assert_local_port 9000
     assert_local_port 9108
-    test -s "${DATA_JSONL}" || die "JSONL dataset is missing. Run prepare-data first."
+    test -s "${DATA_JSONL}" || die "Thiếu dataset JSONL. Hãy chạy prepare-data trước."
     ensure_mc_alias
 
     trap 'finish_replay' EXIT
@@ -436,7 +436,7 @@ SQL
     kill "${query_pid}" 2>/dev/null || true
     wait "${query_pid}" 2>/dev/null || true
     trap - EXIT INT TERM
-    grep -q ' OK ' "${query_log}" || die "The cutover query loop did not record a successful query."
+    grep -q ' OK ' "${query_log}" || die "Vòng lặp truy vấn cutover chưa ghi nhận truy vấn thành công."
 
     cutover_duration="$(
         python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1_000_000_000:.6f}")' \
@@ -449,13 +449,13 @@ SQL
         tee "${EVIDENCE_DIR}/05-duration-and-errors.txt"
 
     kubectl -n pipeline exec -i deploy/continux-metrics -- sh -c 'cat > /state/cutover.prom' <<EOF
-# HELP continux_cutover_duration_seconds Latest measured blue/green swap duration.
+# HELP continux_cutover_duration_seconds Thời gian swap Blue/Green đo được gần nhất.
 # TYPE continux_cutover_duration_seconds gauge
 continux_cutover_duration_seconds ${cutover_duration}
-# HELP continux_last_swap_timestamp_seconds Unix timestamp of the last blue/green swap.
+# HELP continux_last_swap_timestamp_seconds Unix timestamp của lần swap Blue/Green gần nhất.
 # TYPE continux_last_swap_timestamp_seconds gauge
 continux_last_swap_timestamp_seconds ${swap_timestamp}
-# HELP continux_query_errors_total Query errors observed during cutover.
+# HELP continux_query_errors_total Số lỗi truy vấn ghi nhận trong lúc cutover.
 # TYPE continux_query_errors_total counter
 continux_query_errors_total ${query_errors}
 EOF
@@ -480,9 +480,9 @@ cleanup_local() {
     load_state
     local vector_replicas
     vector_replicas="$(kubectl -n pipeline get deploy/vector -o jsonpath='{.spec.replicas}')"
-    [ "${vector_replicas}" = "0" ] || die "Vector must be scaled to 0 before local cleanup."
-    [ "${DATA_DIR}" = "${REPO_ROOT}/data/raw" ] || die "Unexpected DATA_DIR: ${DATA_DIR}"
-    confirm CLEAN-LOCAL "This removes generated local datasets, venv, logs and state for ${RUN_ID}."
+    [ "${vector_replicas}" = "0" ] || die "Vector phải được scale về 0 trước khi dọn file cục bộ."
+    [ "${DATA_DIR}" = "${REPO_ROOT}/data/raw" ] || die "DATA_DIR không đúng như mong đợi: ${DATA_DIR}"
+    confirm CLEAN-LOCAL "Thao tác này xóa bộ dữ liệu cục bộ, môi trường ảo, log và trạng thái sinh ra cho ${RUN_ID}."
 
     deactivate 2>/dev/null || true
     rm -rf -- \
@@ -497,19 +497,18 @@ cleanup_local() {
         "${ZONE_RW_CSV}" \
         "${TMP_STATE}" \
         "${CURRENT_STATE}"
-    info "Local generated files removed. Evidence retained at ${EVIDENCE_DIR}."
+    info "Đã xóa file cục bộ sinh ra khi chạy. Bằng chứng vẫn được giữ tại ${EVIDENCE_DIR}."
 }
 
 purge_evidence() {
     local run_id="${1:-}"
-    local retained_target legacy_target
-    [ -n "${run_id}" ] || die "purge-evidence requires RUN_ID."
+    local retained_target
+    [ -n "${run_id}" ] || die "purge-evidence yêu cầu RUN_ID."
     validate_run_id "${run_id}"
     retained_target="${HOME}/continux-demo-evidence/${run_id}"
-    legacy_target="${REPO_ROOT}/evidence/finalize/${run_id}"
-    confirm PURGE-EVIDENCE "This permanently removes evidence for ${run_id}."
-    rm -rf -- "${retained_target}" "${legacy_target}" "${RESULTS_DIR}/${run_id}"
-    info "Evidence removed for ${run_id}."
+    confirm PURGE-EVIDENCE "Thao tác này xóa vĩnh viễn bằng chứng của ${run_id}."
+    rm -rf -- "${retained_target}" "${RESULTS_DIR}/${run_id}"
+    info "Đã xóa bằng chứng của ${run_id}."
 }
 
 case "${1:-help}" in
@@ -529,5 +528,5 @@ case "${1:-help}" in
     cleanup-runtime) cleanup_runtime ;;
     cleanup-local) cleanup_local ;;
     purge-evidence) purge_evidence "${2:-}" ;;
-    *) die "Unknown command: $1. Run: bash experiments/runners/demo.sh help" ;;
+    *) die "Lệnh không hợp lệ: $1. Hãy chạy: bash experiments/runners/demo.sh help" ;;
 esac

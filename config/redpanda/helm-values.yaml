@@ -1,5 +1,5 @@
 image:
-  tag: v26.1.8
+  tag: v26.1.9
 
 statefulset:
   replicas: 1

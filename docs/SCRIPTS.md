@@ -1,6 +1,6 @@
 # SCRIPTS
 
-Tất cả script vận hành nằm trong `scripts/`. Repo chỉ giữ các script thuộc topology 3 K3s server của dự án; helper generic ngoài topology không được thêm vào đây.
+Tất cả script vận hành nằm trong `scripts/`. Repo chỉ giữ các script thuộc bố trí 3 K3s server của dự án; helper dùng chung ngoài bố trí này không được thêm vào đây.
 
 ## Danh Sách
 
@@ -10,10 +10,11 @@ Tất cả script vận hành nằm trong `scripts/`. Repo chỉ giữ các scri
 | `k3s-token.sh` | `imac` | In K3s server join token |
 | `k3s-install-server.sh` | `continux-vps`, `helios-pc` | Join server #2/#3 vào cluster |
 | `wsl-enable-shared-root.sh` | `helios-pc` WSL | Bật shared root mount propagation để node-exporter/hostPath chạy được |
-| `k3s-check.sh` | `imac` | Kiểm tra overview, nodes/pods, workloads, storage, local resources, images, Helm và secrets |
+| `host-update.sh` | Cả ba node | Cập nhật CLI theo vai trò host và chuẩn hóa symlink K3s mà không khởi động lại K3s |
+| `k3s-check.sh` | `imac` | Kiểm tra tổng quan, node/pod, workload, lưu trữ, tài nguyên cục bộ, image, Helm và secret |
 | `tool-version.sh` | Ubuntu node | Kiểm tra CLI và phiên bản công cụ |
 | `partojsonl.py` | `imac` | Convert NYC TLC Yellow Taxi Parquet sang JSONL |
-| `../experiments/runners/demo.sh` | `imac` | Chạy demo theo pha, thu evidence và cleanup an toàn |
+| `../experiments/runners/demo.sh` | `imac` | Chạy thực nghiệm theo pha, thu bằng chứng và dọn dẹp an toàn |
 | `k3s-purge.sh` | K3s server có kubeconfig | Công cụ reset/phá hủy có chủ đích |
 
 ## `k3s-install-server-init.sh`
@@ -25,7 +26,11 @@ cd ~/continux
 sudo bash scripts/k3s-install-server-init.sh
 ```
 
-Script tự lấy Tailscale IPv4, cài K3s stable channel, dùng `--cluster-init`, tắt Traefik/ServiceLB/metrics-server, giữ local-path storage mặc định, đặt `--flannel-iface=tailscale0`, gán label `workload=heavy role=data-plane`, rồi in hướng dẫn join cho hai server còn lại.
+Script tự lấy Tailscale IPv4, cài K3s từ kênh `stable`, dùng
+`INSTALL_K3S_SYMLINK=force` và `--cluster-init`, tắt
+Traefik/ServiceLB/metrics-server, giữ lưu trữ `local-path` mặc định, đặt
+`--flannel-iface=tailscale0`, gán label `workload=heavy role=data-plane`, rồi
+in hướng dẫn join cho hai server còn lại.
 
 ## `k3s-token.sh`
 
@@ -65,13 +70,33 @@ cd ~/continux
 sudo bash scripts/wsl-enable-shared-root.sh
 ```
 
-Script chạy `mount --make-rshared /`, tạo `wsl-shared-root.service`, thêm ordering để `k3s.service` chạy sau service này, rồi restart K3s.
+Script chạy `mount --make-rshared /`, tạo `wsl-shared-root.service`, thêm thứ tự để `k3s.service` chạy sau service này, rồi khởi động lại K3s.
 
 Output mong đợi:
 
 ```text
 / shared
 ```
+
+## `host-update.sh`
+
+Sau khi pull release mới, chạy đúng vai trò trên từng host:
+
+```bash
+# imac
+sudo bash scripts/host-update.sh admin
+
+# continux-vps
+sudo bash scripts/host-update.sh server
+
+# helios-pc WSL
+sudo bash scripts/host-update.sh wsl-server
+```
+
+Script kiểm tra K3s đang ở đúng kênh `stable`, ép `kubectl`, `crictl`, `ctr`
+trỏ về `/usr/local/bin/k3s` và không khởi động lại K3s. Vai trò `admin` còn cập nhật
+APT, Helm, Argo CD CLI, rpk và mc. Vai trò `wsl-server` kiểm tra root mount là
+`shared`.
 
 ## `k3s-check.sh`
 
@@ -90,21 +115,26 @@ bash scripts/k3s-check.sh secrets
 bash scripts/k3s-check.sh export
 ```
 
-Report mặc định in dạng hai cột:
+Báo cáo mặc định in dạng hai cột:
 
-- Cột 1: overview, topology/nodes/pods, workloads/HPA/services.
-- Cột 2: PVC, tài nguyên local node, images, Helm, secrets.
+- Cột 1: tổng quan, bố trí/node/pod, workload/HPA/service.
+- Cột 2: PVC, tài nguyên node cục bộ, image, Helm, secret.
 
-`overview` có health summary, graph nhanh RAM/disk local, mật độ pod theo node và hot list các pod lỗi/restart. Report export được ghi vào `scripts/k3s-check/k3s-check-<HHmmss-ddmmyy>.txt`.
+`overview` có tóm tắt sức khỏe, biểu đồ nhanh RAM/ổ đĩa cục bộ, mật độ pod theo node và danh sách pod lỗi hoặc khởi động lại nhiều. Báo cáo xuất ra được ghi vào `scripts/k3s-check/k3s-check-<HHmmss-ddmmyy>.txt`.
 
 ## `tool-version.sh`
 
 ```bash
 cd ~/continux
 bash scripts/tool-version.sh
+bash scripts/tool-version.sh --profile admin
+bash scripts/tool-version.sh --profile server
+bash scripts/tool-version.sh --profile wsl-server
 ```
 
-Script kiểm tra OS, kernel, APT packages, Tailscale, K3s, kubectl, Helm, Argo CD CLI, rpk, mc và psql.
+Script kiểm tra hệ điều hành, kernel, gói APT, Tailscale, K3s, kubectl, Helm,
+Argo CD CLI, rpk, mc và psql. Các CLI quản trị chỉ bắt buộc trên `imac`; node
+server không bị báo lỗi khi thiếu công cụ không cần thiết.
 
 ## `partojsonl.py`
 
@@ -145,7 +175,7 @@ bash experiments/runners/demo.sh cleanup-local
 
 `smoke` phát `2 events/s` và là mặc định an toàn. Các profile
 `benchmark-low`, `benchmark-medium`, `benchmark-high` chỉ chạy khi chọn rõ.
-Evidence được giữ tại `~/continux-demo-evidence/<RUN_ID>/`; xóa evidence là
+Bằng chứng được giữ tại `~/continux-demo-evidence/<RUN_ID>/`; xóa bằng chứng là
 thao tác riêng:
 
 ```bash
@@ -165,7 +195,7 @@ bash scripts/k3s-purge.sh
 bash scripts/k3s-purge.sh --yes
 ```
 
-Chế độ này xóa Helm releases, Helm repositories local, Argo CD Applications/finalizers, app namespaces, app resources, PV/PVC objects, CRD thuộc stack dự án và các resource dự án còn sót trong `kube-system` như service `victoria-metrics-*`. Nếu `redpanda.service` đang tồn tại trên host chạy script, script sẽ stop và disable service này để không nhiễu baseline; không chạm các dịch vụ ngoài như Docker/Grafana. Image cache không được prune tự động; nếu cần dọn image cũ, chạy thủ công trên từng node bằng `sudo k3s crictl rmi --prune`.
+Chế độ này xóa Helm release, Helm repository cục bộ, Argo CD Application/finalizer, namespace của app, tài nguyên app, object PV/PVC, CRD thuộc stack dự án và các tài nguyên dự án còn sót trong `kube-system` như service `victoria-metrics-*`. Nếu `redpanda.service` đang tồn tại trên host chạy script, script sẽ dừng và vô hiệu hóa service này để không nhiễu trạng thái nền; không chạm các dịch vụ ngoài như Docker/Grafana. Cache image không được dọn tự động; nếu cần dọn image cũ, chạy thủ công trên từng node bằng `sudo k3s crictl rmi --prune`.
 
 Xóa dấu vết K3s khỏi node hiện tại:
 
@@ -176,4 +206,4 @@ sudo bash scripts/k3s-purge.sh --nuke
 sudo bash scripts/k3s-purge.sh --nuke --yes
 ```
 
-Chỉ chạy `--nuke` khi đã quyết định phá cụm. Nếu cần phá toàn bộ cụm, chạy có kiểm soát trên từng node và xác nhận không còn cần dữ liệu local.
+Chỉ chạy `--nuke` khi đã quyết định phá cụm. Nếu cần phá toàn bộ cụm, chạy có kiểm soát trên từng node và xác nhận không còn cần dữ liệu cục bộ.
