@@ -240,13 +240,14 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Khoảng thời gian từ lần swap gần nhất; 0 nghĩa là chưa có metric swap.",
+      "description": "Khoảng thời gian từ lần swap gần nhất; hiện N/A khi chưa có metric swap.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
+          "noValue": "N/A",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -286,7 +287,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "(time() - max(continux_last_swap_timestamp_seconds)) or vector(0)",
+          "expr": "time() - max(continux_last_swap_timestamp_seconds > 0)",
           "legendFormat": "age",
           "range": false,
           "refId": "A",

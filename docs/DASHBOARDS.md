@@ -85,7 +85,7 @@ Dashboard này phục vụ kịch bản Blue/Green cutover.
 | `Cutover readiness proxy` | Tỷ lệ pod đang Running và Ready của workload liên quan | Dùng như tín hiệu hạ tầng trước swap; không tính pod Job lịch sử đã kết thúc |
 | `Green readiness` | `continux_green_ready` | `1` sau khi green MV có dòng |
 | `Thời gian cutover gần nhất` | `continux_cutover_duration_seconds` | Thời gian của lần swap gần nhất |
-| `Seconds since last swap` | Tuổi lần swap gần nhất | Dựa trên `continux_last_swap_timestamp_seconds` |
+| `Seconds since last swap` | Tuổi lần swap gần nhất | Hiện `N/A` khi chưa có lần swap; dựa trên `continux_last_swap_timestamp_seconds` |
 | `Serving availability` | Target RisingWave còn được scrape | Không tụt trong lúc swap |
 | `Lỗi truy vấn trong lúc cutover` | `continux_query_errors_total` | Kỳ vọng `0` |
 | `Consumer lag during swap` | Lag Kafka trong cửa sổ cutover | Kỳ vọng `0` khi consumer bắt kịp |

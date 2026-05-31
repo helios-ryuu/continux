@@ -256,9 +256,19 @@ test -z "${GIT_STATUS}"
 | 7 | Đầu ra Iceberg | Không có tệp dữ liệu Parquet của lượt thực nghiệm vừa dọn |
 | 8 | Checkout cục bộ | Không có `data/raw/`, `.venv/`, hai CSV taxi zone tạm, trạng thái/log/ảnh chụp màn hình xuất ra tạm; `git status` rỗng |
 
-Khi toàn bộ checklist đạt, trạng thái đã trở lại sau thiết lập, trước thực nghiệm. Lịch sử
-metric cũ vẫn có thể xuất hiện trong Grafana do VictoriaMetrics lưu lịch sử
-bảy ngày; chọn khoảng thời gian của lượt mới để tránh nhầm lẫn.
+Khi toàn bộ checklist đạt, trạng thái đã trở lại sau thiết lập, trước thực nghiệm.
+Lịch sử metric cũ vẫn có thể xuất hiện trong Grafana do VictoriaMetrics lưu lịch
+sử bảy ngày; chọn khoảng thời gian của lượt mới để tránh nhầm lẫn.
+
+Nếu cần dashboard chỉ chứa sample của loạt thực nghiệm mới, xóa riêng lịch sử
+metric `continux_*`. Lệnh này không thể hoàn tác, nhưng không xóa metric hạ tầng:
+
+```bash
+curl -fsS -X POST 'http://127.0.0.1:8428/api/v1/admin/tsdb/delete_series' \
+  --data-urlencode 'match[]={__name__=~"continux_.*"}'
+```
+
+Exporter vẫn chạy nên VictoriaMetrics sẽ scrape lại sample nền sạch sau đó.
 
 Từ trạng thái này, lượt thực nghiệm tiếp theo bắt đầu lại từ
 [DEMO.md](./DEMO.md) §1 để bố trí terminal, rồi chạy lại luồng runner tại §2
