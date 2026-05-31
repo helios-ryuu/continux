@@ -1,0 +1,10 @@
+\section{Hướng phát triển}
+Các nghiên cứu tiếp theo có thể đi theo ba hướng bổ sung lẫn nhau:
+
+\begin{itemize}
+\item Benchmark nhiều mức tải trên một data plane lớn hơn 8\,GB RAM, dùng đúng các kịch bản đã định nghĩa trong repo (\texttt{low}, \texttt{medium}, \texttt{high}) để thu biểu đồ latency/throughput theo tải.
+\item Thiết kế cutover bao gồm cả sink downstream, chẳng hạn tạo sink mới gắn vào green MV trước cutover rồi đổi tên sink, hoặc thực hiện compaction/rewrite snapshot Iceberg theo logic mới.
+\item Mở rộng nguồn dữ liệu sang sự kiện giao thông trực tiếp, ví dụ cảm biến giao thông hoặc dữ liệu GPS xe buýt, thay vì replay bộ dữ liệu có sẵn.
+\end{itemize}
+
+Đây là định hướng cho các phiên bản kế tiếp, không phải phần kết quả của lượt thực nghiệm hiện tại.

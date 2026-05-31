@@ -1,0 +1,143 @@
+\newcommand{\coverpage}{%
+  \thispagestyle{empty}
+  \setlength{\fboxrule}{0.8pt}
+  \setlength{\fboxsep}{0pt}
+  \noindent
+  \fbox{%
+    \begin{minipage}[c][\dimexpr\textheight-2\fboxrule\relax][c]{\dimexpr\textwidth-2\fboxrule\relax}
+      \centering
+      {\bfseries ĐẠI HỌC QUỐC GIA TP. HỒ CHÍ MINH\par}
+      \vspace{0.35cm}
+      {\bfseries TRƯỜNG ĐẠI HỌC CÔNG NGHỆ THÔNG TIN\par}
+      \vspace{0.35cm}
+      {\bfseries KHOA HỆ THỐNG THÔNG TIN\par}
+
+      \vspace{2.9cm}
+      {\bfseries NGÔ TIẾN SỸ -- 23521367\par}
+      \vspace{0.2cm}
+      {\bfseries NGUYỄN VĂN NAM -- 23520982\par}
+
+      \vspace{2.7cm}
+      {\bfseries BÁO CÁO ĐỒ ÁN\par}
+      \vspace{0.55cm}
+      {\bfseries
+      \begin{minipage}{0.86\textwidth}
+        \centering
+        XÂY DỰNG KIẾN TRÚC DATA LAKEHOUSE THỜI GIAN THỰC CHO HỆ THỐNG GIAO THÔNG THÔNG MINH TRÊN CỤM KUBERNETES
+      \end{minipage}\par}
+      \vspace{0.5cm}
+      {\bfseries\color{red}
+      \begin{minipage}{0.86\textwidth}
+        \centering
+        Building a Real-Time Data Lakehouse Architecture for Intelligent Transportation Systems on a Kubernetes Cluster
+      \end{minipage}\par}
+
+      \vspace{2.2cm}
+      {\bfseries CHUYÊN NGÀNH HỆ THỐNG THÔNG TIN\par}
+
+      \vspace{2.1cm}
+      {\bfseries GIẢNG VIÊN HƯỚNG DẪN\par}
+      \vspace{0.35cm}
+      {\bfseries THS. NGUYỄN HỒ DUY TRÍ\par}
+
+      \vfill
+      {\bfseries TP. HỒ CHÍ MINH, 2026\par}
+      \vspace{0.6cm}
+    \end{minipage}%
+  }
+  \par
+  \clearpage
+}
+
+\newcommand{\acknowledgements}{%
+  \thispagestyle{empty}
+  \begin{center}
+    {\bfseries LỜI CẢM ƠN}
+  \end{center}
+  \vspace{1cm}
+  Nhóm thực hiện xin trân trọng cảm ơn ThS. Nguyễn Hồ Duy Trí đã hướng dẫn, góp ý và định hướng trong quá trình xây dựng đề tài. Những trao đổi về kiến trúc dữ liệu, xử lý luồng, triển khai trên Kubernetes và cách diễn giải kết quả thực nghiệm giúp nhóm hoàn thiện báo cáo theo hướng rõ ràng và có khả năng kiểm chứng hơn.
+
+  Nhóm cũng xin cảm ơn Trường Đại học Công nghệ Thông tin, Đại học Quốc gia TP. Hồ Chí Minh và Khoa Hệ thống Thông tin đã tạo môi trường học tập để nhóm có thể tiếp cận các kiến thức về cơ sở dữ liệu phân tán, dữ liệu lớn, hạ tầng Kubernetes, GitOps và quan sát hệ thống. Các kiến thức này là nền tảng để nhóm thiết kế, triển khai và đánh giá artifact Continux trong phạm vi đồ án.
+
+  Do giới hạn thời gian và hạ tầng thực nghiệm, báo cáo khó tránh khỏi thiếu sót. Nhóm mong nhận được góp ý từ giảng viên và các bạn để tiếp tục cải thiện hệ thống trong các phiên bản sau.
+
+  \vspace{1.5cm}
+  \begin{flushright}
+  \begin{tabular}{c}
+  TP. Hồ Chí Minh, 2026\\
+  Nhóm thực hiện
+  \end{tabular}
+  \end{flushright}
+  \clearpage
+}
+
+\newcommand{\abbreviationlist}{%
+  \thispagestyle{empty}
+  \begin{center}
+    {\bfseries DANH MỤC TỪ VIẾT TẮT}
+  \end{center}
+  \vspace{0.8cm}
+  \begin{tabularx}{\textwidth}{@{}p{0.18\textwidth}Y@{}}
+  \toprule
+  \textbf{Từ viết tắt} & \textbf{Diễn giải}\\
+  \midrule
+  API & Application Programming Interface -- giao diện lập trình ứng dụng\\
+  CSV & Comma-Separated Values -- định dạng dữ liệu phân tách bằng dấu phẩy\\
+  DSR & Design Science Research -- phương pháp nghiên cứu khoa học thiết kế\\
+  GitOps & Mô hình vận hành dùng Git làm nguồn trạng thái mong muốn\\
+  HA & High Availability -- tính sẵn sàng cao\\
+  ITS & Intelligent Transportation System -- hệ thống giao thông thông minh\\
+  JSONL & JSON Lines -- định dạng mỗi dòng là một JSON độc lập\\
+  K3s & Bản phân phối Kubernetes gọn nhẹ của SUSE\\
+  MV & Materialized View -- khung nhìn vật lý\\
+  PVC & PersistentVolumeClaim -- yêu cầu cấp phát lưu trữ bền vững trong Kubernetes\\
+  S3 & Simple Storage Service -- giao diện lưu trữ đối tượng tương thích Amazon S3\\
+  SDG & Sustainable Development Goal -- Mục tiêu Phát triển Bền vững\\
+  SQL & Structured Query Language -- ngôn ngữ truy vấn có cấu trúc\\
+  TLC & Taxi and Limousine Commission -- Ủy ban Taxi và Limousine Thành phố New York\\
+  \bottomrule
+  \end{tabularx}
+  \clearpage
+}
+
+\newcommand{\reportabstract}{%
+  \clearpage
+  \hypersetup{pageanchor=true}
+  \pagenumbering{arabic}
+  \setcounter{page}{1}
+  \pagestyle{fancy}
+  \phantomsection
+  \addcontentsline{toc}{section}{Tóm tắt báo cáo}
+  \begin{center}
+    {\bfseries TÓM TẮT BÁO CÁO}
+  \end{center}
+  \vspace{0.5cm}
+  Nghiên cứu này xây dựng và đánh giá \textbf{Continux}, một kiến trúc Data Lakehouse thời gian thực cho dữ liệu giao thông thông minh trên cụm K3s ba server. Hệ thống chuyển đổi dữ liệu NYC TLC Yellow Taxi từ kiểu Parquet sang kiểu JSONL, sau đó phát lại các bản ghi thành luồng sự kiện bằng Vector, đẩy các sự kiện vào Redpanda như một lớp trung gian tiếp nhận và phân phối luồng, xử lý bằng truy vấn SQL theo luồng (streaming SQL) trong RisingWave, và ghi kết quả vào các bảng Apache Iceberg được lưu trên MinIO; đồng thời hệ thống được quản lý triển khai bằng Argo CD và quan sát bằng VictoriaMetrics/Grafana. Artifact (hiện vật và bộ thành phần thực nghiệm của hệ thống) được kiểm chứng qua một lượt phát lại có kiểm soát và kịch bản chuyển đổi khung nhìn vật lý (materialized view cutover) giữa nhánh cũ và nhánh mới: public MV (khung nhìn vật lý công khai phục vụ truy vấn bên ngoài) được chuyển sang logic green; vòng lặp truy vấn không ghi nhận lỗi, RisingWave không tự khởi động lại, và hệ thống ghi nhận thời gian chuyển đổi là \texttt{0,145226 s}. Kết quả cho thấy khả năng cập nhật logic truy vấn công khai mà không ghi nhận gián đoạn trong cửa sổ thử nghiệm, đồng thời pipeline tạo được đầu ra Iceberg quan sát được trên MinIO.
+
+  \vspace{0.5cm}
+  \noindent\textbf{Từ khóa:} Data Lakehouse, stream processing, Materialized View, Blue/Green cutover, RisingWave, Apache Iceberg, GitOps, K3s, ITS.
+  \clearpage
+}
+
+\pagenumbering{gobble}
+\hypersetup{pageanchor=false}
+\newgeometry{top=1cm,bottom=1cm,left=1cm,right=1cm}
+\coverpage
+\coverpage
+\restoregeometry
+\acknowledgements
+
+\thispagestyle{empty}
+\tableofcontents
+\clearpage
+
+\thispagestyle{empty}
+\listoffigures
+\clearpage
+
+\thispagestyle{empty}
+\listoftables
+\clearpage
+
+\abbreviationlist
+\reportabstract
