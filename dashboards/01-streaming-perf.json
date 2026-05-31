@@ -432,7 +432,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_topic=~\"$topic\"}) by (redpanda_topic, redpanda_partition) or vector(0)",
+          "expr": "max(redpanda_kafka_max_offset{namespace=\"redpanda\",redpanda_topic=~\"$topic\"}) by (redpanda_topic, redpanda_partition)",
           "legendFormat": "{{redpanda_topic}} p{{redpanda_partition}}",
           "range": true,
           "refId": "A"
