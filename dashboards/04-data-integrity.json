@@ -151,13 +151,14 @@
         "type": "prometheus",
         "uid": "${DS_VICTORIAMETRICS}"
       },
-      "description": "Tuổi commit Iceberg gần nhất; tăng lâu nghĩa là sink không ghi mới hoặc exporter chưa chạy.",
+      "description": "Tuổi commit Iceberg gần nhất; hiện N/A khi catalog chưa có snapshot. Giá trị tăng lâu nghĩa là sink không ghi mới hoặc exporter chưa chạy.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
+          "noValue": "N/A",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -205,7 +206,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "(time() - max(continux_iceberg_last_commit_timestamp_seconds)) or vector(0)",
+          "expr": "time() - max(continux_iceberg_last_commit_timestamp_seconds > 0)",
           "legendFormat": "age",
           "range": false,
           "refId": "A",
@@ -623,6 +624,7 @@
       }
     ]
   },
+  "refresh": "5s",
   "time": {
     "from": "now-6h",
     "to": "now"

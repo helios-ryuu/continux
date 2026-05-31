@@ -102,7 +102,7 @@ Dashboard này đọc tính toàn vẹn dữ liệu và đầu ra lakehouse.
 |-------|---------|-----------|
 | `Public MV rows` | Số dòng `mv_zone_stats` | Số nhóm zone của lượt replay |
 | `Checksum mismatch` | Cờ lệch checksum giữa các view | `0` khi so cùng logic; `1` sau cutover là kết quả dự kiến nếu so logic mới với logic cũ |
-| `Iceberg freshness` | Tuổi commit Iceberg gần nhất | Một số metric snapshot có thể chưa ánh xạ đủ, đối chiếu bằng MinIO listing |
+| `Iceberg freshness` | Tuổi commit Iceberg gần nhất | Hiện `N/A` khi catalog chưa có snapshot; đối chiếu thêm bằng MinIO listing |
 | `MinIO PVC used` | Dung lượng PVC MinIO đã dùng | Tăng nhẹ khi Iceberg sinh Parquet |
 | `Blue/green/public row count` | So sánh row count các view | Sau swap public và green-name có thể bằng nhau hoặc chênh tùy logic |
 | `Bản ghi bị loại/s` | Bản ghi lỗi parse | Kỳ vọng `0` |
