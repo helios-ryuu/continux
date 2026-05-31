@@ -86,7 +86,7 @@ assert_git_clean() {
 assert_local_port() {
     local port="$1"
     (echo >/dev/tcp/127.0.0.1/"${port}") >/dev/null 2>&1 ||
-        die "localhost:${port} is not reachable. Start the required port-forward from docs/RUNBOOK.md."
+        die "localhost:${port} is not reachable. Start the required port-forward from docs/runbook/DEMO.md."
 }
 
 profile_file() {
@@ -272,6 +272,7 @@ SQL
 reset_runtime() {
     local prefix="$1"
     local token="$2"
+    local target_state="${3:-baseline-blue}"
     load_state
     assert_local_port 4567
     assert_local_port 9000
@@ -295,16 +296,38 @@ reset_runtime() {
     mc rm --recursive --force local/iceberg-data/nyc/zone_stats/ |
         tee "${EVIDENCE_DIR}/${prefix}-clear-iceberg.txt"
     kubectl -n pipeline exec deploy/continux-metrics -- rm -f /state/cutover.prom
-    sync_app pipeline
+
+    if [ "${target_state}" = "baseline-blue" ]; then
+        sync_app pipeline
+        psql -h localhost -p 4567 -d dev -U root -c \
+            "SELECT COUNT(*) AS tlc_zone_rows FROM tlc_zone;
+             SELECT 'public' AS view_name, COUNT(*) AS zones, COALESCE(SUM(trip_count),0) AS trips FROM mv_zone_stats
+             UNION ALL
+             SELECT 'blue', COUNT(*), COALESCE(SUM(trip_count),0) FROM mv_zone_stats_blue;
+             SELECT COUNT(*) AS green_objects FROM rw_catalog.rw_materialized_views
+               WHERE name = 'mv_zone_stats_green';" |
+            tee "${EVIDENCE_DIR}/${prefix}-clean-baseline-counts.txt"
+        return
+    fi
+
+    if mc stat local/tlc-zone/taxi_zone_lookup.csv >/dev/null 2>&1; then
+        mc rm --force local/tlc-zone/taxi_zone_lookup.csv
+    else
+        echo "Taxi Zone lookup is already absent."
+    fi | tee "${EVIDENCE_DIR}/${prefix}-clear-taxi-zone.txt"
 
     psql -h localhost -p 4567 -d dev -U root -c \
-        "SELECT COUNT(*) AS tlc_zone_rows FROM tlc_zone;
-         SELECT 'public' AS view_name, COUNT(*) AS zones, COALESCE(SUM(trip_count),0) AS trips FROM mv_zone_stats
-         UNION ALL
-         SELECT 'blue', COUNT(*), COALESCE(SUM(trip_count),0) FROM mv_zone_stats_blue;
-         SELECT COUNT(*) AS green_objects FROM rw_catalog.rw_materialized_views
-           WHERE name = 'mv_zone_stats_green';" |
-        tee "${EVIDENCE_DIR}/${prefix}-clean-baseline-counts.txt"
+        "SELECT COUNT(*) AS demo_sql_objects FROM (
+           SELECT name FROM rw_catalog.rw_tables WHERE name = 'tlc_zone'
+           UNION ALL
+           SELECT name FROM rw_catalog.rw_sources WHERE name = 'nyc_taxi_src'
+           UNION ALL
+           SELECT name FROM rw_catalog.rw_materialized_views
+             WHERE name IN ('mv_zone_stats_blue', 'mv_zone_stats', 'mv_zone_stats_green')
+           UNION ALL
+           SELECT name FROM rw_catalog.rw_sinks WHERE name = 'sink_zone_stats'
+         ) AS demo_objects;" |
+        tee "${EVIDENCE_DIR}/${prefix}-post-setup-sql-count.txt"
 }
 
 baseline() {
@@ -450,7 +473,7 @@ EOF
 }
 
 cleanup_runtime() {
-    reset_runtime 06 CLEAN-DEMO
+    reset_runtime 06 CLEAN-DEMO post-setup
 }
 
 cleanup_local() {

@@ -39,7 +39,7 @@ esac
 # ======================== KIỂM TRA ĐIỀU KIỆN ========================
 [ "$(id -u)" -ne 0 ] && die "Chạy với sudo: sudo bash $0"
 
-command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem RUNBOOK.md §2.2."
+command -v tailscale >/dev/null 2>&1 || die "Tailscale chưa cài. Xem docs/runbook/SETUP.md §2.2."
 tailscale status >/dev/null 2>&1    || die "Tailscale chưa kết nối. Chạy: sudo tailscale up"
 
 TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)

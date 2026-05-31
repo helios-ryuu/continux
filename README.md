@@ -103,7 +103,7 @@ NYC TLC Parquet
 
 Quy trình triển khai chuẩn:
 
-1. Theo [docs/RUNBOOK.md](./docs/RUNBOOK.md) để dựng hệ thống từ máy sạch, khởi chạy một lượt thực nghiệm end-to-end (replay + Blue/Green cutover) và dọn dẹp để chạy lại từ đầu.
+1. Theo [SETUP.md](./docs/runbook/SETUP.md) để dựng hệ thống từ máy sạch, [DEMO.md](./docs/runbook/DEMO.md) để chạy replay + Blue/Green cutover và [CLEANUP.md](./docs/runbook/CLEANUP.md) để dọn state trước lượt kế tiếp.
 2. Đọc kết quả dashboard theo [docs/DASHBOARDS.md](./docs/DASHBOARDS.md).
 3. Dùng [paper/main_vi.pdf](./paper/main_vi.pdf) và [paper/main_en.pdf](./paper/main_en.pdf) làm bản paper LaTeX cuối; [docs/REPORT.md](./docs/REPORT.md) là báo cáo/evidence companion.
 
@@ -151,4 +151,4 @@ bash experiments/runners/demo.sh cleanup-local
 | Metric ứng dụng | **[metrics-exporter `continux_*`](./config/metrics-exporter/)** | Exporter tùy biến truy vấn RisingWave rồi xuất Prometheus metrics. | Cung cấp số dòng MV, readiness green, thời gian cutover và số lỗi query cho dashboard. |
 | Dữ liệu | **[NYC TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)** | Bộ dữ liệu mở về các chuyến taxi New York. | Cung cấp nguồn sự kiện Yellow Taxi và Taxi Zone lookup để minh họa bài toán giao thông. |
 
-Thông tin chi tiết về quy trình dữ liệu, triển khai và thực nghiệm được trình bày trong [docs/RUNBOOK.md](./docs/RUNBOOK.md).
+Thông tin chi tiết về quy trình dữ liệu, triển khai và thực nghiệm được chia theo ba pha tại [docs/RUNBOOK.md](./docs/RUNBOOK.md).

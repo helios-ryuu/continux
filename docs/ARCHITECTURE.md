@@ -126,8 +126,8 @@ Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần �
 | FR-05 | Observability | Grafana đọc VictoriaMetrics và metric `continux_*` |
 | NFR-01 | HA control plane | 3 K3s server Ready, quorum `2/3` |
 | NFR-02 | Resource safety | Vector mặc định `replicas=0`, profile `smoke=2 events/s`; benchmark phải opt-in |
-| NFR-03 | Reproducible setup | `RUNBOOK.md` đi từ máy sạch đến verify end-to-end |
-| NFR-04 | Demo replay | `RUNBOOK.md` có replay sạch và dọn dẹp để chạy lại từ đầu |
+| NFR-03 | Reproducible setup | `runbook/SETUP.md` đi từ máy sạch đến trạng thái sẵn sàng demo |
+| NFR-04 | Demo replay | `runbook/DEMO.md` và `runbook/CLEANUP.md` có replay sạch và dọn dẹp để chạy lại từ đầu |
 
 ## 7. Vận Hành
 

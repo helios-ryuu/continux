@@ -151,7 +151,7 @@ Tailscale IP:
 
 ## 7. Quy Trình Triển Khai
 
-Quy trình triển khai chi tiết nằm trong [RUNBOOK.md](./RUNBOOK.md). Tóm tắt các bước chính:
+Quy trình triển khai chi tiết được chia thành [SETUP.md](./runbook/SETUP.md), [DEMO.md](./runbook/DEMO.md) và [CLEANUP.md](./runbook/CLEANUP.md). Tóm tắt các bước chính:
 
 1. Chuẩn bị OS, hostname, user, SSH, swap, IP forwarding và UFW.
 2. Cài Tailscale trên 3 máy, kiểm tra kết nối mesh.

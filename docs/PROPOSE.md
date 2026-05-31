@@ -66,7 +66,7 @@ Số đo cụ thể của mỗi lượt thực nghiệm được lưu tại `~/c
 3. Bộ dashboard Grafana cho 4 nhóm chỉ số:
    streaming performance, resource utilization, cutover, data integrity.
 4. Runbook triển khai và thực nghiệm:
-   [RUNBOOK.md](./RUNBOOK.md).
+   [RUNBOOK.md](./RUNBOOK.md), với ba pha chi tiết trong thư mục `runbook/`.
 5. Báo cáo/evidence companion:
    [REPORT.md](./REPORT.md).
 6. Paper LaTeX song ngữ:

@@ -251,7 +251,7 @@ reset_cluster() {
     info "Final cluster state:"
     $KUBECTL get nodes -o wide
     $KUBECTL get ns
-    ok "Đã reset cluster. K3s vẫn được cài đặt; hãy áp dụng lại bootstrap/GitOps theo RUNBOOK.md."
+    ok "Đã reset cluster. K3s vẫn được cài đặt; hãy áp dụng lại bootstrap/GitOps theo docs/runbook/SETUP.md."
 }
 
 case "$MODE" in

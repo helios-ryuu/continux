@@ -154,7 +154,7 @@ bash experiments/runners/demo.sh purge-evidence <RUN_ID>
 
 ## `k3s-purge.sh`
 
-`k3s-purge.sh` là công cụ phá hủy có chủ đích. Không dùng trong luồng chính của [RUNBOOK.md](./RUNBOOK.md).
+`k3s-purge.sh` là công cụ phá hủy có chủ đích. Không dùng trong luồng chính của [CLEANUP.md](./runbook/CLEANUP.md).
 
 Reset cluster về trạng thái vừa cài K3s, giữ K3s và các node:
 

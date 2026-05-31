@@ -115,7 +115,7 @@ Paper LaTeX song ngữ module           ◆
 
 ## 9. Definition Of Done
 
-- `RUNBOOK.md` dựng được hệ thống từ máy sạch đến end-to-end và dọn dẹp để chạy lại từ đầu.
+- Bộ `runbook/SETUP.md`, `runbook/DEMO.md`, `runbook/CLEANUP.md` dựng được hệ thống từ máy sạch đến end-to-end và dọn dẹp để chạy lại từ đầu.
 - `REPORT.md` là bản báo cáo/evidence companion cho đồ án.
 - `paper/main_vi.pdf` và `paper/main_en.pdf` là bản paper LaTeX cuối, build từ source module trong `paper/src/`.
 - Không commit dataset, evidence, screenshot lớn hoặc secret.

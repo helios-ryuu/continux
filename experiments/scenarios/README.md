@@ -5,4 +5,4 @@
 address and observation windows.
 
 Keep credentials out of scenario files. Export runtime secrets in the shell as
-described in `docs/RUNBOOK.md`.
+described in `docs/runbook/DEMO.md`.
