@@ -1,5 +1,6 @@
 .claude
 .env*
+!.env.example
 .csv
 .parquet
 .venv/
@@ -7,16 +8,16 @@
 # Dataset lớn — tải về local, không commit
 data/raw/
 
-# Output thực nghiệm — sinh ra khi chạy experiments (CSV/JSON/parquet lớn)
-experiments/results/*.csv
-experiments/results/*.json
-experiments/results/*.parquet
+# Output thực nghiệm - state/log local sinh ra khi chạy experiments
+experiments/results/*
+!experiments/results/README.md
 
 # Grafana screenshot export
 dashboards/exports/
 
 # Local finalize evidence/log bundle
 evidence/
+scripts/k3s-check/
 
 # Build artifacts
 *.pyc

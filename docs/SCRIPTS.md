@@ -13,6 +13,7 @@ Tất cả script vận hành nằm trong `scripts/`. Repo chỉ giữ các scri
 | `k3s-check.sh` | `imac` | Kiểm tra overview, nodes/pods, workloads, storage, local resources, images, Helm và secrets |
 | `tool-version.sh` | Ubuntu node | Kiểm tra CLI và phiên bản công cụ |
 | `partojsonl.py` | `imac` | Convert NYC TLC Yellow Taxi Parquet sang JSONL |
+| `../experiments/runners/demo.sh` | `imac` | Chạy demo theo pha, thu evidence và cleanup an toàn |
 | `k3s-purge.sh` | K3s server có kubeconfig | Công cụ reset/phá hủy có chủ đích |
 
 ## `k3s-install-server-init.sh`
@@ -124,6 +125,32 @@ python scripts/partojsonl.py input.parquet output.jsonl --limit 1000
 ```
 
 Output JSONL chứa các field pipeline cần: `pickup_time`, `pu_location_id`, `do_location_id`, `fare_amount`, `trip_distance`.
+
+## `experiments/runners/demo.sh`
+
+Runner giữ các pha tách biệt để có thể quan sát và debug giữa từng bước:
+
+```bash
+cd ~/continux
+
+bash experiments/runners/demo.sh preflight
+bash experiments/runners/demo.sh init smoke
+bash experiments/runners/demo.sh prepare-data
+bash experiments/runners/demo.sh baseline
+bash experiments/runners/demo.sh replay
+bash experiments/runners/demo.sh cutover
+bash experiments/runners/demo.sh cleanup-runtime
+bash experiments/runners/demo.sh cleanup-local
+```
+
+`smoke` phát `2 events/s` và là mặc định an toàn. Các profile
+`benchmark-low`, `benchmark-medium`, `benchmark-high` chỉ chạy khi chọn rõ.
+Evidence được giữ tại `~/continux-demo-evidence/<RUN_ID>/`; xóa evidence là
+thao tác riêng:
+
+```bash
+bash experiments/runners/demo.sh purge-evidence <RUN_ID>
+```
 
 ## `k3s-purge.sh`
 

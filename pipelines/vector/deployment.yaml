@@ -16,6 +16,9 @@ spec:
         - name: vector
           image: timberio/vector:0.55.0-alpine
           args: ["--config", "/etc/vector/vector.toml"]
+          envFrom:
+            - configMapRef:
+                name: vector-rate-profile
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: 500m, memory: 1Gi }

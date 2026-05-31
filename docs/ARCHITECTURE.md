@@ -91,14 +91,14 @@ Các bước chính:
 | `config/minio/` | MinIO Helm values |
 | `config/redpanda/` | Redpanda Helm values |
 | `config/risingwave/` | RisingWave Helm values |
-| `config/vector/` | Vector ConfigMap, PVC, Deployment |
 | `config/metrics-exporter/` | Exporter metric thực nghiệm và VMServiceScrape |
 | `config/victoria-metrics/` | VictoriaMetrics values và scrape config |
 | `gitops/apps/` | App-of-Apps cho Argo CD |
-| `gitops/pipeline/` | SQL apply Job |
+| `pipelines/vector/` | Vector TOML, profile rate, PVC và Deployment |
 | `pipelines/redpanda/` | Topic bootstrap Job |
-| `sql/` | Source, table, materialized views và sink SQL |
-| `dashboards/` | Dashboard JSON cho Grafana |
+| `sql/` | Source, table, MV, sink SQL và apply Job |
+| `dashboards/` | Dashboard JSON và ConfigMap provisioning cho Grafana |
+| `experiments/` | Scenario, runner theo pha và state local đã ignore |
 
 ## 5. Blue/Green Cutover
 
@@ -113,7 +113,7 @@ Cutover được thực hiện ở lớp RisingWave materialized view:
 ALTER MATERIALIZED VIEW mv_zone_stats SWAP WITH mv_zone_stats_green;
 ```
 
-Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần đổi query phía người dùng; view giữ tên `mv_zone_stats_green` chứa logic cũ. Số đo cụ thể (duration, query errors, row counts trước/sau) của từng lượt thực nghiệm được lưu trong `evidence/` ngoài repo. Lệch checksum sau swap là expected nếu dashboard so logic mới với logic cũ.
+Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần đổi query phía người dùng; view giữ tên `mv_zone_stats_green` chứa logic cũ. Số đo cụ thể (duration, query errors, row counts trước/sau) của từng lượt thực nghiệm được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo. Lệch checksum sau swap là expected nếu dashboard so logic mới với logic cũ.
 
 ## 6. Yêu Cầu Và Tiêu Chí
 
@@ -125,7 +125,7 @@ Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần �
 | FR-04 | GitOps deployment | Argo CD quản lý các app từ repo |
 | FR-05 | Observability | Grafana đọc VictoriaMetrics và metric `continux_*` |
 | NFR-01 | HA control plane | 3 K3s server Ready, quorum `2/3` |
-| NFR-02 | Resource safety | Vector mặc định `replicas=0`, chỉ scale thủ công |
+| NFR-02 | Resource safety | Vector mặc định `replicas=0`, profile `smoke=2 events/s`; benchmark phải opt-in |
 | NFR-03 | Reproducible setup | `RUNBOOK.md` đi từ máy sạch đến verify end-to-end |
 | NFR-04 | Demo replay | `RUNBOOK.md` có replay sạch và dọn dẹp để chạy lại từ đầu |
 
@@ -133,6 +133,7 @@ Sau swap, public name `mv_zone_stats` phục vụ logic mới mà không cần �
 
 - `imac` là node quản trị chính, giữ clone repo `~/continux`.
 - Vector luôn giữ `replicas=0` khi không demo ingest.
+- `experiments/runners/demo.sh` điều phối từng pha và trả Vector về profile `smoke` sau replay.
 - Secrets tạo runtime bằng Kubernetes Secret, không lưu trong Git.
 - Dataset lớn nằm trong `data/raw/` và không commit.
 - Evidence, screenshot và log lớn nộp riêng, không commit vào repo.

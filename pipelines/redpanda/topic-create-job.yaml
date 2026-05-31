@@ -19,6 +19,9 @@ spec:
       containers:
         - name: rpk
           image: redpandadata/redpanda:v26.1.8
+          envFrom:
+            - configMapRef:
+                name: redpanda-topic-config
           resources:
             requests: { cpu: 25m, memory: 64Mi }
             limits:   { cpu: 200m, memory: 128Mi }
@@ -26,20 +29,18 @@ spec:
           args:
             - |
               set -eu
-              BROKERS="redpanda.redpanda.svc.cluster.local:9093"
-
-              echo "Checking Redpanda topic nyc-taxi-events on ${BROKERS}"
-              if rpk topic list --brokers "${BROKERS}" | grep -F "nyc-taxi-events"; then
-                echo "Topic nyc-taxi-events already exists"
+              echo "Checking Redpanda topic ${TOPIC_NAME} on ${BROKERS}"
+              if rpk topic list --brokers "${BROKERS}" | grep -F "${TOPIC_NAME}"; then
+                echo "Topic ${TOPIC_NAME} already exists"
               else
-                echo "Creating topic nyc-taxi-events"
-                rpk topic create nyc-taxi-events \
+                echo "Creating topic ${TOPIC_NAME}"
+                rpk topic create "${TOPIC_NAME}" \
                   --brokers "${BROKERS}" \
-                  --partitions 3 \
-                  --replicas 1 \
-                  --topic-config retention.ms=86400000 \
-                  --topic-config cleanup.policy=delete
+                  --partitions "${TOPIC_PARTITIONS}" \
+                  --replicas "${TOPIC_REPLICAS}" \
+                  --topic-config "retention.ms=${TOPIC_RETENTION_MS}" \
+                  --topic-config "cleanup.policy=${TOPIC_CLEANUP_POLICY}"
               fi
 
               echo "Topic details:"
-              rpk topic describe nyc-taxi-events --brokers "${BROKERS}"
+              rpk topic describe "${TOPIC_NAME}" --brokers "${BROKERS}"

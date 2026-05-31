@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: pipeline
+resources:
+  - sql-apply-job.yaml
+configMapGenerator:
+  - name: continux-sql
+    files:
+      - 01-redpanda-nyc-taxi.sql=01-sources/redpanda-nyc-taxi.sql
+      - 02-tlc-taxi-zone.sql=02-tables/tlc-taxi-zone.sql
+      - 03-mv-zone-stats-blue.sql=03-mv/mv_zone_stats_blue.sql
+      - 04-iceberg-zone-stats.sql=04-sinks/iceberg-zone-stats.sql
+generatorOptions:
+  disableNameSuffixHash: true

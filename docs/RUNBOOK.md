@@ -526,11 +526,14 @@ helm upgrade --install grafana grafana/grafana \
   -f config/grafana/helm-values.yaml
 
 kubectl -n observability rollout status deploy/grafana --timeout=300s
+argocd app sync grafana-dashboards --grpc-web
+argocd app wait grafana-dashboards --health --sync --grpc-web
+kubectl -n observability get configmap continux-grafana-dashboards
 kubectl -n observability get secret grafana \
   -o jsonpath='{.data.admin-password}' | base64 -d && echo
 ```
 
-Mở `https://<grafana-domain>`, đăng nhập `admin`, đổi mật khẩu, import các file `dashboards/*.json` với datasource `VictoriaMetrics`.
+Mở `https://<grafana-domain>`, đăng nhập `admin`, đổi mật khẩu và mở folder `Continux`. Bốn dashboard trong `dashboards/*.json` đã được provision bằng app `grafana-dashboards`. Import tay với datasource `VictoriaMetrics` chỉ là fallback khi debug.
 
 #### 2.7.3. Metrics Exporter
 
@@ -556,7 +559,8 @@ kubectl -n observability get vmservicescrape continux-metrics
 - [ ] RisingWave `SHOW CLUSTER` có 4 worker `RUNNING`.
 - [ ] Grafana đọc datasource VictoriaMetrics.
 - [ ] Metrics exporter chạy và VictoriaMetrics scrape được `continux_exporter_up`.
-- [ ] Vector mặc định ở `replicas=0` và chỉ scale thủ công khi replay.
+- [ ] App `grafana-dashboards` tạo ConfigMap `continux-grafana-dashboards`.
+- [ ] Vector mặc định ở `replicas=0`, profile `smoke=2 events/s`; benchmark chỉ chạy khi opt-in.
 
 Sau khi đạt checklist này, hệ thống đã sẵn sàng để chạy một lượt thực nghiệm theo §4.
 
@@ -602,7 +606,7 @@ Dữ liệu lookup không chạy qua Redpanda. RisingWave đọc nó trực ti�
 
 ### 3.3. Ingest Vector → Redpanda
 
-Vector mặc định ở `replicas=0` khi không chạy thực nghiệm và chỉ được scale lên `1` khi replay. Khi chạy, Vector đọc từng dòng từ `/data/*.jsonl`, serialize event, gửi qua Kafka sink có rate limit/buffer vào Redpanda topic `nyc-taxi-events` (`partitions=3`, `replicas=1`, `retention.ms=86400000`).
+Vector mặc định ở `replicas=0` khi không chạy thực nghiệm và chỉ được scale lên `1` khi replay. TOML trong `pipelines/vector/vector.toml` đọc `VECTOR_THROUGHPUT_EVENTS_PER_SEC`; baseline GitOps dùng profile `smoke=2 events/s`. Ba profile `benchmark-low`, `benchmark-medium`, `benchmark-high` tương ứng `1000`, `5000`, `10000 events/s` và chỉ dùng khi chọn rõ. Khi chạy, Vector đọc từng dòng từ `/data/*.jsonl`, serialize event, gửi qua Kafka sink có rate limit/buffer vào Redpanda topic `nyc-taxi-events` (`partitions=3`, `replicas=1`, `retention.ms=86400000`).
 
 ### 3.4. Xử Lý Trong RisingWave
 
@@ -655,6 +659,29 @@ VictoriaMetrics scrape exporter + Redpanda + RisingWave + node-exporter, lưu ti
 
 Quy trình này giả định hệ thống đã được dựng theo §2 và đang ở baseline runtime sạch (không có dataset cũ, không có state demo cũ). Nếu lượt trước đã chạy, hãy hoàn tất §5 trước khi bắt đầu §4.
 
+### Runner Theo Pha
+
+Luồng chuẩn dùng runner để thu evidence nhất quán và luôn trả Vector về trạng
+thái an toàn sau replay. Giữ các terminal port-forward ở §4.1 mở trong lúc
+chạy:
+
+```bash
+cd ~/continux
+
+bash experiments/runners/demo.sh preflight
+bash experiments/runners/demo.sh init smoke
+bash experiments/runners/demo.sh prepare-data
+bash experiments/runners/demo.sh baseline
+bash experiments/runners/demo.sh replay
+bash experiments/runners/demo.sh cutover
+bash experiments/runners/demo.sh cleanup-runtime
+bash experiments/runners/demo.sh cleanup-local
+```
+
+Để benchmark có chủ đích, thay `smoke` bằng `benchmark-low`,
+`benchmark-medium` hoặc `benchmark-high` tại lệnh `init`. Các mục §4.1-§4.8
+phía dưới giữ lệnh chi tiết tương ứng để debug từng bước.
+
 ### 4.1. Trạng Thái Khởi Đầu Và Bố Trí Terminal
 
 **Điều kiện đầu vào:**
@@ -690,8 +717,8 @@ export DATA_MONTH=2026-03
 export DATA_DIR="$PWD/data/raw"
 export DATA_PARQUET="${DATA_DIR}/yellow_tripdata_${DATA_MONTH}.parquet"
 export DATA_JSONL="data/raw/yellow_tripdata_${DATA_MONTH}.jsonl"
-export ZONE_CSV="${DATA_DIR}/taxi_zone_lookup.csv"
-export ZONE_RW_CSV="${DATA_DIR}/taxi_zone_lookup_risingwave.csv"
+export ZONE_CSV="$PWD/data/zone/taxi_zone_lookup.csv"
+export ZONE_RW_CSV="$PWD/data/zone/taxi_zone_lookup_risingwave.csv"
 export DATA_URL="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_${DATA_MONTH}.parquet"
 export ZONE_URL="https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 export BROKERS="redpanda.redpanda.svc.cluster.local:9093"
@@ -729,7 +756,7 @@ Vector phải là `0 desired` và chưa có thư mục dữ liệu/môi trườn
 ```bash
 cd ~/continux
 
-mkdir -p "${DATA_DIR}"
+mkdir -p "${DATA_DIR}" "$PWD/data/zone"
 
 wget -c -O "${DATA_PARQUET}" "${DATA_URL}" \
   2>&1 | tee "${EVIDENCE_DIR}/01-download-yellow-taxi.txt"
@@ -777,7 +804,7 @@ test -z "${GIT_STATUS}"
 
 **Kết quả mong đợi:**
 
-- Parquet, JSONL, hai file Taxi Zone (CSV gốc + CSV cho RisingWave) đều nằm trong `data/raw/`.
+- Parquet và JSONL nằm trong `data/raw/`; hai file Taxi Zone staging (CSV gốc + CSV cho RisingWave) nằm trong `data/zone/`.
 - `JSONL_COUNT=1` — Vector sẽ phát toàn bộ file `/data/*.jsonl`, nên một lượt sạch chỉ được có một file JSONL.
 - MinIO liệt kê `taxi_zone_lookup.csv`.
 - `git status` rỗng vì mọi tệp sinh ra nằm trong đường dẫn Git bỏ qua.
@@ -1392,6 +1419,21 @@ fi
 
 Đưa checkout `~/continux` về hình dạng ban đầu của một repo vừa clone: không có dataset tải về và không có `.venv`. Evidence không mất vì đã được lưu ở `~/continux-demo-evidence/<RUN_ID>` ngoài repo.
 
+Runner cleanup chuẩn dọn `data/raw/`, hai CSV staging trong `data/zone/`,
+`.venv/`, state trong `experiments/results/`, `/tmp/continux-demo-env.sh`,
+log export `scripts/k3s-check/`, `scripts/__pycache__/` và screenshot export:
+
+```bash
+cd ~/continux
+bash experiments/runners/demo.sh cleanup-local
+```
+
+Evidence chỉ bị xóa bằng lệnh riêng có xác nhận:
+
+```bash
+bash experiments/runners/demo.sh purge-evidence <RUN_ID>
+```
+
 > Cảnh báo: lệnh dưới đây xóa dataset local và virtual environment tạo tại §4.2. Chỉ chạy sau khi Vector đã dừng và evidence cần giữ đã nằm ngoài repo.
 
 ```bash
@@ -1412,8 +1454,16 @@ read -r -p "Nhập CLEAN-LOCAL để xóa data/raw và .venv do demo tạo: " CO
 test "${CONFIRM}" = "CLEAN-LOCAL"
 
 deactivate 2>/dev/null || true
-rm -rf -- "${DATA_DIR}" "$PWD/.venv"
-rm -f -- /tmp/continux-demo-env.sh
+rm -rf -- \
+  "${DATA_DIR}" \
+  "$PWD/.venv" \
+  "$PWD/experiments/results/${RUN_ID}" \
+  "$PWD/scripts/k3s-check" \
+  "$PWD/scripts/__pycache__" \
+  "$PWD/dashboards/exports"
+rm -f -- \
+  /tmp/continux-demo-env.sh \
+  "$PWD/experiments/results/current.env"
 
 test ! -e "${DATA_DIR}"
 test ! -e "$PWD/.venv"
@@ -1453,7 +1503,7 @@ test -z "${GIT_STATUS}"
 | 6 | Logic green | `green_objects = 0` |
 | 7 | Metric cutover hiện thời | duration, timestamp, query errors và green readiness bằng `0` |
 | 8 | Đầu ra Iceberg | Không có tệp dữ liệu Parquet của lượt demo vừa dọn |
-| 9 | Checkout local | Không có `data/raw/`, `.venv/`, hai CSV taxi zone tạm; `git status` rỗng |
+| 9 | Checkout local | Không có `data/raw/`, `.venv/`, hai CSV taxi zone tạm, state/log/screenshot export tạm; `git status` rỗng |
 
 Khi toàn bộ checklist đạt, trạng thái đã trở lại baseline sạch. Lịch sử metric cũ vẫn có thể xuất hiện trong Grafana do VictoriaMetrics lưu lịch sử bảy ngày; chọn khoảng thời gian của lượt mới để tránh nhầm lẫn.
 
@@ -1471,7 +1521,7 @@ kubectl -n pipeline logs -l app=vector --tail=200 2>/dev/null || true
 kubectl -n pipeline wait --for=delete pod -l app=vector --timeout=120s || true
 ```
 
-Sau đó giảm `rate_limit_num` hoặc `max_events` trong `config/vector/vector-config.yaml`, commit, push và sync lại app `vector`. Không tiếp tục replay cho tới khi cluster khỏe lại.
+Sau đó dùng profile `smoke`, hoặc giảm `rate_limit_num` / `max_events` trong `pipelines/vector/vector.toml`, commit, push và sync lại app `vector`. Không tiếp tục replay cho tới khi cluster khỏe lại.
 
 ### 6.2. Pod `redpanda-configuration-*` Có Một Bản `Failed`
 

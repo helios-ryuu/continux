@@ -162,7 +162,7 @@ Quy trình triển khai chi tiết nằm trong [RUNBOOK.md](./RUNBOOK.md). Tóm 
 7. Deploy MinIO, Redpanda, RisingWave.
 8. Deploy VictoriaMetrics, Grafana và dashboard.
 9. Tải dataset, convert JSONL, upload Taxi Zone lookup.
-10. Sync Vector ở `replicas=0`, apply SQL, bật ingest thủ công và verify end-to-end.
+10. Sync Vector ở `replicas=0`, apply SQL, chạy runner theo pha và verify end-to-end.
 
 ### 7.1. Đóng Gói Paper
 
@@ -184,7 +184,7 @@ PDF cuối được commit là `paper/main_vi.pdf` và `paper/main_en.pdf`. `doc
 
 ### 8.2. Vector
 
-Vector đọc file JSONL từ `/data/*.jsonl` và publish vào Redpanda. Deployment mặc định `replicas=0` để tránh phát event khi cluster chưa sẵn sàng. Khi replay, runbook scale thủ công lên `1`, theo dõi log, rồi scale về `0`.
+Vector đọc file JSONL từ `/data/*.jsonl` và publish vào Redpanda. Deployment mặc định `replicas=0` với profile `smoke=2 events/s` để tránh phát event khi cluster chưa sẵn sàng. Khi replay, runner áp profile đã chọn, scale lên `1`, theo dõi log, rồi luôn trả Vector về `0` và profile `smoke`.
 
 ### 8.3. Redpanda
 
@@ -254,28 +254,25 @@ Hệ thống có 4 nhóm dashboard:
 Evidence của mỗi lượt thực nghiệm được lưu tại:
 
 ```text
-evidence/finalize/<RUN_ID>/
+~/continux-demo-evidence/<RUN_ID>/
 ```
 
 Trong đó `<RUN_ID>` được tạo bằng `date +%Y%m%d-%H%M%S` ở đầu lượt chạy theo runbook. Các file tiêu biểu được runbook ghi ra:
 
 | File | Nội dung |
 |------|----------|
-| `00-k3s-check.txt` | Baseline cluster |
-| `01-argocd-after-sync.txt` | Argo CD app sau sync |
-| `02-risingwave-show-cluster.txt` | RisingWave workers |
-| `02-tlc-zone-count.txt` | Lookup table count |
-| `03-vm-query-exporter-up.json` | Exporter scrape |
-| `05-replay-start-epoch.txt` | Epoch bắt đầu replay |
-| `05-mv-final-count.txt` | MV count cuối replay |
-| `05-minio-iceberg-after-replay.txt` | Iceberg objects |
-| `06-green-catchup-samples.txt` | Green MV catch-up |
-| `06-query-loop-during-cutover.txt` | Query loop khi swap |
-| `06-public-after-swap.txt` | Public MV sau swap |
-| `06-green-name-after-swap.txt` | View giữ tên green sau swap |
-| `06-exporter-cutover-metrics.txt` | Cutover metrics trực tiếp |
-| `06-vm-query-cutover-duration.json` | VictoriaMetrics duration |
-| `06-vm-query-query-errors.json` | VictoriaMetrics query errors |
+| `00-run-id.txt` | RUN_ID, evidence dir và Vector profile |
+| `03-clean-baseline-counts.txt` | Baseline Blue sạch |
+| `04-replay-start.txt` | Epoch bắt đầu replay |
+| `04-vector-startup-logs.txt` | Vector startup |
+| `04-mv-final.txt` | MV count cuối replay |
+| `04-iceberg-final.txt` | Iceberg objects |
+| `05-green-ready-samples.txt` | Green MV catch-up |
+| `05-query-loop-during-cutover.txt` | Query loop khi swap |
+| `05-duration-and-errors.txt` | Duration và query errors |
+| `05-exporter-cutover.txt` | Cutover metrics trực tiếp |
+| `05-vm-duration.json` | VictoriaMetrics duration |
+| `05-vm-query-errors.json` | VictoriaMetrics query errors |
 
 Screenshot dashboard được nộp riêng, tham chiếu bằng tên file:
 
@@ -293,7 +290,7 @@ grafana-04-data-integrity.png
 Hệ thống đáp ứng các tiêu chí sau khi triển khai và chạy replay:
 
 - 3/3 nodes `Ready`, PVC `Bound`, workloads `Available`.
-- Argo CD quản lý các app chính (`cloudflared`, `redpanda-topics`, `pipeline`, `vector`, `victoria-scrapes`, `metrics-exporter`) ở trạng thái `Synced/Healthy`.
+- Argo CD quản lý các app chính (`cloudflared`, `grafana-dashboards`, `redpanda-topics`, `pipeline`, `vector`, `victoria-scrapes`, `metrics-exporter`) ở trạng thái `Synced/Healthy`.
 - Vector dừng ở `replicas=0` sau replay theo chủ đích.
 
 Một pod `redpanda-configuration-*` cũ ở trạng thái `Failed` được ghi nhận là dấu vết lịch sử, không chặn workload vì Redpanda StatefulSet và console đều `Ready`.
@@ -310,7 +307,7 @@ Một pod `redpanda-configuration-*` cũ ở trạng thái `Failed` được ghi
 - RisingWave cập nhật `mv_zone_stats` liên tục trong khi replay.
 - Sink `sink_zone_stats` sinh ra data Parquet, equality-delete Parquet và position-delete Parquet trong `iceberg-data/nyc/zone_stats/`.
 
-Số liệu chi tiết của mỗi lượt nằm trong `evidence/finalize/<RUN_ID>/`.
+Số liệu chi tiết của mỗi lượt nằm trong `~/continux-demo-evidence/<RUN_ID>/`.
 
 ### 10.4. Blue/Green Cutover
 
@@ -388,7 +385,7 @@ Continux đã hoàn thành mục tiêu xây dựng Data Lakehouse thời gian th
 cd ~/continux
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
-EVIDENCE_DIR="evidence/finalize/${RUN_ID}"
+EVIDENCE_DIR="$HOME/continux-demo-evidence/${RUN_ID}"
 
 bash scripts/k3s-check.sh
 argocd app list --grpc-web
@@ -400,11 +397,11 @@ kubectl get pvc -A
 Evidence:
 
 ```text
-evidence/finalize/<RUN_ID>/00-k3s-check.txt
-evidence/finalize/<RUN_ID>/00-argocd-app-list.txt
-evidence/finalize/<RUN_ID>/00-nodes.txt
-evidence/finalize/<RUN_ID>/00-pods.txt
-evidence/finalize/<RUN_ID>/00-pvc.txt
+~/continux-demo-evidence/<RUN_ID>/00-k3s-check.txt
+~/continux-demo-evidence/<RUN_ID>/00-argocd-app-list.txt
+~/continux-demo-evidence/<RUN_ID>/00-nodes.txt
+~/continux-demo-evidence/<RUN_ID>/00-pods.txt
+~/continux-demo-evidence/<RUN_ID>/00-pvc.txt
 ```
 
 ### 15.2. Verify RisingWave
@@ -419,8 +416,8 @@ psql -h localhost -p 4567 -d dev -U root -c \
 Evidence:
 
 ```text
-evidence/finalize/<RUN_ID>/02-risingwave-show-cluster.txt
-evidence/finalize/<RUN_ID>/02-tlc-zone-count.txt
+~/continux-demo-evidence/<RUN_ID>/02-risingwave-show-cluster.txt
+~/continux-demo-evidence/<RUN_ID>/02-tlc-zone-count.txt
 ```
 
 ### 15.3. Replay
@@ -438,10 +435,10 @@ kubectl --request-timeout=10s -n pipeline scale deploy/vector --replicas=0
 Evidence:
 
 ```text
-evidence/finalize/<RUN_ID>/05-replay-start-epoch.txt
-evidence/finalize/<RUN_ID>/05-vector-startup-logs.txt
-evidence/finalize/<RUN_ID>/05-mv-final-count.txt
-evidence/finalize/<RUN_ID>/05-minio-iceberg-after-replay.txt
+~/continux-demo-evidence/<RUN_ID>/04-replay-start.txt
+~/continux-demo-evidence/<RUN_ID>/04-vector-startup-logs.txt
+~/continux-demo-evidence/<RUN_ID>/04-mv-final.txt
+~/continux-demo-evidence/<RUN_ID>/04-iceberg-final.txt
 ```
 
 ### 15.4. Cutover
@@ -460,12 +457,11 @@ curl -G 'http://127.0.0.1:8428/api/v1/query' \
 Evidence:
 
 ```text
-evidence/finalize/<RUN_ID>/06-create-green-mv.txt
-evidence/finalize/<RUN_ID>/06-green-catchup-samples.txt
-evidence/finalize/<RUN_ID>/06-query-loop-during-cutover.txt
-evidence/finalize/<RUN_ID>/06-cutover-duration.txt
-evidence/finalize/<RUN_ID>/06-public-after-swap.txt
-evidence/finalize/<RUN_ID>/06-green-name-after-swap.txt
-evidence/finalize/<RUN_ID>/06-vm-query-cutover-duration.json
-evidence/finalize/<RUN_ID>/06-vm-query-query-errors.json
+~/continux-demo-evidence/<RUN_ID>/05-create-green.txt
+~/continux-demo-evidence/<RUN_ID>/05-green-ready-samples.txt
+~/continux-demo-evidence/<RUN_ID>/05-query-loop-during-cutover.txt
+~/continux-demo-evidence/<RUN_ID>/05-duration-and-errors.txt
+~/continux-demo-evidence/<RUN_ID>/05-exporter-cutover.txt
+~/continux-demo-evidence/<RUN_ID>/05-vm-duration.json
+~/continux-demo-evidence/<RUN_ID>/05-vm-query-errors.json
 ```

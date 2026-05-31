@@ -1,6 +1,6 @@
 adminUser: admin
 # adminPassword intentionally omitted. The Grafana Helm chart generates it
-# into secret/grafana key admin-password; see docs/SETUP.md §8.2.
+# into secret/grafana key admin-password; see docs/RUNBOOK.md §2.7.2.
 
 image:
   tag: 13.0.1-security-01
@@ -48,3 +48,6 @@ dashboardProviders:
         folder: Continux
         type: file
         options: { path: /var/lib/grafana/dashboards/default }
+
+dashboardsConfigMaps:
+  default: continux-grafana-dashboards

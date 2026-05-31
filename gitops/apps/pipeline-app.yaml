@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/helios-ryuu/continux.git
     targetRevision: main
-    path: gitops/pipeline
+    path: sql
   destination:
     server: https://kubernetes.default.svc
     namespace: pipeline

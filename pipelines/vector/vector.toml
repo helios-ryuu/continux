@@ -22,7 +22,7 @@ bootstrap_servers = "redpanda.redpanda.svc.cluster.local:9093"
 topic = "nyc-taxi-events"
 encoding.codec = "json"
 compression = "zstd"
-rate_limit_num = 2
+rate_limit_num = ${VECTOR_THROUGHPUT_EVENTS_PER_SEC:-2}
 rate_limit_duration_secs = 1
 
 [sinks.redpanda.batch]

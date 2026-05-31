@@ -1,0 +1,9 @@
+flowchart TD
+    init["init<br/>create RUN_ID and evidence dir"] --> prepare["prepare-data<br/>download, convert, upload lookup"]
+    prepare --> baseline["baseline<br/>reset to clean Blue state"]
+    baseline --> replay["replay<br/>apply selected profile, ingest, stop Vector"]
+    replay --> cutover["cutover<br/>create Green, query loop, swap"]
+    cutover --> runtime["cleanup-runtime<br/>restore clean Blue state"]
+    runtime --> local["cleanup-local<br/>remove local generated files"]
+    local --> keep["keep evidence by default"]
+    keep --> purge["purge-evidence RUN_ID<br/>explicit confirmation only"]

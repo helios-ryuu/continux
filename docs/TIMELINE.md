@@ -94,7 +94,7 @@ Paper LaTeX song ngữ module           ◆
 - [x] MinIO bucket `rw-checkpoint`, `iceberg-data`, `tlc-zone` tồn tại.
 - [x] Redpanda topic `nyc-taxi-events` tồn tại.
 - [x] RisingWave `SHOW CLUSTER` trả 4 worker `RUNNING`.
-- [x] Vector đọc JSONL và có thể scale thủ công.
+- [x] Vector đọc JSONL; runner scale theo pha và trả về profile `smoke`.
 - [x] `tlc_zone` được nạp từ Taxi Zone lookup.
 - [x] Replay sạch sinh kết quả trong `mv_zone_stats`.
 - [x] Iceberg sinh object mới trong MinIO.
@@ -106,7 +106,7 @@ Paper LaTeX song ngữ module           ◆
 
 | Rủi ro | Cách xử lý |
 |--------|-----------|
-| iMac 8 GB RAM quá tải khi ingest | Vector dùng rate limit và mặc định `replicas=0`; scale thủ công, dừng ngay khi đủ mẫu |
+| iMac 8 GB RAM quá tải khi ingest | Vector dùng rate limit, mặc định `replicas=0`, profile `smoke=2 events/s`; benchmark phải opt-in |
 | WSL sleep làm mất quorum | `helios-pc` chỉ giữ quorum; giữ Windows/WSL awake trong thực nghiệm |
 | Secret runtime lộ trong Git | Tạo bằng Kubernetes Secret, không commit secret |
 | RisingWave meta-command psql không tương thích | Verify bằng `rw_catalog` thay vì `\dt public.*` |

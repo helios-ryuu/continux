@@ -2,15 +2,28 @@
 
 Tài liệu này hướng dẫn đọc các dashboard Grafana. Dashboard dùng datasource `VictoriaMetrics`, kết hợp metric Kubernetes/Redpanda/RisingWave và metric thực nghiệm `continux_*` từ `config/metrics-exporter/`.
 
-## 1. Import Dashboard
+## 1. Provision Dashboard
+
+Bốn dashboard JSON trong `dashboards/` là nguồn cấu hình GitOps. App Argo CD
+`grafana-dashboards` tạo ConfigMap `continux-grafana-dashboards`; chart Grafana
+mount ConfigMap này qua `dashboardsConfigMaps.default`.
+
+```bash
+argocd app sync grafana-dashboards --grpc-web
+argocd app wait grafana-dashboards --health --sync --grpc-web
+kubectl -n observability get configmap continux-grafana-dashboards
+```
+
+Sau đó:
 
 1. Mở Grafana tại `https://<grafana-domain>`.
-2. Vào **Dashboards** -> **New** -> **Import**.
-3. Import lần lượt các file trong thư mục `dashboards/`.
-4. Khi Grafana hỏi datasource, chọn `VictoriaMetrics`.
-5. Chọn time range:
+2. Mở folder **Continux**; bốn dashboard đã được provision tự động.
+3. Chọn time range:
    - `Last 15 minutes` khi replay hoặc cutover.
    - `Last 6 hours` khi xem xu hướng sau setup.
+
+Nếu cần debug provisioning, có thể import tay từng JSON và chọn datasource
+`VictoriaMetrics`; đây là fallback, không phải luồng triển khai chuẩn.
 
 Các screenshot cuối được tham chiếu trong báo cáo bằng tên file, ví dụ:
 
@@ -43,7 +56,7 @@ Dashboard này chứng minh pipeline ingest và xử lý luồng.
 | `RisingWave rows/s` | Proxy tốc độ xử lý của RisingWave | Tăng trong replay, về thấp khi đã dừng |
 | `Application events/s` | `continux_events_processed_total` và metric liên quan | Dùng kèm SQL count vì Kafka catalog metrics còn hạn chế |
 
-Số đo cụ thể của từng lượt nằm trong `evidence/`.
+Số đo cụ thể của từng lượt nằm trong `~/continux-demo-evidence/<RUN_ID>/`.
 
 ## 4. Dashboard `resource-util`
 
@@ -60,7 +73,7 @@ Dashboard này đọc mức tiêu thụ tài nguyên và độ ổn định work
 | `PVC used percent` | Phần trăm PVC đã dùng | MinIO/Redpanda/VictoriaMetrics còn nhiều dư địa |
 | `PVC free bytes` | Dung lượng còn trống | Dùng để kiểm soát Iceberg và retention |
 
-Số đo cụ thể của từng lượt nằm trong `evidence/`.
+Số đo cụ thể của từng lượt nằm trong `~/continux-demo-evidence/<RUN_ID>/`.
 
 ## 5. Dashboard `cutover`
 
@@ -78,7 +91,7 @@ Dashboard này phục vụ kịch bản Blue/Green cutover.
 | `RisingWave restarts in selected range` | Restart của compactor/compute/frontend/meta | Kỳ vọng `0` |
 | `Blue vs green row count` | Public/blue/green rows | Public chuyển sang logic green sau swap |
 
-Số đo cụ thể của từng lượt nằm trong `evidence/`.
+Số đo cụ thể của từng lượt nằm trong `~/continux-demo-evidence/<RUN_ID>/`.
 
 ## 6. Dashboard `data-integrity`
 
@@ -125,7 +138,7 @@ curl -G 'http://127.0.0.1:8428/api/v1/query' \
 
 ## 8. Kết Luận Từ Dashboard
 
-- Pipeline có replay dữ liệu thật và MV tăng khi event được phát; số đo cụ thể nằm trong `evidence/`.
+- Pipeline có replay dữ liệu thật và MV tăng khi event được phát; số đo cụ thể nằm trong `~/continux-demo-evidence/<RUN_ID>/`.
 - Tài nguyên cluster nằm trong ngưỡng kiểm soát; PVC còn nhiều dung lượng.
 - Cutover hoàn tất bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; tiêu chí thành công là query errors `0`, không có RisingWave restart, duration thấp.
 - Data integrity cần đọc theo giai đoạn: mismatch `0` khi so cùng logic trước cutover; mismatch sau cutover là dấu hiệu logic mới đã khác logic cũ.

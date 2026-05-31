@@ -1,25 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vector
+  name: grafana-dashboards
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/helios-ryuu/continux.git
     targetRevision: main
-    path: pipelines/vector
+    path: dashboards
   destination:
     server: https://kubernetes.default.svc
-    namespace: pipeline
+    namespace: observability
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
-      - RespectIgnoreDifferences=true
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      name: vector
-      namespace: pipeline
-      jsonPointers:
-        - /spec/replicas

@@ -55,7 +55,7 @@ Continux bổ sung góc nhìn vận hành:
 | **Streaming Performance** | Quan sát replay ingest, processed events, lag, throughput proxy và RisingWave rows/s | Vector logs, Redpanda topic offsets, exporter `continux_events_processed_total`, RisingWave rows/s proxy |
 | **Resource Utilization & Stability** | Theo dõi CPU/RAM/PVC/restart trên cluster tài nguyên giới hạn | Node-exporter + kube-state-metrics qua VictoriaMetrics; `bash scripts/k3s-check.sh overview` |
 
-Số đo cụ thể của mỗi lượt thực nghiệm được lưu trong `evidence/` ngoài repo.
+Số đo cụ thể của mỗi lượt thực nghiệm được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo.
 
 ## 7. Thành Phẩm Bàn Giao
 

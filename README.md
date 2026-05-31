@@ -7,7 +7,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v1.2.0-0A7CC7?style=flat-square" alt="Version v1.2.0">
+  <img src="https://img.shields.io/badge/version-v1.2.1-0A7CC7?style=flat-square" alt="Version v1.2.1">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 
@@ -64,10 +64,10 @@ Continux triển khai một kiến trúc **Data Lakehouse thời gian thực** t
 ## Phạm Vi Hệ Thống
 
 - Cụm K3s 3 node Ready qua Tailscale: `imac`, `continux-vps`, `helios-pc`.
-- Argo CD quản lý các app chính bằng App-of-Apps: `cloudflared`, `redpanda-topics`, `pipeline`, `vector`, `victoria-scrapes`, `metrics-exporter`.
+- Argo CD quản lý các app chính bằng App-of-Apps: `cloudflared`, `grafana-dashboards`, `redpanda-topics`, `pipeline`, `vector`, `victoria-scrapes`, `metrics-exporter`.
 - MinIO, Redpanda, RisingWave, VictoriaMetrics và Grafana được triển khai bằng Helm.
 - Dataset NYC TLC Yellow Taxi (Parquet) được convert sang JSONL trước khi replay; Taxi Zone lookup CSV được upload lên MinIO trước khi RisingWave nạp vào bảng `tlc_zone`.
-- Pipeline có thể chạy replay end-to-end và Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; số đo cụ thể của mỗi lượt được lưu trong `evidence/` ngoài repo.
+- Pipeline có runner theo pha cho replay end-to-end và Blue/Green cutover bằng `ALTER MATERIALIZED VIEW ... SWAP WITH ...`; số đo cụ thể của mỗi lượt được lưu tại `~/continux-demo-evidence/<RUN_ID>/` ngoài repo.
 - Bốn nhóm dashboard Grafana (`streaming-perf`, `resource-util`, `cutover`, `data-integrity`) đọc metric `continux_*` và metric hạ tầng từ VictoriaMetrics.
 
 ## Hạ Tầng Triển Khai
@@ -106,6 +106,18 @@ Quy trình triển khai chuẩn:
 1. Theo [docs/RUNBOOK.md](./docs/RUNBOOK.md) để dựng hệ thống từ máy sạch, khởi chạy một lượt thực nghiệm end-to-end (replay + Blue/Green cutover) và dọn dẹp để chạy lại từ đầu.
 2. Đọc kết quả dashboard theo [docs/DASHBOARDS.md](./docs/DASHBOARDS.md).
 3. Dùng [paper/main_vi.pdf](./paper/main_vi.pdf) và [paper/main_en.pdf](./paper/main_en.pdf) làm bản paper LaTeX cuối; [docs/REPORT.md](./docs/REPORT.md) là báo cáo/evidence companion.
+
+Runner chuẩn sau khi hạ tầng đã sẵn sàng:
+
+```bash
+bash experiments/runners/demo.sh init smoke
+bash experiments/runners/demo.sh prepare-data
+bash experiments/runners/demo.sh baseline
+bash experiments/runners/demo.sh replay
+bash experiments/runners/demo.sh cutover
+bash experiments/runners/demo.sh cleanup-runtime
+bash experiments/runners/demo.sh cleanup-local
+```
 
 ## Khái Niệm Và Công Nghệ Sử Dụng
 
