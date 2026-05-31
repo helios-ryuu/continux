@@ -12,6 +12,9 @@ data/raw/
 experiments/results/*
 !experiments/results/README.md
 
+# Bằng chứng thực nghiệm sao chép về local, không commit
+evidence/
+
 # Grafana screenshot export
 dashboards/exports/
 

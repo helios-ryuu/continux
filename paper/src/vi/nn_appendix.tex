@@ -1,5 +1,5 @@
 \section{SQL cốt lõi}\label{app:core-sql}
-\subsection{Source, lookup và baseline MV}
+\subsection{Nguồn sự kiện, bảng tra cứu và MV nền}
 \begin{lstlisting}[language=SQL]
 CREATE SOURCE IF NOT EXISTS nyc_taxi_src (
     event_id VARCHAR,
@@ -16,6 +16,19 @@ CREATE SOURCE IF NOT EXISTS nyc_taxi_src (
     scan.startup.mode = 'earliest'
 ) FORMAT PLAIN ENCODE JSON;
 
+CREATE TABLE IF NOT EXISTS tlc_zone (
+    location_id INT PRIMARY KEY,
+    borough VARCHAR,
+    zone VARCHAR,
+    service_zone VARCHAR
+) WITH (
+    connector = 's3',
+    s3.bucket_name = 'tlc-zone',
+    s3.endpoint_url = 'http://minio.minio.svc.cluster.local:9000',
+    enable_config_load = 'true',
+    match_pattern = 'taxi_zone_lookup.csv'
+) FORMAT PLAIN ENCODE CSV (delimiter = ',', without_header = false);
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats_blue AS
 SELECT z.borough, z.zone, COUNT(*) AS trip_count,
        SUM(t.fare_amount) AS total_fare,
@@ -28,7 +41,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats AS
 SELECT * FROM mv_zone_stats_blue;
 \end{lstlisting}
 
-\subsection{Green MV và swap}
+\subsection{MV Xanh lục và thao tác hoán đổi}
 \begin{lstlisting}[language=SQL]
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_zone_stats_green AS
 SELECT z.borough, z.zone, COUNT(*) AS trip_count,
@@ -44,7 +57,7 @@ ALTER MATERIALIZED VIEW mv_zone_stats
 SWAP WITH mv_zone_stats_green;
 \end{lstlisting}
 
-\subsection{Iceberg sink}
+\subsection{Đích ghi Iceberg}
 \begin{lstlisting}[language=SQL]
 CREATE SINK IF NOT EXISTS sink_zone_stats FROM mv_zone_stats
 WITH (
@@ -53,6 +66,8 @@ WITH (
     primary_key = 'borough,zone',
     catalog.type = 'storage',
     warehouse.path = 's3://iceberg-data/',
+    s3.endpoint = 'http://minio.minio.svc.cluster.local:9000',
+    enable_config_load = 'true',
     database.name = 'nyc',
     create_table_if_not_exists = 'true',
     table.name = 'zone_stats'
@@ -69,9 +84,11 @@ topics:
     config:
       retention.ms: "86400000"
 
-# Vector rate in deployed ConfigMap
-rate_limit_num = 2
-rate_limit_duration_secs = 1
+# Vector profiles: configured source-side limits
+smoke:            2 events/s
+benchmark-low:    1000 events/s
+benchmark-medium: 5000 events/s
+benchmark-high:   10000 events/s
 
 # RisingWave state store
 stateStore:
@@ -80,3 +97,41 @@ stateStore:
     endpoint: http://minio.minio.svc.cluster.local:9000
     bucket: rw-checkpoint
 \end{lstlisting}
+
+\section{Chỉ mục bằng chứng}\label{app:evidence}
+Bốn gói bằng chứng chính thức nằm ngoài Git tại:
+
+\begin{lstlisting}
+evidence/finalize/20260531-four-profiles/
+  SHA256SUMS.txt
+  summary.csv
+  sensitive-scan.txt
+  runs/
+    20260531-172050/  # smoke
+    20260531-173434/  # benchmark-low
+    20260531-174621/  # benchmark-medium
+    20260531-175701/  # benchmark-high
+\end{lstlisting}
+
+Mỗi gói có \texttt{41} tệp. Các tệp cần ưu tiên khi kiểm tra lại số liệu là:
+
+\begin{itemize}
+\item \texttt{00-run-id.txt}: cấu hình và giới hạn phát cấu hình.
+\item \texttt{04-mv-progress.txt}, \texttt{04-mv-final.txt}: tiến trình và số liệu chốt sau phát lại.
+\item \texttt{04-iceberg-final.txt}: đối tượng Iceberg.
+\item \texttt{05-green-ready-samples.txt}: MV Xanh lục trước chuyển giao.
+\item \texttt{05-query-loop-during-cutover.txt}, \texttt{05-duration-and-errors.txt}: truy vấn trong lúc hoán đổi, thời lượng và lỗi.
+\item \texttt{05-final-*}: SQL, Vector, sức khỏe cụm và Argo CD ở bước xác minh cuối.
+\item \texttt{06-*}: kết quả dọn trạng thái sinh ra.
+\end{itemize}
+
+\section{Danh sách hình minh chứng}\label{app:figures}
+PDF tích hợp năm hình minh chứng được dựng hoặc chụp từ hệ thống Continux 2.0.0 và bốn lượt đo chính thức:
+
+\begin{enumerate}
+\item Sơ đồ kiến trúc, luồng xử lý và quy trình chuyển giao Continux 2.0.0.
+\item Bảng điều khiển \texttt{streaming-perf} của lượt \texttt{benchmark-high}, thể hiện các đợt lưu lượng, offset và xử lý luồng.
+\item Bảng điều khiển \texttt{resource-util} trong cửa sổ phát lại \texttt{benchmark-high}, thể hiện mức sẵn sàng, CPU, bộ nhớ và PVC.
+\item Bảng điều khiển \texttt{cutover} sau hoán đổi, thể hiện trạng thái \texttt{READY}, thời lượng và lỗi truy vấn.
+\item Bảng điều khiển \texttt{data-integrity} sau chuyển giao; giá trị không khớp bằng \texttt{1} là kết quả dự kiến khi so hai cách tính khác nhau.
+\end{enumerate}

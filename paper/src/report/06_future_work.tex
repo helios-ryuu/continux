@@ -1,10 +1,9 @@
 \section{Hướng phát triển}
-Các nghiên cứu tiếp theo có thể đi theo ba hướng bổ sung lẫn nhau:
-
 \begin{itemize}
-\item Benchmark nhiều mức tải trên một data plane lớn hơn 8\,GB RAM, dùng đúng các kịch bản đã định nghĩa trong repo (\texttt{low}, \texttt{medium}, \texttt{high}) để thu biểu đồ latency/throughput theo tải.
-\item Thiết kế cutover bao gồm cả sink downstream, chẳng hạn tạo sink mới gắn vào green MV trước cutover rồi đổi tên sink, hoặc thực hiện compaction/rewrite snapshot Iceberg theo logic mới.
-\item Mở rộng nguồn dữ liệu sang sự kiện giao thông trực tiếp, ví dụ cảm biến giao thông hoặc dữ liệu GPS xe buýt, thay vì replay bộ dữ liệu có sẵn.
+\item Bổ sung bộ đo thông lượng và độ trễ đầu cuối dựa trên mốc thời gian sự kiện, số sự kiện phía phát chấp nhận và số sự kiện phía nhận xử lý.
+\item Chạy phép đo bền vững dài hơn, kiểm tra phục hồi khi pod hoặc broker bị gián đoạn và theo dõi mức sử dụng tài nguyên theo thời gian.
+\item Thiết kế chuyển giao bao gồm cả đích ghi phía sau, chẳng hạn tạo đích ghi ứng viên gắn với MV Xanh lục rồi chuyển phía nhận theo phiên bản.
+\item Tự động hóa điều kiện chuyển giao bằng quy trình có điều kiện bảo vệ và xuất manifest bằng chứng sau mỗi lượt.
 \end{itemize}
 
-Đây là định hướng cho các phiên bản kế tiếp, không phải phần kết quả của lượt thực nghiệm hiện tại.
+Các nội dung trên là định hướng cho phiên bản kế tiếp, không phải kết quả của bốn lượt thực nghiệm đã báo cáo.

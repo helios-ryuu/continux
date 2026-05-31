@@ -1,114 +1,118 @@
 \section{Phương pháp và kiến trúc hệ thống}\label{sec:method}
 
 \subsection{Phương pháp nghiên cứu}
-Nghiên cứu áp dụng phương pháp Design Science Research (DSR) \parencite{hevner2004design}, một khung phương pháp luận cho nghiên cứu hệ thống thông tin trong đó tri thức được tạo ra thông qua việc xây dựng và đánh giá những hiện vật kỹ thuật. Theo DSR, một \emph{artifact} là hiện vật kỹ thuật được thiết kế có chủ đích để xử lý một vấn đề cụ thể; ở đây artifact là toàn bộ kiến trúc Continux gồm hạ tầng K3s, pipeline streaming từ Vector đến Iceberg, lớp GitOps Argo CD và lớp quan sát VictoriaMetrics/Grafana. \emph{Evaluation} là pha đánh giá artifact bằng lượt thực nghiệm có kiểm soát, thay vì chỉ mô tả cấu hình kỳ vọng trên giấy.
+Nghiên cứu áp dụng phương pháp khoa học thiết kế (\emph{Design Science Research}, DSR)~\parencite{hevner2004design}. Theo DSR, tri thức được tạo ra thông qua việc xây dựng và đánh giá một hiện vật kỹ thuật có chủ đích. Hiện vật của đề tài là toàn bộ kiến trúc Continux: cụm K3s, luồng dữ liệu từ Vector đến Iceberg, lớp quản lý triển khai Argo CD và lớp quan sát VictoriaMetrics/Grafana.
 
-Bằng chứng dùng cho quá trình đánh giá gồm kết quả lệnh dạng văn bản, metric ở định dạng JSON do VictoriaMetrics trả về, và ảnh dashboard Grafana. Bộ kết quả sinh trên host triển khai (node \texttt{imac}) đã được sao chép về máy phân tích Windows tại thư mục \texttt{evidence/finalize/\hspace{0pt}20260522-151720/} để đối chiếu trong khi viết báo cáo. Đánh giá chỉ sử dụng đúng trạng thái, số đếm và thời gian có trong bằng chứng; các mục không có phép đo tương ứng, như benchmark theo ba mức tải đã định nghĩa trong repo, được xác định là giới hạn của nghiên cứu chứ không được nội suy.
+Đánh giá được thực hiện bằng bốn lượt chạy độc lập trên cùng bản sửa đổi Git \texttt{ff19448}. Mỗi lượt đi qua các pha: khởi tạo, chuẩn bị dữ liệu, tạo trạng thái nền sạch, phát lại, chuyển giao MV, xác minh cuối, dọn trạng thái chạy và dọn tệp cục bộ. Cách tổ chức này giúp mỗi cấu hình bắt đầu từ cùng một trạng thái và tránh trộn dữ liệu giữa các lượt.
 
-\subsection{Dữ liệu và chuẩn bị luồng}
-Sở Taxi và Dịch vụ vận tải New York, gọi tắt là NYC TLC, công bố trip record công khai cho taxi và xe vận tải tại New York; đây là một trong những nguồn dữ liệu vận tải đô thị được sử dụng nhiều nhất trong nghiên cứu phân tích \parencite{nyctlc}. Continux sử dụng dữ liệu Yellow Taxi tháng \texttt{2026-03}. Một script được viết để chuyển tệp Parquet nguồn, định dạng cột nén tối ưu cho phân tích lô, sang JSONL nhằm tạo dòng sự kiện có thứ tự cho luồng replay. Bảng tra cứu khu vực TLC Taxi Zone gồm \texttt{265} dòng được giữ ở dạng CSV trên MinIO; mỗi dòng ánh xạ một mã \texttt{location\_id} sang \texttt{borough} (quận) và \texttt{zone}.
+\subsection{Dữ liệu và cấu hình phát lại}
+Sở Taxi và Dịch vụ vận tải New York (NYC TLC) công bố dữ liệu chuyến xe công khai phục vụ phân tích~\parencite{nyctlc}. Continux dùng Yellow Taxi tháng \texttt{2026-03}. Tập lệnh \path{scripts/partojsonl.py} chuyển Parquet thành JSONL để Vector đọc tuần tự. Bảng Taxi Zone Lookup được tải lên MinIO để ánh xạ mã vị trí sang quận và khu vực.
 
 \begin{table*}[t!]
 \centering
-\caption{Nguồn dữ liệu thực nghiệm}
-\begin{tabularx}{0.86\textwidth}{@{}p{0.38\textwidth}Y@{}}
+\caption{Nguồn dữ liệu và cấu hình phát lại}
+\label{tab:dataset-profiles-vi}
+\begin{tabularx}{\textwidth}{@{}p{0.37\textwidth}Y@{}}
 \toprule
 \textbf{Thuộc tính} & \textbf{Giá trị}\\
 \midrule
-Loại chuyến và tháng & Yellow Taxi, \texttt{2026-03}\\
-Định dạng nguồn/đích & Parquet / JSONL\\
+Dữ liệu chuyến xe & NYC TLC Yellow Taxi, tháng \texttt{2026-03}\\
+Định dạng nguồn / đích chuyển đổi & Parquet / JSONL\\
 Số dòng JSONL xác nhận & \texttt{3.952.451}\\
-Lookup & TLC Taxi Zone, \texttt{265} dòng\\
-Lượt đo báo cáo & Replay có kiểm soát, public MV cuối \texttt{986} trips\\
+Bảng tra cứu Taxi Zone Lookup & \texttt{265} dòng\\
+Giới hạn phát cấu hình & \texttt{2}, \texttt{1.000}, \texttt{5.000}, \texttt{10.000} sự kiện/s\\
+Thời gian lấy mẫu khi phát lại & \texttt{12} mẫu, cách nhau \texttt{5 s}\\
 \bottomrule
 \end{tabularx}
 \end{table*}
 
-Mỗi dòng JSONL là biểu diễn tuần tự hóa của một chuyến taxi; khi Vector phát dòng đó vào broker, nó trở thành event trong lượt replay. Vector bổ sung hai trường meta khi phát: \texttt{event\_id} (định danh duy nhất cho mỗi event được phát) và \texttt{event\_time} (mốc thời gian phát thực tế của Vector). Trong manifest đang triển khai, tốc độ phát được giới hạn ở \texttt{2} sự kiện mỗi giây để cụm lab tài nguyên hạn chế xử lý ổn định; Vector được dừng sau khi đủ quan sát. Do đó kết quả MV không phản ánh việc xử lý toàn bộ JSONL, dù số dòng của tệp nguồn đã được xác nhận độc lập bằng lệnh \texttt{wc -l} trên host \texttt{imac}; phân tích chi tiết hơn về chất lượng bộ dữ liệu thô được trình bày ở Mục~\ref{sec:dataquality}.
+Vector bổ sung \texttt{event\_id} và \texttt{event\_time}, rồi gửi từng sự kiện vào topic \texttt{nyc-taxi-events}. Tham số tốc độ chỉ giới hạn nguồn phát. Vì báo cáo không có phép đo số sự kiện đầu cuối trên mỗi giây, các cấu hình được dùng để so sánh xu hướng số chuyến đã xử lý trong cùng cửa sổ quan sát, không được diễn giải thành thông lượng thực tế.
 
 \subsection{Kiến trúc tổng thể}
 \begin{figure*}[t!]
 \centering
-\includegraphics[width=0.65\textwidth]{architecture-process-flow.png}
-\caption{Kiến trúc và luồng quy trình Continux.}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{architecture-process-flow.png}
+\caption{Kiến trúc, luồng xử lý và quy trình chuyển giao của Continux 2.0.0.}
 \label{fig:architecture-vi}
 \end{figure*}
 
-Kiến trúc trong Hình~\ref{fig:architecture-vi} có ba luồng. Trong luồng dữ liệu, file Parquet được chuyển sang JSONL để Vector replay từng event, Redpanda đệm luồng và RisingWave duy trì kết quả SQL trước khi sink ghi các object Iceberg trên MinIO. Trong luồng điều khiển, GitHub giữ manifest còn Argo CD triển khai và kiểm tra sai lệch cấu hình trên Kubernetes. Trong luồng quan sát, workload và exporter phát metric để VictoriaMetrics lưu theo thời gian và Grafana hiển thị.
+Luồng dữ liệu bắt đầu từ JSONL, đi qua Vector và Redpanda, sau đó được RisingWave xử lý bằng SQL luồng. RisingWave join sự kiện với bảng tra cứu, duy trì MV và ghi kết quả Iceberg lên MinIO. Luồng điều khiển dùng Argo CD để đồng bộ manifest từ Git. Luồng quan sát dùng exporter, VictoriaMetrics và Grafana để hiển thị trạng thái phát lại, tài nguyên, chuyển giao và tính toàn vẹn quan sát được.
 
-Việc tách ba luồng này làm rõ phạm vi phép đo: đầu ra Iceberg cho biết đường ghi dữ liệu đã vận hành; trạng thái Argo CD cho biết cấu hình chính được reconcile; còn query loop và metric cutover cho biết tên truy vấn public có tiếp tục phục vụ trong thao tác đổi logic hay không.
-
-\subsection{Topology triển khai}
+\subsection{Cấu trúc triển khai}
 \begin{table*}[t!]
 \centering
-\caption{Topology cụm K3s thực nghiệm}
+\caption{Cấu trúc cụm K3s thực nghiệm}
 \label{tab:topology-vi}
 \begin{tabularx}{\textwidth}{@{}p{0.18\textwidth}p{0.40\textwidth}Y@{}}
 \toprule
 \textbf{Node} & \textbf{Tài nguyên ghi nhận} & \textbf{Vai trò}\\
 \midrule
-\texttt{imac} & Intel i5-8500, 6 cores, 8 GB RAM, 200 GB SSD, Ubuntu 26.04 & Server \#1; Vector, Redpanda, RisingWave, MinIO, exporter\\
-\texttt{continux-vps} & 2 vCPU, 4 GB RAM, 80 GB SSD, Ubuntu 24.04 & Server \#2; Argo CD, VictoriaMetrics, Grafana\\
-\texttt{helios-pc} & WSL Ubuntu 26.04, host Intel i5-12500H, 16 GB RAM & Server \#3; quorum-only, node-exporter\\
+\texttt{imac} & Intel i5-8500, 6 core, 8 GB RAM, 200 GB SSD, Ubuntu 26.04 & Máy chủ \#1; Vector, Redpanda, RisingWave, MinIO, exporter\\
+\texttt{continux-vps} & 2 vCPU, 4 GB RAM, 80 GB SSD, Ubuntu 24.04 & Máy chủ \#2; Argo CD, VictoriaMetrics, Grafana\\
+\texttt{helios-pc} & WSL Ubuntu 26.04, host Intel i5-12500H, 16 GB RAM & Máy chủ \#3; quorum-only, node-exporter\\
 \bottomrule
 \end{tabularx}
 \end{table*}
 
-Các node giao tiếp qua \emph{Tailscale}, một mesh VPN xây trên giao thức WireGuard, tạo lớp mạng riêng overlay giữa các máy ở các mạng khác nhau như thể chúng nằm trong cùng một mạng LAN. K3s ở chế độ HA dùng \emph{embedded etcd}: etcd là cơ sở dữ liệu key-value phân tán giữ trạng thái cụm Kubernetes, và ``embedded'' nghĩa là etcd chạy bên trong tiến trình K3s thay vì tách rời. Cụm yêu cầu \emph{quorum} \texttt{2/3}, tức cần ít nhất hai trên ba node etcd còn hoạt động để các thao tác ghi đạt đồng thuận; vì vậy node \texttt{helios-pc} chỉ giữ vai trò quorum (bỏ phiếu) mà không nhận workload dữ liệu. Workload tính toán và lưu trữ được đặt trên \texttt{imac} để tận dụng SSD và RAM cục bộ; \texttt{continux-vps} đảm nhiệm control plane và observability.
-
-Vì vậy, thuật ngữ HA trong báo cáo chỉ nói về lớp Kubernetes control plane và etcd. Artifact không được cấu hình như một pipeline HA từ đầu đến cuối: Redpanda chạy một broker (\texttt{statefulset.replicas=1}), topic \texttt{nyc-taxi-events} có \texttt{replicationFactor=1}, và các thành phần dữ liệu dùng cấu hình lab tiết kiệm tài nguyên.
+Ba node kết nối qua Tailscale. K3s dùng embedded etcd với quorum \texttt{2/3}. Thuật ngữ sẵn sàng cao trong báo cáo chỉ áp dụng cho lớp điều khiển Kubernetes và etcd. Đường dữ liệu không phải cấu hình sẵn sàng cao đầu cuối: Redpanda chạy một broker và topic dùng \texttt{replicationFactor=1}.
 
 \clearpage
 \onecolumn
-\subsection{Đối tượng SQL và Blue/Green design}
+\subsection{Đối tượng SQL và chuyển giao Xanh lam/Xanh lục}
 \begin{table}[H]
 \centering
 \caption{Đối tượng dữ liệu cốt lõi}
 \begin{tabularx}{\textwidth}{@{}p{0.27\textwidth}p{0.27\textwidth}Y@{}}
 \toprule
-\textbf{Object} & \textbf{Input} & \textbf{Chức năng}\\
+\textbf{Đối tượng} & \textbf{Đầu vào} & \textbf{Chức năng}\\
 \midrule
-\texttt{tlc\_zone} & CSV trên MinIO & Lookup vị trí sang borough/zone\\
-\texttt{nyc\_taxi\_src} & Redpanda topic & Source event JSON\\
-\texttt{mv\_zone\_stats\_blue} & Source + lookup & Aggregation baseline\\
-\texttt{mv\_zone\_stats} & Blue MV ban đầu & Tên public được query\\
-\texttt{mv\_zone\_stats\_green} & Source + lookup + filter & Candidate logic\\
-\texttt{sink\_zone\_stats} & Public MV lúc tạo sink & Đầu ra Iceberg upsert\\
+\path{tlc_zone} & CSV trên MinIO & Tra cứu vị trí sang quận và khu vực\\
+\path{nyc_taxi_src} & Topic Redpanda & Nguồn sự kiện JSON\\
+\path{mv_zone_stats_blue} & Nguồn + bảng tra cứu & Cách tính nền Xanh lam\\
+\path{mv_zone_stats} & MV Xanh lam ban đầu & Tên công khai phục vụ truy vấn\\
+\path{mv_zone_stats_green} & Nguồn + tra cứu + bộ lọc & Ứng viên Xanh lục\\
+\path{sink_zone_stats} & MV công khai lúc tạo đích ghi & Đầu ra Iceberg kiểu cập nhật hoặc chèn\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Tên public \texttt{mv\_zone\_stats} đóng vai trò hợp đồng truy vấn cho client: client không cần đổi SQL khi logic phục vụ chuyển từ blue sang green. Ngược lại, \texttt{sink\_zone\_stats} được tạo dựa trên dependency đã tồn tại trước swap; vì vậy việc public MV trả kết quả green sau cutover không đủ để suy ra sink Iceberg đã tự chuyển cùng logic.
+Cách tính Xanh lục bổ sung điều kiện loại giá trị âm:
 
-\begin{lstlisting}[language=SQL,caption={Điều kiện bổ sung trong logic green}]
+\begin{lstlisting}[language=SQL,caption={Điều kiện bổ sung trong cách tính Xanh lục}]
 WHERE t.fare_amount >= 0
   AND t.trip_distance >= 0
 \end{lstlisting}
 
-Sau khi green MV sẵn sàng, query loop gọi public MV với chu kỳ \texttt{0,5 s}, đồng thời hệ thống thực hiện:
+Khi MV Xanh lục ổn định, vòng lặp truy vấn đọc tên công khai theo chu kỳ khoảng \texttt{0,5 s}, đồng thời hệ thống chạy:
 
-\begin{lstlisting}[language=SQL,caption={Câu lệnh Blue/Green MV cutover}]
+\begin{lstlisting}[language=SQL,caption={Câu lệnh hoán đổi tên MV}]
 ALTER MATERIALIZED VIEW mv_zone_stats
 SWAP WITH mv_zone_stats_green;
 \end{lstlisting}
 
-\subsection{Thang đo đánh giá}
+Phép hoán đổi giữ nguyên tên truy vấn công khai nhưng thay cách tính phía sau. Đích ghi Iceberg đã được tạo trước thao tác này; vì vậy đầu ra Iceberg chứng minh đường ghi hoạt động trong pha phát lại, không chứng minh đích ghi tự chuyển sang cách tính Xanh lục.
+
+\subsection{Nguồn bằng chứng và khả năng truy vết}
+Bốn gói bằng chứng chính thức được sao chép từ iMac về Windows tại \path{evidence/finalize/20260531-four-profiles/}. Thư mục \path{runs/} chứa bốn \texttt{RUN\_ID}: \texttt{20260531-172050}, \texttt{20260531-173434}, \texttt{20260531-174621} và \texttt{20260531-175701}. Mỗi gói có \texttt{41} tệp; tổng cộng có \texttt{164} tệp văn bản hoặc JSON.
+
+Tệp \path{SHA256SUMS.txt} chứa giá trị băm SHA-256 của từng tệp. Giá trị băm nguồn trên iMac và bản sao Windows khớp \texttt{164/164}. Tệp \path{summary.csv} tổng hợp số liệu chính; tệp \path{sensitive-scan.txt} ghi kết quả rà chuỗi nhạy cảm. Các nhóm bằng chứng được dùng như sau:
+
 \begin{table}[H]
 \centering
-\caption{Nhóm thang đo và cách diễn giải}
-\begin{tabularx}{\textwidth}{@{}p{0.23\textwidth}p{0.35\textwidth}Y@{}}
+\caption{Nhóm tệp bằng chứng và mục đích đối chiếu}
+\begin{tabularx}{\textwidth}{@{}p{0.53\textwidth}Y@{}}
 \toprule
-\textbf{Nhóm} & \textbf{Bằng chứng} & \textbf{Diễn giải}\\
+\textbf{Nhóm} & \textbf{Nội dung đối chiếu}\\
 \midrule
-Cutover & Duration, query errors, restart, counts trước/sau & Swap public MV thành công, không ghi nhận lỗi query\\
-Tính toàn vẹn quan sát được & MV counts, filter difference, objects & Output tồn tại; chênh lệch phải phù hợp logic\\
-Streaming activity & Replay progress, dashboard, lag hiển thị & Chứng minh hoạt động, không phải benchmark tổng quát\\
-Resource stability & Nodes, workloads, PVC, CPU/RAM & Cluster đủ vận hành lượt đo\\
+\path{00-run-id.txt} & Cấu hình và giới hạn phát cấu hình\\
+\path{04-mv-progress.txt} & Đường tăng số vùng và số chuyến trong pha phát lại\\
+\path{04-mv-final.txt} & Số vùng và số chuyến chốt sau phát lại\\
+\path{04-iceberg-final.txt} & Đối tượng Parquet và siêu dữ liệu Iceberg\\
+\path{05-green-ready-samples.txt} & Trạng thái MV Xanh lục trước chuyển giao\\
+\path{05-query-loop-during-cutover.txt} & Truy vấn thành công trước và sau hoán đổi\\
+\path{05-duration-and-errors.txt} & Thời lượng hoán đổi và số lỗi truy vấn\\
+\path{05-final-*} & SQL cuối, Vector, sức khỏe cụm và Argo CD\\
+\path{06-*} & Kết quả dọn trạng thái sinh ra\\
 \bottomrule
 \end{tabularx}
 \end{table}
-
-\subsection{Nguồn bằng chứng và khả năng truy vết}
-Bộ bằng chứng cục bộ của lượt đo nằm tại \texttt{evidence/finalize/\hspace{0pt}20260522-151720/} và gồm \texttt{48} file kết quả văn bản/JSON. Các file baseline ghi node, PVC, Argo CD và mức sẵn sàng RisingWave; nhóm \texttt{05-*} ghi replay và Iceberg listing; nhóm \texttt{06-*} ghi green catch-up, query loop, swap, duration và metric được VictoriaMetrics lưu.
-
-Cách đọc bằng chứng tách thời điểm sự kiện khỏi thời điểm thu lại metric. Timestamp swap được ghi trong \path{06-cutover-duration.txt} là epoch \texttt{1779466691}, tương ứng \texttt{2026-05-22 16:18:11 UTC} và nằm trong cửa sổ query loop. File VictoriaMetrics xác nhận lại duration và lỗi truy vấn tại timestamp scrape \texttt{1779467656}, muộn hơn thao tác swap; timestamp scrape được dùng để chứng minh metric đã được lưu, không thay thế thời điểm cutover. Metadata của bundle nguồn cho thấy file swap/duration được cập nhật muộn hơn log query loop và kết quả sau swap; vì vậy duration được báo cáo như số đo do runbook ghi, không phải latency được tái dựng độc lập từ một trace bất biến.
