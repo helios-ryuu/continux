@@ -6,14 +6,43 @@ Quy trình này giả định hạ tầng đã sẵn sàng, không còn bộ d�
 trên MinIO hoặc trạng thái thực nghiệm cũ. Nếu lượt trước đã chạy, hãy hoàn tất
 [CLEANUP.md](./CLEANUP.md) trước khi bắt đầu lượt mới.
 
-## Runner Theo Pha
+## 1. Trạng Thái Khởi Đầu Và Bố Trí Terminal
+
+**Điều kiện đầu vào:**
+
+| Hạng mục | Yêu cầu |
+|----------|---------|
+| Cluster | Ba node `imac`, `continux-vps`, `helios-pc` ở `Ready` |
+| Argo CD | Các app hạ tầng `Synced/Healthy`; app `pipeline` được sync trong pha `baseline` |
+| Vector | `Deployment pipeline/vector` có `replicas=0` |
+| Repo cục bộ | `git status --porcelain --untracked-files=all` không in thay đổi |
+| Bộ dữ liệu cục bộ | Chưa có `data/raw/`, `.venv/` từ lượt trước |
+| MinIO `tlc-zone/` | Chưa upload, hoặc đã upload bởi lượt này |
+| Redpanda topic | `nyc-taxi-events` tồn tại với cấu hình chuẩn |
+| RisingWave | Chưa có object SQL thực nghiệm; runner sẽ apply trong pha `baseline` sau khi upload lookup |
+
+**Bố trí terminal (giữ mở suốt buổi chạy):**
+
+| Terminal | Mục đích | Lệnh chạy và giữ mở |
+|----------|----------|----------------------|
+| 1 | Điều khiển chính, thu bằng chứng | Các lệnh ở từng bước phía dưới |
+| 2 | Kết nối Argo CD CLI | `kubectl -n argocd port-forward svc/argocd-server 8080:80` |
+| 3 | Kết nối SQL tới RisingWave | `kubectl -n risingwave port-forward svc/risingwave 4567:4567` |
+| 4 | Kết nối API tới MinIO | `kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000` |
+| 5 | Đọc metrics exporter | `kubectl -n pipeline port-forward svc/continux-metrics 9108:9108` |
+| 6 | Query VictoriaMetrics | `kubectl -n observability port-forward svc/vmsingle-victoria-metrics 8428:8428` |
+| 7 | Chạy query loop khi cutover | Chỉ dùng khi debug thủ công theo phụ lục A.7 |
+
+## 2. Chạy Demo Bằng Runner
 
 Luồng chuẩn dùng runner để thu bằng chứng nhất quán và luôn trả Vector về trạng
-thái an toàn sau replay. Giữ các terminal port-forward ở §1 mở trong lúc
-chạy:
+thái an toàn sau replay. Sau khi giữ các port-forward ở §1 hoạt động, chạy lần
+lượt trong terminal điều khiển:
 
 ```bash
 cd ~/continux
+
+export MINIO_ROOT_PASSWORD='<minio-root-password>'
 
 bash experiments/runners/demo.sh preflight
 bash experiments/runners/demo.sh init smoke
@@ -23,37 +52,105 @@ bash experiments/runners/demo.sh replay
 bash experiments/runners/demo.sh cutover
 ```
 
+`preflight` kiểm tra đủ năm port-forward `8080`, `4567`, `9000`, `9108`,
+`8428`; nếu thiếu terminal nào, mở lại forward tương ứng trước khi tiếp tục.
+
+Chạy tuần tự từng lệnh và chỉ chuyển sang lệnh kế tiếp sau khi lệnh hiện tại trả
+prompt với exit code `0`. Không cần thêm `sleep` thủ công giữa các pha; runner đã
+chờ các mốc đồng bộ cần thiết.
+
+| Sau lệnh | Thời gian thường gặp | Mốc an toàn để chạy lệnh kế tiếp |
+|----------|----------------------|----------------------------------|
+| `preflight` | Vài giây | In `Kiểm tra trước khi chạy trên cluster đã thành công.` |
+| `init smoke` | Vài giây | In `RUN_ID`, `EVIDENCE_DIR`, profile và throughput đã chọn |
+| `prepare-data` | Vài phút; phụ thuộc tốc độ tải Parquet và cài `pyarrow` | Upload xong `taxi_zone_lookup.csv`, liệt kê file local và trả prompt |
+| `baseline` | Thường 1-3 phút; phụ thuộc Argo CD và RisingWave | Sau khi nhập `RESET-DEMO`, runner sync lại pipeline, in số dòng baseline và trả prompt |
+| `replay` | Ít nhất khoảng 75 giây, thường 1-3 phút | Runner tự lấy mẫu `12 × 5s`, dừng Vector, chờ flush `15s`, khôi phục profile `smoke` và trả prompt |
+| `cutover` | Ít nhất khoảng 75 giây, thường 1-4 phút | Runner tự lấy mẫu Green `10 × 5s`, swap, chờ ít nhất `20s` và poll timestamp mới trong VictoriaMetrics |
+
+Nếu một lệnh thoát lỗi hoặc không trả prompt, dừng tại pha đó và dùng phụ lục A
+để kiểm tra; không chạy tiếp pha sau.
+
+Profile `smoke` xác minh end-to-end với tải thấp; nó không phát hết dataset
+tháng. Pha `replay` lấy mẫu trong `12 × 5s` rồi chủ động dừng Vector. Chờ thêm
+giữa `replay` và `cutover` không làm ingest thêm dữ liệu. Nếu mục tiêu là ingest
+toàn bộ JSONL, cần dùng một chế độ benchmark/full có điều kiện hoàn tất riêng
+thay vì thêm `sleep` thủ công.
+
+Khi `baseline` yêu cầu xác nhận, nhập `RESET-DEMO`. Runner tự tạo `RUN_ID`, lưu
+bằng chứng tại `~/continux-demo-evidence/<RUN_ID>/`, tải dữ liệu, upload lookup,
+sync SQL pipeline, dựng Blue sạch, replay, trả Vector về `replicas=0`, tạo Green
+và thực hiện cutover.
+
+Không chạy lại thủ công các lệnh tương ứng trong phụ lục A sau khi runner đã
+thành công. Phụ lục chỉ dùng để quan sát, trình diễn hoặc debug đúng pha đang
+gặp lỗi.
+
 Để benchmark có chủ đích, thay `smoke` bằng `benchmark-low`,
-`benchmark-medium` hoặc `benchmark-high` tại lệnh `init`. Các mục §1-§8
-phía dưới giữ lệnh chi tiết tương ứng để debug từng bước.
+`benchmark-medium` hoặc `benchmark-high` tại lệnh `init`.
 
-## 1. Trạng Thái Khởi Đầu Và Bố Trí Terminal
+## 3. Xác Minh Kết Quả Cuối Tự Động
 
-**Điều kiện đầu vào:**
+Pha `cutover` tự gọi `verify-final` trước khi trả prompt. Khi `cutover` thoát với
+exit code `0`, không cần chạy thêm lệnh xác minh thủ công. Runner đã ghi SQL sau
+swap, query errors, Vector replicas, danh sách Iceberg, health overview và trạng
+thái Argo CD app vào các file `05-final-*` trong thư mục evidence.
 
-| Hạng mục | Yêu cầu |
-|----------|---------|
-| Cluster | Ba node `imac`, `continux-vps`, `helios-pc` ở `Ready` |
-| Argo CD | Các app hạ tầng `Synced/Healthy`; app `pipeline` được sync tại §3 |
-| Vector | `Deployment pipeline/vector` có `replicas=0` |
-| Repo cục bộ | `git status --porcelain --untracked-files=all` không in thay đổi |
-| Bộ dữ liệu cục bộ | Chưa có `data/raw/`, `.venv/` từ lượt trước |
-| MinIO `tlc-zone/` | Chưa upload, hoặc đã upload bởi lượt này |
-| Redpanda topic | `nyc-taxi-events` tồn tại với cấu hình chuẩn |
-| RisingWave | Chưa có object SQL thực nghiệm; sẽ apply ở §3 sau khi upload lookup |
+Nếu cần chạy lại riêng phần xác minh mà không swap lần nữa:
 
-**Bố trí terminal (giữ mở suốt buổi chạy):**
+```bash
+cd ~/continux
+bash experiments/runners/demo.sh verify-final
+```
 
-| Terminal | Mục đích | Lệnh chạy và giữ mở |
-|----------|----------|----------------------|
-| 1 | Điều khiển chính, thu bằng chứng | Các lệnh ở từng bước phía dưới |
-| 2 | Kết nối SQL tới RisingWave | `kubectl -n risingwave port-forward svc/risingwave 4567:4567` |
-| 3 | Kết nối API tới MinIO | `kubectl -n minio port-forward --address 127.0.0.1 svc/minio 9000:9000` |
-| 4 | Đọc metrics exporter | `kubectl -n pipeline port-forward svc/continux-metrics 9108:9108` |
-| 5 | Query VictoriaMetrics | `kubectl -n observability port-forward svc/vmsingle-victoria-metrics 8428:8428` |
-| 6 | Chạy query loop khi cutover | Chỉ dùng tại §7 |
+**Tiêu chí kết thúc lượt thực nghiệm:**
 
-**Khai báo biến và thư mục bằng chứng:**
+- `Nodes Ready = 3/3`, workloads còn `Available` sau replay.
+- Argo CD không còn drift không giải thích được.
+- Vector dừng ở `0 desired` sau replay.
+- `mv_zone_stats` mang logic green sau swap, query errors `0`.
+- Iceberg có data Parquet, equality-delete Parquet và position-delete Parquet trong `iceberg-data/nyc/zone_stats/`.
+
+## 4. Chuyển Sang Dọn Dẹp
+
+Sau khi đã thu đủ kết quả và bằng chứng, tiếp tục với [CLEANUP.md](./CLEANUP.md)
+để trở về trạng thái sau thiết lập và có thể chạy lại một lượt mới.
+
+### 4.1. Chạy Lại Với Profile Khác
+
+Profile được cố định cho từng `RUN_ID` tại lệnh `init`. Không chạy lại `init`
+trên lượt đang hoạt động. Sau khi đã xác minh và giữ đủ bằng chứng của lượt cũ,
+dọn runtime và file local rồi khởi tạo lượt mới:
+
+```bash
+cd ~/continux
+
+bash experiments/runners/demo.sh cleanup-runtime
+# Nhập: CLEAN-DEMO
+
+bash experiments/runners/demo.sh cleanup-local
+# Nhập: CLEAN-LOCAL
+
+bash experiments/runners/demo.sh preflight
+bash experiments/runners/demo.sh init benchmark-low
+bash experiments/runners/demo.sh prepare-data
+bash experiments/runners/demo.sh baseline
+# Nhập: RESET-DEMO
+
+bash experiments/runners/demo.sh replay
+bash experiments/runners/demo.sh cutover
+```
+
+Thay `benchmark-low` bằng `smoke`, `benchmark-medium` hoặc `benchmark-high`
+tùy mục tiêu. Bằng chứng của lượt cũ vẫn nằm tại
+`~/continux-demo-evidence/<RUN_ID-cũ>/`; cleanup không tự xóa bằng chứng.
+
+## Phụ Lục A. Debug Thủ Công Theo Pha
+
+Các lệnh dưới đây triển khai chi tiết từng pha mà runner đã tự động hóa. Chỉ
+chạy pha cần kiểm tra khi runner báo lỗi hoặc khi cần trình diễn thủ công.
+
+### A.1. Khai Báo Biến Và Thư Mục Bằng Chứng
 
 ```bash
 cd ~/continux
@@ -82,7 +179,7 @@ printf 'RUN_ID=%s\nEVIDENCE_DIR=%s\n' "${RUN_ID}" "${EVIDENCE_DIR}" \
 
 Bằng chứng nằm tại `~/continux-demo-evidence/<RUN_ID>/`, ngoài repo. Không ghi mật khẩu, token hoặc nội dung secret vào bằng chứng.
 
-## 2. Chuẩn Bị Dataset
+### A.2. Chuẩn Bị Dataset
 
 Đây là bước tạo dữ liệu đầu tiên của lượt mới. Mọi file sinh trên máy nằm trong `data/raw/`, đã được `.gitignore` bỏ qua.
 
@@ -154,7 +251,7 @@ test -z "${GIT_STATUS}"
 - MinIO liệt kê `taxi_zone_lookup.csv`.
 - `git status` rỗng vì mọi tệp sinh ra nằm trong đường dẫn Git bỏ qua.
 
-## 3. Sync Vector Và Apply SQL Pipeline
+### A.3. Sync Vector Và Apply SQL Pipeline
 
 Vector luôn được sync ở `replicas=0` để không phát event ngoài ý muốn.
 
@@ -196,7 +293,7 @@ psql -h localhost -p 4567 -d dev -U root -c \
 
 Không dùng `\dt public.*` hoặc `\dm public.*` để verify RisingWave; meta-command có pattern có thể sinh collation regex không tương thích.
 
-## 4. Verify Topic, SQL Và Quan Sát
+### A.4. Verify Topic, SQL Và Quan Sát
 
 ```bash
 cd ~/continux
@@ -219,7 +316,7 @@ curl -fsSG 'http://127.0.0.1:8428/api/v1/query' \
 
 **Kết quả mong đợi:** topic `nyc-taxi-events` có `3` partition, `1` replica; RisingWave báo các worker `RUNNING`; exporter trả `continux_exporter_up 1`; VictoriaMetrics trả series.
 
-## 5. Dựng Trạng Thái Nền Blue Sạch (Khi Cần)
+### A.5. Dựng Trạng Thái Nền Blue Sạch (Khi Cần)
 
 Bước này chỉ cần khi tiếp tục từ runtime cũ chưa chạy
 [CLEANUP.md](./CLEANUP.md). Nếu bước dọn dẹp vừa hoàn tất hoặc đây là lượt đầu sau
@@ -375,7 +472,7 @@ fi
 | Vector | `0 desired` |
 | Iceberg | Chưa có tệp dữ liệu Parquet của replay mới |
 
-## 6. Replay End-To-End
+### A.6. Replay End-To-End
 
 ```bash
 cd ~/continux
@@ -459,7 +556,7 @@ bash scripts/k3s-check.sh overview \
 
 **Kết quả mong đợi:** Vector về `0`, `mv_zone_stats` có trips lớn hơn `0`, Iceberg có tệp Parquet/metadata mới, cluster vẫn khỏe.
 
-## 7. Blue/Green Cutover
+### A.7. Blue/Green Cutover
 
 Tạo green MV và kiểm tra sẵn sàng:
 
@@ -499,7 +596,7 @@ done | tee "${EVIDENCE_DIR}/05-green-ready-samples.txt"
 
 **Kết quả mong đợi trước swap:** public và blue có cùng số liệu; green có dữ liệu và có thể có ít trips hơn blue (cố ý loại sự kiện `fare_amount < 0` hoặc `trip_distance < 0`).
 
-**Terminal 6 — query loop trong lúc swap:**
+**Terminal 7 — query loop trong lúc swap:**
 
 ```bash
 cd ~/continux
@@ -546,7 +643,7 @@ printf 'continux_cutover_duration_seconds %s\ncontinux_last_swap_timestamp_secon
   | tee "${EVIDENCE_DIR}/05-duration.txt"
 ```
 
-Sau khi Terminal 6 có thêm vài dòng `OK` sau swap, dừng vòng lặp bằng `Ctrl+C`. Tính query errors và verify:
+Sau khi Terminal 7 có thêm vài dòng `OK` sau swap, dừng vòng lặp bằng `Ctrl+C`. Tính query errors và verify:
 
 ```bash
 cd ~/continux
@@ -607,32 +704,3 @@ curl -fsSG 'http://127.0.0.1:8428/api/v1/query' \
 ```
 
 Dashboard `cutover` phải có green ready, duration của lượt vừa chạy, query errors `0`. Dashboard `data-integrity` cho thấy public đã chuyển sang logic green. `Checksum mismatch = 1` sau swap có thể là kết quả mong đợi vì dashboard đang so public mang logic mới với view mang logic cũ.
-
-## 8. Xác Minh SQL, Iceberg Và Sức Khỏe Cluster
-
-```bash
-cd ~/continux
-
-psql -h localhost -p 4567 -d dev -U root -c \
-  "SELECT COUNT(*) AS zones, COALESCE(SUM(trip_count), 0) AS trips FROM mv_zone_stats;"
-
-psql -h localhost -p 4567 -d dev -U root -c \
-  "SELECT borough, SUM(trip_count) AS trips FROM mv_zone_stats GROUP BY borough ORDER BY trips DESC LIMIT 10;"
-
-mc ls --recursive local/iceberg-data/nyc/zone_stats/ | head
-
-bash scripts/k3s-check.sh
-argocd app list --grpc-web
-```
-
-**Tiêu chí kết thúc lượt thực nghiệm:**
-
-- `Nodes Ready = 3/3`, workloads còn `Available` sau replay.
-- Argo CD không còn drift không giải thích được.
-- Vector dừng ở `0 desired` sau replay.
-- `mv_zone_stats` mang logic green sau swap, query errors `0`.
-- Iceberg có data Parquet, equality-delete Parquet và position-delete Parquet trong `iceberg-data/nyc/zone_stats/`.
-
-## Chuyển Sang Dọn Dẹp
-
-Sau khi đã thu đủ kết quả và bằng chứng, tiếp tục với [CLEANUP.md](./CLEANUP.md) để trở về trạng thái sau thiết lập và có thể chạy lại một lượt mới.

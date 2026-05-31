@@ -370,7 +370,8 @@ argocd login localhost:8080 \
   --username admin \
   --password "${ARGOCD_INITIAL_PASSWORD}" \
   --grpc-web \
-  --plaintext
+  --plaintext \
+  --skip-test-tls
 ```
 
 Repo GitHub là public nên Argo CD tự clone khi sync app; không cần lưu GitHub
@@ -532,15 +533,16 @@ cd ~/continux
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 
+argocd app sync grafana-dashboards --grpc-web
+argocd app wait grafana-dashboards --health --sync --grpc-web
+kubectl -n observability get configmap continux-grafana-dashboards
+
 helm upgrade --install grafana grafana/grafana \
   --namespace observability --create-namespace \
   --version 10.5.15 \
   -f config/grafana/helm-values.yaml
 
 kubectl -n observability rollout status deploy/grafana --timeout=300s
-argocd app sync grafana-dashboards --grpc-web
-argocd app wait grafana-dashboards --health --sync --grpc-web
-kubectl -n observability get configmap continux-grafana-dashboards
 kubectl -n observability get secret grafana \
   -o jsonpath='{.data.admin-password}' | base64 -d && echo
 ```
@@ -579,19 +581,19 @@ kubectl -n pipeline get deploy/vector \
 
 ### 2.9. Checklist Hạ Tầng Sẵn Sàng
 
-- [ ] `kubectl get nodes -o wide` có `imac`, `continux-vps`, `helios-pc` đều `Ready`.
-- [ ] `continux-vps` có taint `dedicated=edge:NoSchedule`.
-- [ ] `helios-pc` có taint `dedicated=quorum:NoSchedule`.
-- [ ] Argo CD đăng nhập được qua port-forward nội bộ; URL ngoài chỉ là bước xác minh tùy chọn.
-- [ ] `root-app` và các app con cần thiết đã được tạo.
-- [ ] MinIO có bucket `rw-checkpoint`, `iceberg-data`, `tlc-zone`.
-- [ ] Redpanda topic `nyc-taxi-events` tồn tại với `3` partition, `1` replica.
-- [ ] RisingWave `SHOW CLUSTER` có 4 worker `RUNNING`.
-- [ ] Grafana đọc datasource VictoriaMetrics.
-- [ ] Metrics exporter chạy và VictoriaMetrics scrape được `continux_exporter_up`.
-- [ ] App `grafana-dashboards` tạo ConfigMap `continux-grafana-dashboards`.
-- [ ] Vector mặc định ở `replicas=0`, profile `smoke=2 events/s`; benchmark chỉ chạy khi opt-in.
-- [ ] Chưa tải bộ dữ liệu cục bộ, chưa upload Taxi Zone CSV và chưa sync app `pipeline` cho lượt thực nghiệm.
+- [x] `kubectl get nodes -o wide` có `imac`, `continux-vps`, `helios-pc` đều `Ready`.
+- [x] `continux-vps` có taint `dedicated=edge:NoSchedule`.
+- [x] `helios-pc` có taint `dedicated=quorum:NoSchedule`.
+- [x] Argo CD đăng nhập được qua port-forward nội bộ; URL ngoài chỉ là bước xác minh tùy chọn.
+- [x] `root-app` và các app con cần thiết đã được tạo.
+- [x] MinIO có bucket `rw-checkpoint`, `iceberg-data`, `tlc-zone`.
+- [x] Redpanda topic `nyc-taxi-events` tồn tại với `3` partition, `1` replica.
+- [x] RisingWave `SHOW CLUSTER` có 4 worker `RUNNING`.
+- [x] Grafana đọc datasource VictoriaMetrics.
+- [x] Metrics exporter chạy và VictoriaMetrics scrape được `continux_exporter_up`.
+- [x] App `grafana-dashboards` tạo ConfigMap `continux-grafana-dashboards`.
+- [x] Vector mặc định ở `replicas=0`, profile `smoke=2 events/s`; benchmark chỉ chạy khi opt-in.
+- [x] Chưa tải bộ dữ liệu cục bộ, chưa upload Taxi Zone CSV và chưa sync app `pipeline` cho lượt thực nghiệm.
 
 Sau khi đạt checklist này, hệ thống đã sẵn sàng để chạy một lượt thực nghiệm
 theo [DEMO.md](./DEMO.md).

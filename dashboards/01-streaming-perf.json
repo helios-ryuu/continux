@@ -180,7 +180,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "100 * sum(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"}) / count(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"})",
+          "expr": "100 * sum(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"} and on(namespace,pod) (kube_pod_status_phase{namespace=~\"pipeline|redpanda|risingwave\",phase=\"Running\"} == 1)) / count(kube_pod_status_ready{namespace=~\"pipeline|redpanda|risingwave\",condition=\"true\"} and on(namespace,pod) (kube_pod_status_phase{namespace=~\"pipeline|redpanda|risingwave\",phase=\"Running\"} == 1))",
           "legendFormat": "Ready %",
           "range": false,
           "refId": "C",

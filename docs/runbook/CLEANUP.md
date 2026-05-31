@@ -186,7 +186,7 @@ Bằng chứng chỉ bị xóa bằng lệnh riêng có xác nhận:
 bash experiments/runners/demo.sh purge-evidence <RUN_ID>
 ```
 
-> Cảnh báo: lệnh dưới đây xóa bộ dữ liệu cục bộ và môi trường ảo tạo tại [DEMO.md](./DEMO.md) §2. Chỉ chạy sau khi Vector đã dừng và bằng chứng cần giữ đã nằm ngoài repo.
+> Cảnh báo: lệnh dưới đây xóa bộ dữ liệu cục bộ và môi trường ảo tạo bởi pha `prepare-data` trong [DEMO.md](./DEMO.md) §2. Chỉ chạy sau khi Vector đã dừng và bằng chứng cần giữ đã nằm ngoài repo.
 
 ```bash
 cd ~/continux
@@ -261,9 +261,8 @@ metric cũ vẫn có thể xuất hiện trong Grafana do VictoriaMetrics lưu l
 bảy ngày; chọn khoảng thời gian của lượt mới để tránh nhầm lẫn.
 
 Từ trạng thái này, lượt thực nghiệm tiếp theo bắt đầu lại từ
-[DEMO.md](./DEMO.md) §1 (khai báo `RUN_ID` mới và bố trí terminal), rồi tải lại
-dataset tại §2. Không cần lặp lại [SETUP.md](./SETUP.md) vì hạ tầng chưa thay
-đổi.
+[DEMO.md](./DEMO.md) §1 để bố trí terminal, rồi chạy lại luồng runner tại §2
+từ `init`. Không cần lặp lại [SETUP.md](./SETUP.md) vì hạ tầng chưa thay đổi.
 
 ## 7. Xử Lý Sự Cố
 

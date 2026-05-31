@@ -82,7 +82,7 @@ Dashboard này phục vụ kịch bản Blue/Green cutover.
 
 | Panel | Ý nghĩa | Diễn giải |
 |-------|---------|-----------|
-| `Cutover readiness proxy` | Tỷ lệ workload liên quan Ready | Dùng như tín hiệu hạ tầng trước swap |
+| `Cutover readiness proxy` | Tỷ lệ pod đang Running và Ready của workload liên quan | Dùng như tín hiệu hạ tầng trước swap; không tính pod Job lịch sử đã kết thúc |
 | `Green readiness` | `continux_green_ready` | `1` sau khi green MV có dòng |
 | `Thời gian cutover gần nhất` | `continux_cutover_duration_seconds` | Thời gian của lần swap gần nhất |
 | `Seconds since last swap` | Tuổi lần swap gần nhất | Dựa trên `continux_last_swap_timestamp_seconds` |

@@ -31,6 +31,7 @@ Cú pháp:
   bash experiments/runners/demo.sh baseline
   bash experiments/runners/demo.sh replay
   bash experiments/runners/demo.sh cutover
+  bash experiments/runners/demo.sh verify-final
   bash experiments/runners/demo.sh cleanup-runtime
   bash experiments/runners/demo.sh cleanup-local
   bash experiments/runners/demo.sh purge-evidence <RUN_ID>
@@ -396,7 +397,7 @@ wait_for_vm_value() {
     local metric="$1"
     local expected="$2"
 
-    for _ in $(seq 1 8); do
+    for _ in $(seq 1 24); do
         if curl -fsSG --retry 2 --retry-all-errors --retry-delay 1 \
             'http://127.0.0.1:8428/api/v1/query' \
             --data-urlencode "query=${metric} == ${expected}" |
@@ -407,6 +408,59 @@ wait_for_vm_value() {
     done
 
     die "VictoriaMetrics chưa quan sát được ${metric}=${expected}."
+}
+
+verify_final() {
+    load_state
+    assert_local_port 4567
+    assert_local_port 9000
+    assert_local_port 8080
+    ensure_mc_alias
+    local app_statuses query_errors vector_replicas
+
+    psql -h localhost -p 4567 -d dev -U root -c \
+        "SELECT 'public' AS view_name, COUNT(*) AS zones, COALESCE(SUM(trip_count),0) AS trips FROM mv_zone_stats
+         UNION ALL
+         SELECT 'green_name_after_swap', COUNT(*), COALESCE(SUM(trip_count),0) FROM mv_zone_stats_green
+         UNION ALL
+         SELECT 'blue', COUNT(*), COALESCE(SUM(trip_count),0) FROM mv_zone_stats_blue;
+         SELECT borough, SUM(trip_count) AS trips
+         FROM mv_zone_stats GROUP BY borough ORDER BY trips DESC LIMIT 10;" |
+        tee "${EVIDENCE_DIR}/05-final-sql.txt"
+
+    query_errors="$(grep -c ' ERROR ' "${EVIDENCE_DIR}/05-query-loop-during-cutover.txt" || true)"
+    printf 'continux_query_errors_total %s\n' "${query_errors}" |
+        tee "${EVIDENCE_DIR}/05-final-query-errors.txt"
+    [ "${query_errors}" = "0" ] ||
+        die "Cutover có ${query_errors} lỗi truy vấn."
+
+    vector_replicas="$(kubectl -n pipeline get deploy/vector -o jsonpath='{.spec.replicas}')"
+    printf '%s desired\n' "${vector_replicas}" |
+        tee "${EVIDENCE_DIR}/05-final-vector.txt"
+    [ "${vector_replicas}" = "0" ] ||
+        die "Vector chưa dừng sau replay: replicas=${vector_replicas}."
+
+    mc ls --recursive local/iceberg-data/nyc/zone_stats/ |
+        tee "${EVIDENCE_DIR}/05-final-iceberg.txt"
+    grep -q '\.parquet$' "${EVIDENCE_DIR}/05-final-iceberg.txt" ||
+        die "Iceberg chưa có tệp Parquet của lượt replay."
+
+    bash "${REPO_ROOT}/scripts/k3s-check.sh" overview |
+        tee "${EVIDENCE_DIR}/05-final-health.txt"
+    argocd app list --grpc-web |
+        tee "${EVIDENCE_DIR}/05-final-apps.txt"
+
+    app_statuses="$(
+        kubectl -n argocd get applications.argoproj.io \
+            -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+    )"
+    printf '%s\n' "${app_statuses}" |
+        tee "${EVIDENCE_DIR}/05-final-app-statuses.txt"
+    printf '%s\n' "${app_statuses}" |
+        awk 'NR > 1 && ($2 != "Synced" || $3 != "Healthy") { exit 1 }' ||
+        die "Argo CD còn app chưa Synced/Healthy."
+
+    info "Xác minh cuối đã thành công. Có thể chuyển sang cleanup-runtime."
 }
 
 cutover() {
@@ -482,7 +536,7 @@ continux_query_errors_total ${query_errors}
 EOF
 
     sleep 20
-    wait_for_vm_value continux_cutover_duration_seconds "${cutover_duration}"
+    wait_for_vm_value continux_last_swap_timestamp_seconds "${swap_timestamp}"
     wait_for_vm_value continux_query_errors_total "${query_errors}"
     curl -fsS --retry 3 --retry-all-errors --retry-delay 2 http://127.0.0.1:9108/metrics |
         grep -E '^continux_(cutover|last_swap|query_errors|green_ready|mv_rows|mv_trips|checksum)' |
@@ -495,6 +549,7 @@ EOF
         'http://127.0.0.1:8428/api/v1/query' \
         --data-urlencode 'query=continux_query_errors_total' |
         tee "${EVIDENCE_DIR}/05-vm-query-errors.json"
+    verify_final
 }
 
 cleanup_runtime() {
@@ -550,6 +605,7 @@ case "${1:-help}" in
     baseline) baseline ;;
     replay) replay ;;
     cutover) cutover ;;
+    verify-final) verify_final ;;
     cleanup-runtime) cleanup_runtime ;;
     cleanup-local) cleanup_local ;;
     purge-evidence) purge_evidence "${2:-}" ;;
