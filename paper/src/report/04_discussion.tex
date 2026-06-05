@@ -1,7 +1,7 @@
 \subsection{Thảo luận kết quả}
-RQ1 được trả lời tích cực trong phạm vi quan sát: cả bốn lượt hoán đổi MV công khai đều hoàn tất, vòng lặp truy vấn chuyển từ cách tính Xanh lam sang cách tính Xanh lục và không ghi nhận lỗi. Các thời lượng từ \texttt{0,113515 s} đến \texttt{0,215989 s} là chỉ báo vận hành cho thao tác SQL nhỏ trên cụm phòng thí nghiệm. Chúng không phải cam kết mức dịch vụ và không chứng minh mọi phía truy vấn hay mọi tình huống lỗi mạng đều không bị ảnh hưởng.
+RQ1 được trả lời tích cực trong phạm vi quan sát: cả bốn lượt hoán đổi MV công khai đều hoàn tất, vòng lặp truy vấn chuyển từ logic Blue sang logic Green và không ghi nhận lỗi. Nói cách khác, phía truy vấn vẫn gọi cùng một tên MV công khai, còn hệ thống thay logic tính toán phía sau tên đó. Các thời lượng từ \texttt{0,113515 s} đến \texttt{0,215989 s} là chỉ báo vận hành cho thao tác SQL nhỏ trên cụm phòng thí nghiệm. Chúng không phải cam kết mức dịch vụ và không chứng minh mọi phía truy vấn hay mọi tình huống lỗi mạng đều không bị ảnh hưởng.
 
-RQ2 được trả lời bằng danh sách đối tượng trên MinIO: mỗi lượt phát lại đều tạo tệp dữ liệu Parquet, tệp \texttt{equality-delete} Parquet, tệp \texttt{position-delete} Parquet và siêu dữ liệu Iceberg. Tuy nhiên, đích ghi đã được tạo trước phép hoán đổi tên MV. Bằng chứng chỉ chứng minh đường ghi kho hồ dữ liệu hoạt động trong pha phát lại; nghiên cứu không khẳng định đích ghi tự chuyển quan hệ phụ thuộc sang cách tính Xanh lục sau chuyển giao.
+RQ2 được trả lời bằng danh sách đối tượng trên MinIO: mỗi lượt phát lại đều tạo tệp dữ liệu Parquet, tệp \texttt{equality-delete} Parquet, tệp \texttt{position-delete} Parquet và siêu dữ liệu Iceberg. Tuy nhiên, đích ghi đã được tạo trước phép hoán đổi tên MV. Bằng chứng chỉ chứng minh đường ghi kho hồ dữ liệu hoạt động trong pha phát lại; nghiên cứu không khẳng định đích ghi tự chuyển phần phụ thuộc phía sau sang logic Green sau chuyển giao.
 
 RQ3 được trả lời bằng bốn chu kỳ trạng thái nền, phát lại, xác minh và dọn dẹp. Cả bốn lượt đều bắt đầu từ trạng thái sạch, kết thúc với Vector ở \texttt{0 desired} và dọn đối tượng SQL về \texttt{0}. Ảnh chụp trạng thái sau phát lại luôn ghi \texttt{3/3} nút Ready, \texttt{5/5} PVC Bound và \texttt{23/23} khối lượng công việc sẵn sàng. Ảnh chụp cuối của cấu hình cao ghi Grafana tạm thời chưa sẵn sàng; đây là một điểm cần ghi nhận, đồng thời cho thấy đánh giá dài hạn cần thêm phép chạy bền vững thay vì chỉ dựa trên một cửa sổ ngắn.
 
@@ -17,7 +17,7 @@ So với Ursa, Continux không đề xuất bộ máy mới. Giá trị bổ sun
 \midrule
 Các cấu hình đặt giới hạn phát tại Vector nhưng không đo số sự kiện đầu cuối mỗi giây & Không tuyên bố thông lượng hoặc độ trễ đầu cuối\\
 Pha phát lại lấy mẫu trong cửa sổ cố định và còn giai đoạn xử lý tiếp sau khi dừng Vector & Chỉ so sánh xu hướng số chuyến chốt, không suy rộng thành công suất tối đa\\
-Đích ghi Iceberg được tạo trước phép hoán đổi tên MV & Không kết luận đích ghi đã chuyển sang cách tính Xanh lục\\
+Đích ghi Iceberg được tạo trước phép hoán đổi tên MV & Không kết luận đích ghi đã chuyển sang cách tính Green\\
 Redpanda chạy một broker và topic dùng \texttt{replicationFactor=1} & Không đánh giá khả năng chịu lỗi của đường dữ liệu khi mất broker\\
 Ảnh chụp cuối cấu hình high có Grafana \texttt{Running} nhưng chưa sẵn sàng \texttt{0/1} & Cần phép chạy bền vững dài hơn để đánh giá ổn định theo thời gian\\
 Bằng chứng chính thức xác nhận số dòng JSONL và lookup nhưng không chứa phép quét phân phối dữ liệu thô & Không giữ các kết luận chi tiết về chất lượng dữ liệu của bản thảo cũ\\

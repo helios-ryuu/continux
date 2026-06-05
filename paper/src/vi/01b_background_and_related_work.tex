@@ -15,8 +15,8 @@ Kafka định hình mô hình nhật ký phân tán cho xử lý luồng~\parenc
 
 Continux dùng Redpanda, broker tương thích Kafka API, để tách Vector khỏi RisingWave~\parencite{redpandadocs}. Topic \texttt{nyc-taxi-events} có ba phân vùng và một bản sao. Một bản sao nghĩa là đề tài không đánh giá khả năng chịu mất broker. RisingWave đọc topic, join với bảng tra cứu trên MinIO, duy trì MV và ghi kết quả ra Iceberg.
 
-\subsection{Chuyển giao Xanh lam/Xanh lục}
-Triển khai Xanh lam/Xanh lục (\emph{Blue/Green deployment}) duy trì hai phiên bản song song: Xanh lam là phiên bản đang phục vụ, Xanh lục là ứng viên thay thế. Chuyển giao (\emph{cutover}) đổi điểm truy cập công khai từ phiên bản cũ sang phiên bản mới. Trong Continux, đơn vị chuyển giao không phải pod Kubernetes mà là định nghĩa MV: \texttt{mv\_zone\_stats} là tên công khai ổn định, \texttt{mv\_zone\_stats\_blue} giữ cách tính nền và \texttt{mv\_zone\_stats\_green} áp dụng bộ lọc mới.
+\subsection{Chuyển giao Blue/Green}
+Blue/Green deployment là cách vận hành hai phiên bản song song để giảm rủi ro khi thay đổi hệ thống. Blue là phiên bản đang phục vụ truy vấn hiện tại; Green là phiên bản ứng viên đã được chuẩn bị để thay thế. Khi Green đủ sẵn sàng, thao tác chuyển giao (\emph{cutover}) chuyển điểm truy cập công khai từ Blue sang Green. Trong Continux, điểm chuyển giao không phải là pod Kubernetes mà là định nghĩa MV: \texttt{mv\_zone\_stats} là tên công khai ổn định cho phía truy vấn, \texttt{mv\_zone\_stats\_blue} giữ cách tính nền và \texttt{mv\_zone\_stats\_green} áp dụng bộ lọc mới.
 
 RisingWave hỗ trợ \texttt{ALTER MATERIALIZED VIEW ... SWAP WITH ...} để hoán đổi tên hai MV~\parencite{risingwaveSwap}. Tính nguyên tử (\emph{atomic}) ở đây chỉ áp dụng cho thao tác đổi tên nhìn từ truy vấn trong bộ máy: phía truy vấn không thấy trạng thái tên trung gian. Điều này không tự động chứng minh mọi quan hệ phụ thuộc phía sau cũng đổi theo. Tài liệu RisingWave yêu cầu xem xét riêng các thành phần phía sau (\emph{downstream}) như đích ghi khi thay đổi công việc xử lý luồng~\parencite{risingwaveAlterJobs}. Vì vậy kết luận của đề tài chỉ áp dụng cho tên truy vấn công khai.
 

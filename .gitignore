@@ -4,6 +4,8 @@
 .csv
 .parquet
 .venv/
+01_23521367_23520982/
+26_23521367_23520982/
 
 # Dataset lớn — tải về local, không commit
 data/raw/
@@ -35,8 +37,10 @@ paper/*.fls
 paper/*.log
 paper/*.run.xml
 paper/*.synctex.gz
+paper/*.xdv
 paper/*.toc
 paper/*.lof
 paper/*.lot
 paper/*.out
 *_artifacts/
+01_23521367_23520982/01_DSThanhVien.txt

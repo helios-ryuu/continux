@@ -32,7 +32,7 @@ Vector bổ sung \texttt{event\_id} và \texttt{event\_time}, rồi gửi từng
 \begin{figure*}[t!]
 \centering
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{architecture-process-flow.png}
-\caption{Kiến trúc, luồng xử lý và quy trình chuyển giao của Continux 2.0.0.}
+\caption{Kiến trúc, luồng xử lý và quy trình chuyển giao của Continux 2.1.0.}
 \label{fig:architecture-vi}
 \end{figure*}
 
@@ -58,7 +58,7 @@ Ba node kết nối qua Tailscale. K3s dùng embedded etcd với quorum \texttt{
 
 \clearpage
 \onecolumn
-\subsection{Đối tượng SQL và chuyển giao Xanh lam/Xanh lục}
+\subsection{Đối tượng SQL và chuyển giao Blue/Green}
 \begin{table}[H]
 \centering
 \caption{Đối tượng dữ liệu cốt lõi}
@@ -68,29 +68,29 @@ Ba node kết nối qua Tailscale. K3s dùng embedded etcd với quorum \texttt{
 \midrule
 \path{tlc_zone} & CSV trên MinIO & Tra cứu vị trí sang quận và khu vực\\
 \path{nyc_taxi_src} & Topic Redpanda & Nguồn sự kiện JSON\\
-\path{mv_zone_stats_blue} & Nguồn + bảng tra cứu & Cách tính nền Xanh lam\\
-\path{mv_zone_stats} & MV Xanh lam ban đầu & Tên công khai phục vụ truy vấn\\
-\path{mv_zone_stats_green} & Nguồn + tra cứu + bộ lọc & Ứng viên Xanh lục\\
+\path{mv_zone_stats_blue} & Nguồn + bảng tra cứu & Cách tính nền Blue, giữ toàn bộ bản ghi hợp lệ ở trạng thái ban đầu\\
+\path{mv_zone_stats} & MV Blue ban đầu & Tên công khai ổn định để phía truy vấn luôn gọi cùng một đối tượng\\
+\path{mv_zone_stats_green} & Nguồn + tra cứu + bộ lọc & Ứng viên Green, dùng để kiểm tra logic mới trước khi chuyển giao\\
 \path{sink_zone_stats} & MV công khai lúc tạo đích ghi & Đầu ra Iceberg kiểu cập nhật hoặc chèn\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Cách tính Xanh lục bổ sung điều kiện loại giá trị âm:
+Cách tính Green bổ sung điều kiện loại các bản ghi có giá trị âm ở tiền cước hoặc quãng đường:
 
-\begin{lstlisting}[language=SQL,caption={Điều kiện bổ sung trong cách tính Xanh lục}]
+\begin{lstlisting}[language=SQL,caption={Điều kiện bổ sung trong cách tính Green}]
 WHERE t.fare_amount >= 0
   AND t.trip_distance >= 0
 \end{lstlisting}
 
-Khi MV Xanh lục ổn định, vòng lặp truy vấn đọc tên công khai theo chu kỳ khoảng \texttt{0,5 s}, đồng thời hệ thống chạy:
+Khi MV Green đã có dữ liệu ổn định, vòng lặp truy vấn tiếp tục đọc tên công khai theo chu kỳ khoảng \texttt{0,5 s}. Trong lúc vòng lặp này đang chạy, hệ thống thực hiện câu lệnh:
 
 \begin{lstlisting}[language=SQL,caption={Câu lệnh hoán đổi tên MV}]
 ALTER MATERIALIZED VIEW mv_zone_stats
 SWAP WITH mv_zone_stats_green;
 \end{lstlisting}
 
-Phép hoán đổi giữ nguyên tên truy vấn công khai nhưng thay cách tính phía sau. Đích ghi Iceberg đã được tạo trước thao tác này; vì vậy đầu ra Iceberg chứng minh đường ghi hoạt động trong pha phát lại, không chứng minh đích ghi tự chuyển sang cách tính Xanh lục.
+Phép hoán đổi giữ nguyên tên truy vấn công khai nhưng thay cách tính phía sau tên đó. Nhờ vậy, người dùng vẫn truy vấn cùng một tên MV, còn hệ thống chuyển từ logic Blue sang logic Green. Đích ghi Iceberg đã được tạo trước thao tác này; vì vậy đầu ra Iceberg chứng minh đường ghi hoạt động trong pha phát lại, không chứng minh đích ghi tự chuyển sang cách tính Green.
 
 \subsection{Nguồn bằng chứng và khả năng truy vết}
 Bốn gói bằng chứng chính thức được sao chép từ iMac về Windows tại \path{evidence/finalize/20260531-four-profiles/}. Thư mục \path{runs/} chứa bốn \texttt{RUN\_ID}: \texttt{20260531-172050}, \texttt{20260531-173434}, \texttt{20260531-174621} và \texttt{20260531-175701}. Mỗi gói có \texttt{41} tệp; tổng cộng có \texttt{164} tệp văn bản hoặc JSON.
@@ -108,7 +108,7 @@ Tệp \path{SHA256SUMS.txt} chứa giá trị băm SHA-256 của từng tệp. G
 \path{04-mv-progress.txt} & Đường tăng số vùng và số chuyến trong pha phát lại\\
 \path{04-mv-final.txt} & Số vùng và số chuyến chốt sau phát lại\\
 \path{04-iceberg-final.txt} & Đối tượng Parquet và siêu dữ liệu Iceberg\\
-\path{05-green-ready-samples.txt} & Trạng thái MV Xanh lục trước chuyển giao\\
+\path{05-green-ready-samples.txt} & Trạng thái MV Green trước chuyển giao\\
 \path{05-query-loop-during-cutover.txt} & Truy vấn thành công trước và sau hoán đổi\\
 \path{05-duration-and-errors.txt} & Thời lượng hoán đổi và số lỗi truy vấn\\
 \path{05-final-*} & SQL cuối, Vector, sức khỏe cụm và Argo CD\\

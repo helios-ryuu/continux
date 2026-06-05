@@ -9,7 +9,7 @@
 \toprule
 \textbf{Thành phần} & \textbf{Phiên bản}\\
 \midrule
-Continux & \texttt{2.0.0}\\
+Continux & \texttt{2.1.0}\\
 K3s & \texttt{v1.35.5+k3s1}\\
 Helm & \texttt{v4.2.0}\\
 Argo CD & ứng dụng \texttt{v3.4.3}, gói Helm \texttt{9.5.17}\\
@@ -26,7 +26,7 @@ cloudflared & \texttt{2026.5.2}\\
 \end{table}
 
 \subsection{Trạng thái nền và khả năng lặp lại}
-Trước mỗi lượt phát lại, tập lệnh điều phối dừng Vector, xóa đối tượng SQL sinh bởi lượt trước, tạo lại chủ đề Redpanda, dọn tiền tố Iceberg và tạo trạng thái nền Xanh lam sạch. Sau khi hoàn tất, tập lệnh tiếp tục dọn trạng thái chạy và tệp cục bộ. Vì vậy bốn cấu hình là bốn lượt độc lập, không phải bốn pha nối tiếp dùng chung dữ liệu.
+Trước mỗi lượt phát lại, tập lệnh điều phối dừng Vector, xóa đối tượng SQL sinh bởi lượt trước, tạo lại chủ đề Redpanda, dọn tiền tố Iceberg và dựng lại trạng thái Blue sạch. Trạng thái Blue ở đây là logic truy vấn ban đầu, dùng làm mốc so sánh trước khi chuyển sang Green. Sau khi hoàn tất, tập lệnh tiếp tục dọn trạng thái chạy và tệp cục bộ. Vì vậy bốn cấu hình là bốn lượt độc lập, không phải bốn pha nối tiếp dùng chung dữ liệu.
 
 \begin{table}[H]
 \centering
@@ -47,7 +47,7 @@ Trước mỗi lượt phát lại, tập lệnh điều phối dừng Vector, x
 Sau chuyển giao, tám ứng dụng Argo CD chính đều ở trạng thái \texttt{Synced/Healthy}; Vector trở về \texttt{0 desired} trong cả bốn lượt. Ảnh chụp trạng thái cuối của ba cấu hình đầu ghi \texttt{23/23} khối lượng công việc sẵn sàng. Riêng ảnh chụp cuối của \texttt{benchmark-high} ghi \texttt{22/23}: trong danh sách chi tiết, pod Grafana ở trạng thái \texttt{Running} nhưng chưa sẵn sàng \texttt{0/1}. Đây là trạng thái chuyển tiếp sau phép đo; báo cáo không che giấu điểm này và không dùng nó để tuyên bố toàn bộ khối lượng công việc luôn sẵn sàng ở mọi thời điểm. Argo CD vẫn ghi nhận ứng dụng bảng điều khiển ở trạng thái \texttt{Synced/Healthy}.
 
 \subsection{Dữ liệu đầu vào có thể truy vết}
-Gói bằng chứng mới xác nhận tệp Yellow Taxi tháng \texttt{2026-03} được chuyển thành \texttt{3.952.451} dòng JSONL và bảng Taxi Zone Lookup có \texttt{265} dòng. Báo cáo không giữ các thống kê phân phối chi tiết của bản thảo cũ vì bốn gói chính thức không chứa phép quét dữ liệu thô tương ứng. Cách tính Xanh lục vẫn được mô tả đúng theo SQL đã chạy: loại bản ghi có \texttt{fare\_amount < 0} hoặc \texttt{trip\_distance < 0}.
+Gói bằng chứng mới xác nhận tệp Yellow Taxi tháng \texttt{2026-03} được chuyển thành \texttt{3.952.451} dòng JSONL và bảng Taxi Zone Lookup có \texttt{265} dòng. Báo cáo không giữ các thống kê phân phối chi tiết của bản thảo cũ vì bốn gói chính thức không chứa phép quét dữ liệu thô tương ứng. Cách tính Green vẫn được mô tả đúng theo SQL đã chạy: loại các chuyến có \texttt{fare\_amount < 0} hoặc \texttt{trip\_distance < 0}, tức các bản ghi có tiền cước hoặc quãng đường âm.
 
 \subsection{Kết quả phát lại theo bốn cấu hình}
 \begin{table}[H]
@@ -58,10 +58,10 @@ Gói bằng chứng mới xác nhận tệp Yellow Taxi tháng \texttt{2026-03} 
 \toprule
 \textbf{Cấu hình} & \textbf{Giới hạn cấu hình} & \textbf{Mẫu thứ 12} & \textbf{Chốt sau phát lại} & \textbf{Đối tượng Iceberg}\\
 \midrule
-\texttt{smoke} & \texttt{2 sự kiện/s} & \texttt{39 vùng / 104 chuyến} & \texttt{45 / 176} & Có\\
-\texttt{benchmark-low} & \texttt{1.000 sự kiện/s} & \texttt{223 / 51.825} & \texttt{234 / 87.825} & Có\\
-\texttt{benchmark-medium} & \texttt{5.000 sự kiện/s} & \texttt{234 / 93.307} & \texttt{245 / 251.190} & Có\\
-\texttt{benchmark-high} & \texttt{10.000 sự kiện/s} & \texttt{227 / 77.139} & \texttt{250 / 426.960} & Có\\
+\texttt{smoke} & \texttt{2} sự kiện/s & \texttt{39} vùng / \texttt{104} chuyến & \texttt{45 / 176} & Có\\
+\texttt{benchmark-low} & \texttt{1.000} sự kiện/s & \texttt{223 / 51.825} & \texttt{234 / 87.825} & Có\\
+\texttt{benchmark-medium} & \texttt{5.000} sự kiện/s & \texttt{234 / 93.307} & \texttt{245 / 251.190} & Có\\
+\texttt{benchmark-high} & \texttt{10.000} sự kiện/s & \texttt{227 / 77.139} & \texttt{250 / 426.960} & Có\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -89,7 +89,7 @@ Hình~\ref{fig:streaming-vi} ghi nhận các đợt lưu lượng phát lại, �
 Hình~\ref{fig:resource-vi} ghi nhận \texttt{15/15} khối lượng công việc trong phạm vi bảng điều khiển tài nguyên đang sẵn sàng, đồng thời hiển thị diễn biến CPU, bộ nhớ và mức sử dụng PVC. Chỉ số \texttt{15/15} thuộc phạm vi truy vấn của bảng điều khiển tại thời điểm chụp; nó bổ sung cho, không thay thế, ảnh chụp sức khỏe cụm \texttt{23/23}.
 
 \clearpage
-\subsection{Kết quả chuyển giao Xanh lam/Xanh lục}
+\subsection{Kết quả chuyển giao Blue/Green}
 \begin{table}[H]
 \centering
 \caption{Kết quả hoán đổi MV công khai}
@@ -98,7 +98,7 @@ Hình~\ref{fig:resource-vi} ghi nhận \texttt{15/15} khối lượng công vi�
 \toprule
 \textbf{Cấu hình} & \textbf{Trước chuyển giao} & \textbf{MV công khai sau chuyển giao} & \textbf{Thời lượng} & \textbf{Lỗi truy vấn}\\
 \midrule
-\texttt{smoke} & \texttt{45 vùng / 176 chuyến} & \texttt{45 / 172} & \texttt{0,149028 s} & \texttt{0}\\
+\texttt{smoke} & \texttt{45} vùng / \texttt{176} chuyến & \texttt{45 / 172} & \texttt{0,149028 s} & \texttt{0}\\
 \texttt{benchmark-low} & \texttt{234 / 87.825} & \texttt{234 / 86.930} & \texttt{0,146701 s} & \texttt{0}\\
 \texttt{benchmark-medium} & \texttt{245 / 251.190} & \texttt{245 / 248.959} & \texttt{0,113515 s} & \texttt{0}\\
 \texttt{benchmark-high} & \texttt{250 / 426.960} & \texttt{250 / 423.239} & \texttt{0,215989 s} & \texttt{0}\\
@@ -106,7 +106,7 @@ Hình~\ref{fig:resource-vi} ghi nhận \texttt{15/15} khối lượng công vi�
 \end{tabularx}
 \end{table}
 
-Trong mỗi lượt, tệp \texttt{05-green-ready-samples.txt} ghi nhận MV Xanh lục ổn định trước chuyển giao. Tệp \texttt{05-query-loop-during-cutover.txt} cho thấy truy vấn công khai thành công trước và sau thao tác hoán đổi. Tổng số chuyến giảm sau chuyển giao vì cách tính Xanh lục áp dụng bộ lọc giá trị âm; số vùng không đổi trong từng lượt. Cả bốn vòng lặp đều ghi nhận \texttt{0} lỗi.
+Trong mỗi lượt, tệp \texttt{05-green-ready-samples.txt} ghi nhận MV Green đã sẵn sàng trước chuyển giao. Tệp \texttt{05-query-loop-during-cutover.txt} cho thấy truy vấn công khai vẫn thành công trước và sau thao tác hoán đổi. Tổng số chuyến giảm sau chuyển giao vì logic Green loại các bản ghi có giá trị âm; số vùng không đổi trong từng lượt. Cả bốn vòng lặp đều ghi nhận \texttt{0} lỗi.
 
 Thời lượng trong Bảng~\ref{tab:cutover-results-vi} được tập lệnh chạy đo quanh câu lệnh \texttt{ALTER MATERIALIZED VIEW ... SWAP WITH ...}. Đây là chỉ báo vận hành của thao tác SQL trên cụm thử nghiệm, không phải cam kết mức dịch vụ và không đại diện cho mọi mẫu truy vấn hay mọi tình huống lỗi mạng.
 
@@ -124,9 +124,9 @@ Thời lượng trong Bảng~\ref{tab:cutover-results-vi} được tập lệnh 
 \label{fig:data-integrity-vi}
 \end{figure*}
 
-Hình~\ref{fig:cutover-vi} đối chiếu trực quan kết quả cấu hình cao: MV Xanh lục ở trạng thái \texttt{READY}, mức sẵn sàng \texttt{100\%}, thời lượng chuyển giao gần nhất \texttt{215,989 ms} và đường lỗi truy vấn bằng \texttt{0}. Các giá trị này khớp với số liệu \texttt{0,215989 s} và \texttt{0} lỗi trong gói bằng chứng.
+Hình~\ref{fig:cutover-vi} đối chiếu trực quan kết quả cấu hình cao: MV Green ở trạng thái \texttt{READY}, mức sẵn sàng \texttt{100\%}, thời lượng chuyển giao gần nhất \texttt{215,989 ms} và đường lỗi truy vấn bằng \texttt{0}. Các giá trị này khớp với số liệu \texttt{0,215989 s} và \texttt{0} lỗi trong gói bằng chứng.
 
-Hình~\ref{fig:data-integrity-vi} ghi nhận MV công khai có \texttt{250} dòng vùng và ô \texttt{checksum mismatch} (không khớp tổng kiểm) bằng \texttt{1}. Đây là kết quả dự kiến khi so MV công khai mang cách tính Xanh lục với MV còn giữ cách tính Xanh lam, không phải dấu hiệu mất dữ liệu.
+Hình~\ref{fig:data-integrity-vi} ghi nhận MV công khai có \texttt{250} dòng vùng và ô \texttt{checksum mismatch} (không khớp tổng kiểm) bằng \texttt{1}. Đây là kết quả dự kiến khi so MV công khai đang dùng logic Green với MV còn giữ logic Blue: hai logic lọc dữ liệu khác nhau nên tổng kiểm có thể khác nhau. Kết quả này không phải dấu hiệu mất dữ liệu.
 
 \subsection{Đầu ra Iceberg và trạng thái sau dọn dẹp}
 Danh sách đối tượng sau phát lại của cả bốn lượt đều có tệp dữ liệu Parquet, tệp \texttt{equality-delete} Parquet (xóa theo giá trị bằng nhau), tệp \texttt{position-delete} Parquet (xóa theo vị trí) và siêu dữ liệu Iceberg. Điều này chứng minh đích ghi đã lưu đầu ra vào kho hồ dữ liệu trong pha phát lại. Sau khi xác minh cuối, tập lệnh điều phối dọn đối tượng SQL, đầu ra Iceberg, CSV tra cứu và trạng thái phát lại. Tệp \texttt{06-post-setup-sql-count.txt} của từng gói bằng chứng ghi \texttt{demo\_sql\_objects = 0}; thư mục làm việc trên iMac không còn \path{data/raw/}, \path{.venv/}, tệp trạng thái hiện hành hoặc CSV sinh tạm.

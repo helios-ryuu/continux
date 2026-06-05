@@ -1,6 +1,6 @@
 \section{Kết luận}\label{sec:conclusion}
 Continux đã xây dựng một hiện vật kho hồ dữ liệu thời gian thực trên K3s gồm nguồn phát Vector, broker Redpanda, SQL luồng RisingWave, đầu ra Apache Iceberg trên MinIO, quản lý GitOps và lớp quan sát. Báo cáo cuối dựa trên bốn lượt chạy độc lập với giới hạn phát cấu hình \texttt{2}, \texttt{1.000}, \texttt{5.000} và \texttt{10.000} sự kiện mỗi giây.
 
-Trong cả bốn lượt, MV tăng trong pha phát lại, đích ghi tạo đối tượng Iceberg, Vector trở về trạng thái dừng và vòng lặp truy vấn ghi nhận \texttt{0} lỗi khi tên MV công khai chuyển sang cách tính Xanh lục. Lượt \texttt{benchmark-high} chốt \texttt{426.960} chuyến trước chuyển giao và \texttt{423.239} chuyến sau chuyển giao; thời lượng hoán đổi do tập lệnh chạy ghi là \texttt{0,215989 s}.
+Trong cả bốn lượt, MV tăng trong pha phát lại, đích ghi tạo đối tượng Iceberg, Vector trở về trạng thái dừng và vòng lặp truy vấn ghi nhận \texttt{0} lỗi khi tên MV công khai chuyển từ logic Blue sang logic Green. Lượt \texttt{benchmark-high} chốt \texttt{426.960} chuyến trước chuyển giao và \texttt{423.239} chuyến sau chuyển giao; thời lượng hoán đổi do tập lệnh chạy ghi là \texttt{0,215989 s}.
 
 Đóng góp thực nghiệm chính là chứng minh quy trình có thể lặp lại và cập nhật cách tính ở lớp truy vấn công khai mà không ghi nhận gián đoạn trong cửa sổ đo. Kết luận không mở rộng thành tuyên bố thông lượng đầu cuối, khả năng chịu lỗi của broker hoặc việc đích ghi Iceberg tự chuyển sang cách tính mới.

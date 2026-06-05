@@ -1,0 +1,48 @@
+% !TeX program = xelatex
+\documentclass[13pt,a4paper]{extarticle}
+
+\usepackage[
+  top=2cm,
+  bottom=2cm,
+  left=2cm,
+  right=2cm
+]{geometry}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\else
+  \usepackage{fontspec}
+  \defaultfontfeatures{Ligatures=TeX}
+  \IfFontExistsTF{Times New Roman}
+    {\setmainfont{Times New Roman}}
+    {\setmainfont{TeX Gyre Termes}}
+  \setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+\fi
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{3em}
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{center}
+{\bfseries Project Summary}\\[4pt]
+{\bfseries Building a Real-Time Data Lakehouse Architecture for Intelligent Transportation Systems on a Kubernetes Cluster}
+\end{center}
+
+Continux is a prototype real-time Data Lakehouse for intelligent transportation data. The system uses the NYC TLC Yellow Taxi dataset for March 2026 as the input source. Each taxi trip is converted from Parquet to JSON Lines, replayed as an event stream by Vector, transported through Redpanda, processed with streaming SQL in RisingWave, and written to Apache Iceberg tables stored on MinIO. The whole platform runs on a three-node K3s cluster and is operated with GitOps through Argo CD. VictoriaMetrics and Grafana provide operational visibility.
+
+The main goal of the project is not to create a new streaming engine. Instead, the project demonstrates how common open-source components can be connected into a complete and repeatable lakehouse workflow on limited infrastructure. The workflow covers data ingestion, event brokering, materialized-view maintenance, object storage output, dashboard monitoring, evidence collection, and cleanup between experimental runs.
+
+A key scenario in the report is the Blue/Green cutover at the materialized-view layer. Blue represents the current public calculation, while Green is a candidate calculation that filters out records with negative fare amount or negative trip distance. The public materialized view keeps the stable name \texttt{mv\_zone\_stats}; RisingWave swaps that name with the Green view by using \texttt{ALTER MATERIALIZED VIEW ... SWAP WITH ...}. This lets clients keep querying the same public name while the calculation behind that name changes.
+
+The evaluation uses four independent replay profiles with configured replay limits of 2, 1,000, 5,000, and 10,000 events per second. In all four runs, the materialized view grows during replay, Iceberg output objects are produced, Vector returns to the stopped state after replay, and the public query loop records zero errors during cutover. In the highest profile, the public result records 426,960 trips before cutover and 423,239 trips after the Green filter is applied. The measured swap duration for that run is 0.215989 seconds.
+
+The results show that Continux can run a complete streaming lakehouse pipeline and perform a controlled public-query cutover in the observed laboratory window. The project also documents its limits: the configured replay rate is not an end-to-end throughput measurement, Redpanda runs as one broker, and the Iceberg sink was created before the cutover. These limits keep the conclusions precise and make the prototype understandable, repeatable, and ready for future improvement.
+
+\end{document}
