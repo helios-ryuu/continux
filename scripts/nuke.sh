@@ -7,6 +7,7 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
 EXECUTE="false"
 ASSUME_YES="false"
+K3S_PURGE_HELPER_USED="false"
 
 info() { echo -e "${CYAN}[INFO]${NC} $*"; }
 ok()   { echo -e "${GREEN}[OK]${NC} $*"; }
@@ -29,6 +30,8 @@ Usage:
 
 This script runs locally per node. It does not SSH to other hosts.
 It preserves Tailscale package, service, login state and data.
+During dry-run it also invokes k3s-purge.sh --nuke --dry-run so the local
+K3s uninstall plan is visible without contacting the Kubernetes API.
 EOF
 }
 
@@ -203,10 +206,15 @@ systemctl_available() {
 }
 
 cleanup_systemd() {
-    info "Cleaning Continux/K3s systemd units and drop-ins..."
+    info "Cleaning Continux systemd units and drop-ins..."
     if systemctl_available; then
-        try_run systemctl stop k3s k3s-agent redpanda.service wsl-shared-root.service
-        try_run systemctl disable k3s k3s-agent redpanda.service wsl-shared-root.service
+        if [ "${K3S_PURGE_HELPER_USED}" = "true" ]; then
+            try_run systemctl stop redpanda.service wsl-shared-root.service
+            try_run systemctl disable redpanda.service wsl-shared-root.service
+        else
+            try_run systemctl stop k3s k3s-agent redpanda.service wsl-shared-root.service
+            try_run systemctl disable k3s k3s-agent redpanda.service wsl-shared-root.service
+        fi
     else
         warn "systemctl not found; skipping service stop/disable."
     fi
@@ -214,9 +222,9 @@ cleanup_systemd() {
     rm_file /etc/systemd/system/wsl-shared-root.service
     rm_file /etc/systemd/system/k3s.service.d/10-wsl-shared-root.conf
     rm_path /etc/systemd/system/k3s.service.d
-    rm_file /etc/systemd/system/k3s.service
-    rm_file /etc/systemd/system/k3s-agent.service
-    remove_matching_paths "/etc/systemd/system/k3s*.service"
+    if [ "${K3S_PURGE_HELPER_USED}" != "true" ]; then
+        remove_matching_paths "/etc/systemd/system/k3s*.service"
+    fi
 
     if systemctl_available; then
         try_run systemctl daemon-reload
@@ -226,13 +234,32 @@ cleanup_systemd() {
 run_k3s_nuke() {
     info "Running K3s node purge helper if available..."
     if [ -f "${REPO_ROOT}/scripts/k3s-purge.sh" ]; then
-        try_run bash "${REPO_ROOT}/scripts/k3s-purge.sh" --nuke --yes
+        if [ "${EXECUTE}" = "true" ]; then
+            planned bash "${REPO_ROOT}/scripts/k3s-purge.sh" --nuke --yes
+            if bash "${REPO_ROOT}/scripts/k3s-purge.sh" --nuke --yes; then
+                K3S_PURGE_HELPER_USED="true"
+            else
+                warn "k3s-purge failed; falling back to nuke local K3s cleanup."
+            fi
+        else
+            if bash "${REPO_ROOT}/scripts/k3s-purge.sh" --nuke --yes --dry-run; then
+                K3S_PURGE_HELPER_USED="true"
+            else
+                warn "k3s-purge dry-run failed; continuing with nuke dry-run."
+            fi
+        fi
     else
         warn "Missing ${REPO_ROOT}/scripts/k3s-purge.sh; using local cleanup steps only."
     fi
 }
 
 cleanup_k3s_leftovers() {
+    if [ "${K3S_PURGE_HELPER_USED}" = "true" ]; then
+        info "Removing K3s leftovers not covered by k3s-purge helper..."
+        rm_file /etc/sysctl.d/99-k3s.conf
+        return 0
+    fi
+
     info "Removing K3s, kubelet, CNI and container log leftovers..."
     rm_path /etc/rancher
     rm_path /var/lib/rancher

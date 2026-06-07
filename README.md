@@ -7,7 +7,7 @@
 <h1 align="center"><b>IS211.Q22 & IS405.Q23 - CƠ SỞ DỮ LIỆU PHÂN TÁN & DỮ LIỆU LỚN</b></h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.1.1-0A7CC7?style=flat-square" alt="Phiên bản v2.1.1">
+  <img src="https://img.shields.io/badge/version-v2.1.2-0A7CC7?style=flat-square" alt="Phiên bản v2.1.2">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_%7C_26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 and 26.04">
 </p>
 

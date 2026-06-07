@@ -2,7 +2,7 @@
 # =================================================================
 # k3s-purge.sh
 # Mặc định: đưa cluster đang chạy về trạng thái sạch sau khi cài K3s.
-# --nuke : xóa dấu vết K3s khỏi node hiện tại.
+# --nuke/--local-uninstall: xóa dấu vết K3s khỏi node hiện tại, không cần API.
 # =================================================================
 set -euo pipefail
 
@@ -16,30 +16,36 @@ die()  { echo -e "${RED}[LỖI]${NC} $*" >&2; exit 1; }
 
 MODE="reset-cluster"
 ASSUME_YES="false"
+DRY_RUN="false"
+KUBECTL=()
 
 usage() {
     cat <<'EOF'
 Cú pháp:
-  sudo bash scripts/k3s-purge.sh --nuke [--yes]
+  sudo bash scripts/k3s-purge.sh --nuke [--yes] [--dry-run]
+  sudo bash scripts/k3s-purge.sh --local-uninstall [--yes] [--dry-run]
       Xóa K3s khỏi node hiện tại: service, binary, cấu hình và trạng thái CNI.
-      Chạy trên từng K3s node khi cần xóa hoàn toàn dấu vết cluster.
+      Chế độ này không cần giao tiếp Kubernetes API và chạy script uninstall
+      chính thức nếu còn tồn tại trên host.
 
-  bash scripts/k3s-purge.sh [--yes]
+  bash scripts/k3s-purge.sh [--yes] [--dry-run]
       Đưa cluster đang chạy về trạng thái sạch sau khi cài K3s.
       Giữ K3s và node hoạt động, nhưng xóa workload, namespace ứng dụng,
       Helm release/repository, object PV/PVC, app Argo CD và CRD đã biết.
-      Nếu có, script cũng dừng và disable redpanda.service trên host.
+      Chế độ này cần Kubernetes API còn phản hồi.
 
 Tùy chọn:
-  --nuke      Xóa dấu vết K3s khỏi node hiện tại.
-  -y, --yes   Bỏ qua xác nhận tương tác.
-  -h, --help  Hiển thị hướng dẫn này.
+  --nuke, --local-uninstall  Xóa dấu vết K3s khỏi node hiện tại, không cần API.
+  -n, --dry-run              Chỉ in thao tác sẽ chạy, không thay đổi hệ thống.
+  -y, --yes                  Bỏ qua xác nhận tương tác.
+  -h, --help                 Hiển thị hướng dẫn này.
 EOF
 }
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --nuke) MODE="purge-node" ;;
+        --nuke|--local-uninstall) MODE="purge-node" ;;
+        -n|--dry-run) DRY_RUN="true" ;;
         -y|--yes) ASSUME_YES="true" ;;
         -h|--help) usage; exit 0 ;;
         *) die "Tùy chọn không hợp lệ: $1" ;;
@@ -47,10 +53,76 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+quote_command() {
+    local quoted=""
+    printf -v quoted '%q ' "$@"
+    printf '%s\n' "${quoted% }"
+}
+
+planned() {
+    if [ "${DRY_RUN}" = "true" ]; then
+        echo "DRY-RUN: $(quote_command "$@")"
+    else
+        info "$(quote_command "$@")"
+    fi
+}
+
+run_cmd() {
+    planned "$@"
+    if [ "${DRY_RUN}" = "true" ]; then
+        return 0
+    fi
+    "$@"
+}
+
+try_run() {
+    run_cmd "$@" || warn "Lệnh lỗi, tiếp tục: $(quote_command "$@")"
+}
+
+path_exists() {
+    [ -e "$1" ] || [ -L "$1" ]
+}
+
+rm_path() {
+    local path="$1"
+    if ! path_exists "${path}"; then
+        info "Không tồn tại, bỏ qua: ${path}"
+        return 0
+    fi
+    try_run rm -rf -- "${path}"
+}
+
+rm_file() {
+    local path="$1"
+    if ! path_exists "${path}"; then
+        info "Không tồn tại, bỏ qua: ${path}"
+        return 0
+    fi
+    try_run rm -f -- "${path}"
+}
+
+rm_matching() {
+    local pattern="$1"
+    local matches path
+    matches="$(compgen -G "${pattern}" || true)"
+    if [ -z "${matches}" ]; then
+        info "Không tồn tại, bỏ qua: ${pattern}"
+        return 0
+    fi
+    while IFS= read -r path; do
+        [ -n "${path}" ] || continue
+        rm_path "${path}"
+    done <<< "${matches}"
+}
+
 confirm_or_exit() {
     local prompt="$1"
     local expected="$2"
 
+    if [ "${DRY_RUN}" = "true" ]; then
+        warn "Dry-run: bỏ qua xác nhận vì sẽ không thay đổi hệ thống."
+        return
+    fi
     if [ "$ASSUME_YES" = "true" ]; then
         warn "Bỏ qua xác nhận vì đã truyền --yes."
         return
@@ -61,37 +133,46 @@ confirm_or_exit() {
     [ "$answer" = "$expected" ] || die "Nội dung xác nhận không khớp. Đã hủy."
 }
 
-kubectl_bin() {
+set_kubectl_cmd() {
     if command -v kubectl >/dev/null 2>&1; then
-        command -v kubectl
+        KUBECTL=("$(command -v kubectl)")
     elif command -v k3s >/dev/null 2>&1; then
-        echo "k3s kubectl"
+        KUBECTL=("$(command -v k3s)" kubectl)
     else
         return 1
     fi
 }
 
+kube_api_available() {
+    "${KUBECTL[@]}" get nodes >/dev/null 2>&1
+}
+
 run_privileged() {
     if [ "$(id -u)" -eq 0 ]; then
-        "$@"
+        run_cmd "$@"
     elif command -v sudo >/dev/null 2>&1; then
         if [ "$ASSUME_YES" = "true" ]; then
-            sudo -n "$@"
+            run_cmd sudo -n "$@"
         else
-            sudo "$@"
+            run_cmd sudo "$@"
         fi
     else
         return 1
     fi
 }
 
+systemctl_available() {
+    command -v systemctl >/dev/null 2>&1
+}
+
 stop_host_redpanda() {
-    command -v systemctl >/dev/null 2>&1 || {
+    systemctl_available || {
         warn "Không tìm thấy systemctl; bỏ qua bước dọn redpanda.service trên host."
         return 0
     }
 
     if ! systemctl list-unit-files redpanda.service --no-legend 2>/dev/null | grep -q '^redpanda\.service'; then
+        info "Không thấy redpanda.service trên host; bỏ qua."
         return 0
     fi
 
@@ -115,41 +196,87 @@ delete_project_leftovers_from_kube_system() {
 
     info "Đang xóa tài nguyên dự án còn sót trong kube-system..."
     for kind in service endpoints endpointslice configmap secret serviceaccount role rolebinding; do
-        for obj in $($KUBECTL -n kube-system get "$kind" -o name 2>/dev/null | grep -E "/(${project_name_pattern})" || true); do
-            $KUBECTL -n kube-system delete "$obj" --ignore-not-found=true >/dev/null 2>&1 || true
+        for obj in $("${KUBECTL[@]}" -n kube-system get "$kind" -o name 2>/dev/null | grep -E "/(${project_name_pattern})" || true); do
+            try_run "${KUBECTL[@]}" -n kube-system delete "$obj" --ignore-not-found=true
         done
     done
 }
 
+run_official_uninstall_scripts() {
+    info "Đang chạy script killall và uninstall chính thức nếu còn tồn tại..."
+    if [ -f /usr/local/bin/k3s-killall.sh ]; then
+        try_run /usr/local/bin/k3s-killall.sh
+    else
+        info "Không tồn tại, bỏ qua: /usr/local/bin/k3s-killall.sh"
+    fi
+    if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+        try_run /usr/local/bin/k3s-uninstall.sh
+    else
+        info "Không tồn tại, bỏ qua: /usr/local/bin/k3s-uninstall.sh"
+    fi
+    if [ -f /usr/local/bin/k3s-agent-uninstall.sh ]; then
+        try_run /usr/local/bin/k3s-agent-uninstall.sh
+    else
+        info "Không tồn tại, bỏ qua: /usr/local/bin/k3s-agent-uninstall.sh"
+    fi
+}
+
 purge_current_node() {
-    [ "$(id -u)" -ne 0 ] && die "Hãy chạy bằng sudo: sudo bash scripts/k3s-purge.sh --nuke"
+    if [ "$(id -u)" -ne 0 ] && [ "${DRY_RUN}" != "true" ]; then
+        die "Hãy chạy bằng sudo: sudo bash scripts/k3s-purge.sh --nuke"
+    fi
 
     confirm_or_exit \
         "Thao tác này chỉ xóa dấu vết K3s khỏi node hiện tại. Nhập NUKE để tiếp tục:" \
         "NUKE"
 
-    info "Đang dừng service K3s..."
-    systemctl stop k3s k3s-agent 2>/dev/null || true
+    if systemctl_available; then
+        info "Đang dừng service K3s..."
+        try_run systemctl stop k3s k3s-agent
+    else
+        warn "Không tìm thấy systemctl; bỏ qua bước dừng service K3s."
+    fi
 
-    info "Đang chạy script killall và uninstall chính thức..."
-    [ -f /usr/local/bin/k3s-killall.sh ] && /usr/local/bin/k3s-killall.sh 2>/dev/null || true
-    [ -f /usr/local/bin/k3s-uninstall.sh ] && /usr/local/bin/k3s-uninstall.sh 2>/dev/null || true
-    [ -f /usr/local/bin/k3s-agent-uninstall.sh ] && /usr/local/bin/k3s-agent-uninstall.sh 2>/dev/null || true
+    run_official_uninstall_scripts
 
-    info "Đang xóa thư mục và cấu hình..."
-    rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /run/k3s /var/lib/k3s
-    rm -rf /etc/cni /opt/cni /var/lib/cni
-    rm -rf /var/log/pods /var/log/containers
+    info "Đang xóa thư mục và cấu hình còn sót..."
+    rm_path /etc/rancher
+    rm_path /var/lib/rancher
+    rm_path /var/lib/kubelet
+    rm_path /run/k3s
+    rm_path /var/lib/k3s
+    rm_path /etc/cni
+    rm_path /opt/cni
+    rm_path /var/lib/cni
+    rm_path /var/log/pods
+    rm_path /var/log/containers
+    rm_matching "/var/run/netns/cni-*"
 
-    info "Đang dọn systemd và binary..."
-    rm -f /etc/systemd/system/k3s*
-    systemctl daemon-reload
-    rm -f /usr/local/bin/k3s /usr/local/bin/kubectl /usr/local/bin/crictl /usr/local/bin/ctr
+    info "Đang dọn systemd và binary còn sót..."
+    rm_matching "/etc/systemd/system/k3s*"
+    if systemctl_available; then
+        try_run systemctl daemon-reload
+    fi
+    rm_file /usr/local/bin/k3s
+    rm_file /usr/local/bin/kubectl
+    rm_file /usr/local/bin/crictl
+    rm_file /usr/local/bin/ctr
+    rm_file /usr/local/bin/k3s-killall.sh
+    rm_file /usr/local/bin/k3s-uninstall.sh
+    rm_file /usr/local/bin/k3s-agent-uninstall.sh
 
     info "Đang dọn network interface..."
-    ip link delete cni0 2>/dev/null || true
-    ip link delete flannel.1 2>/dev/null || true
-    rm -rf /var/run/netns/cni-*
+    if command -v ip >/dev/null 2>&1; then
+        try_run ip link delete cni0
+        try_run ip link delete flannel.1
+    else
+        warn "Không tìm thấy lệnh ip; bỏ qua bước xóa network interface."
+    fi
+
+    if [ "${DRY_RUN}" = "true" ]; then
+        ok "Dry-run hoàn tất; chưa xóa K3s khỏi node hiện tại."
+        return
+    fi
 
     info "Xác minh:"
     command -v k3s >/dev/null 2>&1 || echo "- binary k3s: đã xóa"
@@ -159,14 +286,38 @@ purge_current_node() {
     ok "Đã xóa K3s khỏi node hiện tại."
 }
 
-reset_cluster() {
-    KUBECTL="$(kubectl_bin)" || die "Không tìm thấy kubectl/k3s. Hãy chạy trên K3s server có quyền dùng kubeconfig."
+print_reset_dry_run_without_api() {
+    warn "Dry-run không giao tiếp được Kubernetes API; chỉ in kế hoạch reset tổng quát."
+    warn "Nếu API thật sự đã chết và mục tiêu là uninstall host, dùng: sudo bash scripts/k3s-purge.sh --nuke"
+    echo "DRY-RUN: kubectl -n pipeline scale deploy/vector --replicas=0 --ignore-not-found=true"
+    echo "DRY-RUN: remove Argo CD Application finalizers and Applications"
+    echo "DRY-RUN: helm uninstall all releases and remove local Helm repos"
+    echo "DRY-RUN: delete app resources from default namespace"
+    echo "DRY-RUN: delete non-system namespaces"
+    echo "DRY-RUN: delete PVC/PV objects"
+    echo "DRY-RUN: delete known project CRDs and storage classes"
+}
 
-    info "Đang dùng kubectl: ${KUBECTL}"
-    $KUBECTL get nodes >/dev/null || die "Không kết nối được Kubernetes API."
+reset_cluster() {
+    if ! set_kubectl_cmd; then
+        if [ "${DRY_RUN}" = "true" ]; then
+            print_reset_dry_run_without_api
+            return
+        fi
+        die "Không tìm thấy kubectl/k3s. Nếu muốn uninstall local, chạy: sudo bash scripts/k3s-purge.sh --nuke"
+    fi
+
+    info "Đang dùng kubectl: $(quote_command "${KUBECTL[@]}")"
+    if ! kube_api_available; then
+        if [ "${DRY_RUN}" = "true" ]; then
+            print_reset_dry_run_without_api
+            return
+        fi
+        die "Không kết nối được Kubernetes API. Reset cluster cần API; nếu muốn uninstall local, chạy: sudo bash scripts/k3s-purge.sh --nuke"
+    fi
 
     echo -e "${BOLD}Cluster sắp được đưa về trạng thái sạch:${NC}"
-    $KUBECTL get nodes -o wide
+    "${KUBECTL[@]}" get nodes -o wide
     echo ""
     warn "Thao tác này giữ K3s nhưng xóa trạng thái ứng dụng khỏi cluster."
     warn "Script xóa Helm release, namespace ngoài hệ thống, object PV/PVC, app Argo CD và CRD đã biết."
@@ -177,14 +328,14 @@ reset_cluster() {
         "RESET"
 
     info "Đang scale workload ingest đã biết về 0 trước..."
-    $KUBECTL -n pipeline scale deploy/vector --replicas=0 --ignore-not-found=true 2>/dev/null || true
+    try_run "${KUBECTL[@]}" -n pipeline scale deploy/vector --replicas=0 --ignore-not-found=true
 
     info "Đang xóa finalizer và Application của Argo CD..."
-    if $KUBECTL get crd applications.argoproj.io >/dev/null 2>&1; then
-        for app in $($KUBECTL -n argocd get applications.argoproj.io -o name 2>/dev/null || true); do
-            $KUBECTL -n argocd patch "$app" --type=json \
-                -p='[{"op":"remove","path":"/metadata/finalizers"}]' >/dev/null 2>&1 || true
-            $KUBECTL -n argocd delete "$app" --ignore-not-found=true >/dev/null 2>&1 || true
+    if "${KUBECTL[@]}" get crd applications.argoproj.io >/dev/null 2>&1; then
+        for app in $("${KUBECTL[@]}" -n argocd get applications.argoproj.io -o name 2>/dev/null || true); do
+            try_run "${KUBECTL[@]}" -n argocd patch "$app" --type=json \
+                -p='[{"op":"remove","path":"/metadata/finalizers"}]'
+            try_run "${KUBECTL[@]}" -n argocd delete "$app" --ignore-not-found=true
         done
     fi
 
@@ -193,13 +344,13 @@ reset_cluster() {
         while read -r namespace release; do
             [ -z "${namespace:-}" ] && continue
             [ -z "${release:-}" ] && continue
-            helm uninstall "$release" -n "$namespace" >/dev/null 2>&1 || true
+            try_run helm uninstall "$release" -n "$namespace"
         done < <(helm list -A --no-headers 2>/dev/null | awk '{print $2, $1}')
 
         info "Đang xóa repository khỏi cấu hình Helm cục bộ..."
         while read -r repo; do
             [ -z "${repo:-}" ] && continue
-            helm repo remove "$repo" >/dev/null 2>&1 || true
+            try_run helm repo remove "$repo"
         done < <(helm repo list 2>/dev/null | awk 'NR > 1 {print $1}')
     else
         warn "Không tìm thấy helm; bỏ qua bước dọn Helm release/repository."
@@ -209,23 +360,23 @@ reset_cluster() {
     delete_project_leftovers_from_kube_system
 
     info "Đang xóa tài nguyên ứng dụng khỏi namespace default..."
-    $KUBECTL -n default delete deploy,statefulset,daemonset,job,cronjob,pod,replicaset,rc,ingress,networkpolicy,pdb,configmap,secret,pvc,serviceaccount,role,rolebinding \
-        --all --ignore-not-found=true --timeout=120s || true
-    for svc in $($KUBECTL -n default get svc -o name 2>/dev/null | grep -v '^service/kubernetes$' || true); do
-        $KUBECTL -n default delete "$svc" --ignore-not-found=true || true
+    try_run "${KUBECTL[@]}" -n default delete deploy,statefulset,daemonset,job,cronjob,pod,replicaset,rc,ingress,networkpolicy,pdb,configmap,secret,pvc,serviceaccount,role,rolebinding \
+        --all --ignore-not-found=true --timeout=120s
+    for svc in $("${KUBECTL[@]}" -n default get svc -o name 2>/dev/null | grep -v '^service/kubernetes$' || true); do
+        try_run "${KUBECTL[@]}" -n default delete "$svc" --ignore-not-found=true
     done
 
     info "Đang xóa namespace ngoài hệ thống..."
-    for ns in $($KUBECTL get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+    for ns in $("${KUBECTL[@]}" get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
         case "$ns" in
             default|kube-system|kube-public|kube-node-lease) continue ;;
         esac
-        $KUBECTL delete namespace "$ns" --ignore-not-found=true --timeout=180s || true
+        try_run "${KUBECTL[@]}" delete namespace "$ns" --ignore-not-found=true --timeout=180s
     done
 
     info "Đang xóa object persistent volume..."
-    $KUBECTL delete pvc --all -A --ignore-not-found=true --timeout=180s || true
-    $KUBECTL delete pv --all --ignore-not-found=true --timeout=180s || true
+    try_run "${KUBECTL[@]}" delete pvc --all -A --ignore-not-found=true --timeout=180s
+    try_run "${KUBECTL[@]}" delete pv --all --ignore-not-found=true --timeout=180s
 
     info "Đang xóa CRD của stack đã biết..."
     for pattern in \
@@ -238,19 +389,24 @@ reset_cluster() {
         'risingwavelabs.com' \
         'cert-manager.io'
     do
-        for crd in $($KUBECTL get crd -o name 2>/dev/null | grep "$pattern" || true); do
-            $KUBECTL delete "$crd" --ignore-not-found=true --timeout=120s || true
+        for crd in $("${KUBECTL[@]}" get crd -o name 2>/dev/null | grep "$pattern" || true); do
+            try_run "${KUBECTL[@]}" delete "$crd" --ignore-not-found=true --timeout=120s
         done
     done
 
     info "Đang xóa tài nguyên cluster dự án còn sót..."
-    for sc in $($KUBECTL get storageclass -o name 2>/dev/null | grep -E 'minio|risingwave|redpanda|victoria|grafana|argo|vector' || true); do
-        $KUBECTL delete "$sc" --ignore-not-found=true || true
+    for sc in $("${KUBECTL[@]}" get storageclass -o name 2>/dev/null | grep -E 'minio|risingwave|redpanda|victoria|grafana|argo|vector' || true); do
+        try_run "${KUBECTL[@]}" delete "$sc" --ignore-not-found=true
     done
 
+    if [ "${DRY_RUN}" = "true" ]; then
+        ok "Dry-run reset cluster hoàn tất; chưa thay đổi cluster."
+        return
+    fi
+
     info "Trạng thái cluster cuối:"
-    $KUBECTL get nodes -o wide
-    $KUBECTL get ns
+    "${KUBECTL[@]}" get nodes -o wide
+    "${KUBECTL[@]}" get ns
     ok "Đã đưa cluster về trạng thái sạch. K3s vẫn được cài đặt; hãy áp dụng lại bootstrap/GitOps theo docs/runbook/SETUP.md."
 }
 

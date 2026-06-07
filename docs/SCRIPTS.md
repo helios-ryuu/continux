@@ -194,20 +194,32 @@ cd ~/continux
 
 bash scripts/k3s-purge.sh
 bash scripts/k3s-purge.sh --yes
+bash scripts/k3s-purge.sh --dry-run
 ```
 
 Chế độ này xóa Helm release, Helm repository cục bộ, Argo CD Application/finalizer, namespace của app, tài nguyên app, object PV/PVC, CRD thuộc stack dự án và các tài nguyên dự án còn sót trong `kube-system` như service `victoria-metrics-*`. Nếu `redpanda.service` đang tồn tại trên host chạy script, script sẽ dừng và vô hiệu hóa service này để không nhiễu trạng thái nền; không chạm các dịch vụ ngoài như Docker/Grafana. Cache image không được dọn tự động; nếu cần dọn image cũ, chạy thủ công trên từng node bằng `sudo k3s crictl rmi --prune`.
+
+Chế độ reset cluster cần Kubernetes API còn phản hồi. Nếu API không còn giao
+tiếp được và mục tiêu là gỡ K3s khỏi host hiện tại, dùng chế độ local uninstall
+bên dưới; chế độ đó không cần API.
 
 Xóa dấu vết K3s khỏi node hiện tại:
 
 ```bash
 cd ~/continux
 
+sudo bash scripts/k3s-purge.sh --nuke --dry-run
 sudo bash scripts/k3s-purge.sh --nuke
 sudo bash scripts/k3s-purge.sh --nuke --yes
+sudo bash scripts/k3s-purge.sh --local-uninstall --yes
 ```
 
-Chỉ chạy `--nuke` khi đã quyết định phá cụm. Nếu cần phá toàn bộ cụm, chạy có kiểm soát trên từng node và xác nhận không còn cần dữ liệu cục bộ.
+Chỉ chạy `--nuke` hoặc `--local-uninstall` khi đã quyết định phá cụm. Hai chế
+độ này chạy `k3s-killall.sh`, `k3s-uninstall.sh` hoặc
+`k3s-agent-uninstall.sh` nếu các script chính thức còn tồn tại, rồi dọn phần
+còn sót của service, CNI, kubelet, binary và network interface trên host hiện
+tại. Nếu cần phá toàn bộ cụm, chạy có kiểm soát trên từng node và xác nhận không
+còn cần dữ liệu cục bộ.
 
 ## `nuke.sh`
 
@@ -224,6 +236,9 @@ Mặc định chỉ dry-run, không xóa gì:
 cd ~/continux
 bash scripts/nuke.sh
 ```
+
+Dry-run của `nuke.sh` gọi thêm `k3s-purge.sh --nuke --dry-run`, nên vẫn thấy
+kế hoạch uninstall K3s local ngay cả khi Kubernetes API không còn dùng được.
 
 Chạy thật cần `sudo`, cờ `--execute` và xác nhận chính xác
 `NUKE-CONTINUX`:

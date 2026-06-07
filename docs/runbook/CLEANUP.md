@@ -364,7 +364,23 @@ Không đặt lệnh reset hoặc nuke trong luồng vận hành chính. Nếu c
 thực nghiệm, dùng `cleanup-runtime` và `cleanup-local` ở đầu tài liệu này.
 
 Nếu cần đưa cluster về trạng thái vừa cài K3s nhưng vẫn giữ node, đọc cảnh báo
-trong [SCRIPTS.md](../SCRIPTS.md) trước khi dùng `scripts/k3s-purge.sh`.
+trong [SCRIPTS.md](../SCRIPTS.md) trước khi dùng `scripts/k3s-purge.sh`. Chế độ
+reset này cần Kubernetes API còn phản hồi; có thể xem trước bằng:
+
+```bash
+cd ~/continux
+bash scripts/k3s-purge.sh --dry-run
+```
+
+Nếu API không còn giao tiếp được và mục tiêu là gỡ K3s khỏi host hiện tại, dùng
+local uninstall. Chế độ này chạy script uninstall K3s chính thức nếu còn tồn tại
+và không cần Kubernetes API:
+
+```bash
+cd ~/continux
+sudo bash scripts/k3s-purge.sh --nuke --dry-run
+sudo bash scripts/k3s-purge.sh --nuke
+```
 
 Nếu cần xóa toàn bộ Continux khỏi host hiện tại, giữ Tailscale nhưng xóa K3s,
 CLI dự án, cấu hình cục bộ, bằng chứng demo và checkout repo, dùng `nuke.sh`.
