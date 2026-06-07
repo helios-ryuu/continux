@@ -360,4 +360,28 @@ Không bắt đầu replay nếu topic cũ hoặc đầu ra Iceberg cũ chưa đ
 
 ### 7.8. Cần Phá Môi Trường
 
-Không đặt lệnh reset trong luồng vận hành chính. Nếu thật sự cần reset cluster hoặc xóa K3s, đọc cảnh báo trong [SCRIPTS.md](../SCRIPTS.md) trước khi dùng `scripts/k3s-purge.sh`.
+Không đặt lệnh reset hoặc nuke trong luồng vận hành chính. Nếu chỉ cần chạy lại
+thực nghiệm, dùng `cleanup-runtime` và `cleanup-local` ở đầu tài liệu này.
+
+Nếu cần đưa cluster về trạng thái vừa cài K3s nhưng vẫn giữ node, đọc cảnh báo
+trong [SCRIPTS.md](../SCRIPTS.md) trước khi dùng `scripts/k3s-purge.sh`.
+
+Nếu cần xóa toàn bộ Continux khỏi host hiện tại, giữ Tailscale nhưng xóa K3s,
+CLI dự án, cấu hình cục bộ, bằng chứng demo và checkout repo, dùng `nuke.sh`.
+Lệnh mặc định chỉ dry-run:
+
+```bash
+cd ~/continux
+bash scripts/nuke.sh
+```
+
+Chạy thật trên từng host cần `sudo`, `--execute` và xác nhận
+`NUKE-CONTINUX`:
+
+```bash
+cd ~/continux
+sudo bash scripts/nuke.sh --execute
+```
+
+Script không SSH sang máy khác. Nếu phá toàn bộ bố trí ba node, chạy riêng trên
+`imac`, `continux-vps` và WSL `helios-pc`.

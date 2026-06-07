@@ -16,6 +16,7 @@ Tất cả script vận hành nằm trong `scripts/`. Repo chỉ giữ các scri
 | `partojsonl.py` | `imac` | Convert NYC TLC Yellow Taxi Parquet sang JSONL |
 | `../experiments/runners/demo.sh` | `imac` | Chạy thực nghiệm theo pha, thu bằng chứng và dọn dẹp an toàn |
 | `k3s-purge.sh` | K3s server có kubeconfig | Công cụ reset/phá hủy có chủ đích |
+| `nuke.sh` | Từng host Continux | Xóa toàn bộ trạng thái dự án trên host hiện tại, giữ Tailscale |
 
 ## `k3s-install-server-init.sh`
 
@@ -207,3 +208,39 @@ sudo bash scripts/k3s-purge.sh --nuke --yes
 ```
 
 Chỉ chạy `--nuke` khi đã quyết định phá cụm. Nếu cần phá toàn bộ cụm, chạy có kiểm soát trên từng node và xác nhận không còn cần dữ liệu cục bộ.
+
+## `nuke.sh`
+
+`nuke.sh` là mức phá môi trường host-local đầy đủ hơn `k3s-purge.sh --nuke`.
+Script này giữ nguyên Tailscale, nhưng xóa trạng thái Continux trên host hiện
+tại: K3s, cấu hình CNI/kubelet, drop-in WSL, rule UFW dành cho K3s/pod/service,
+CLI quản trị dự án, cấu hình Helm/Argo CD/MinIO client của user chạy setup,
+gói APT `redpanda`, `postgresql-client`, `python3-venv`, bằng chứng demo và
+checkout Continux.
+
+Mặc định chỉ dry-run, không xóa gì:
+
+```bash
+cd ~/continux
+bash scripts/nuke.sh
+```
+
+Chạy thật cần `sudo`, cờ `--execute` và xác nhận chính xác
+`NUKE-CONTINUX`:
+
+```bash
+cd ~/continux
+sudo bash scripts/nuke.sh --execute
+```
+
+Nếu chạy không tương tác, vẫn phải truyền `--execute`:
+
+```bash
+cd ~/continux
+sudo bash scripts/nuke.sh --execute --yes
+```
+
+Script chỉ xử lý node hiện tại, không SSH sang node khác. Nếu phá toàn bộ bố trí
+ba máy, chạy riêng trên `imac`, `continux-vps` và WSL `helios-pc`. Không dùng
+script này để dọn giữa hai lượt thực nghiệm; dùng runner cleanup trong
+[CLEANUP.md](./runbook/CLEANUP.md) cho luồng đó.
